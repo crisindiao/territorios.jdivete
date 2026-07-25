@@ -60,6 +60,7 @@ body.dark-mode{
 body.dark-mode #map .leaflet-tile-pane{filter:invert(92%) hue-rotate(180deg) brightness(0.92) contrast(0.92);}
 body.dark-mode.sat-mode #map .leaflet-tile-pane{filter:none;}
 body.dark-mode .search-overlay{background:var(--bg);}
+body.dark-mode .side-menu{background:var(--surface);}
 body.dark-mode .leaflet-popup-content-wrapper,body.dark-mode .leaflet-popup-tip{background:var(--surface);color:var(--text);}
 body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-content select{background:#26262f;color:var(--text);border:1px solid var(--border);}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -115,6 +116,47 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
   transition:transform .12s;
 }
 .nav-fab:active{transform:scale(0.93);}
+
+/* ── SIDE MENU (painel lateral) ── */
+.side-menu-backdrop{
+  position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:299;
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.side-menu-backdrop.show{opacity:1;pointer-events:auto;}
+.side-menu{
+  position:fixed;top:0;left:0;bottom:0;width:78%;max-width:300px;
+  background:var(--surface);z-index:300;
+  transform:translateX(-100%);transition:transform .22s ease;
+  display:flex;flex-direction:column;
+  box-shadow:4px 0 24px rgba(0,0,0,0.25);
+}
+.side-menu.show{transform:translateX(0);}
+.side-menu-header{
+  position:relative;background:var(--grad);padding:22px 16px 18px;flex-shrink:0;
+  display:flex;align-items:center;gap:12px;color:#fff;
+}
+.side-menu-header-avatar{
+  width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.18);
+  display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;overflow:hidden;
+}
+.side-menu-header-avatar img{width:100%;height:100%;object-fit:cover;}
+.side-menu-header-name{font-weight:700;font-size:0.95rem;}
+.side-menu-header-sub{font-size:0.72rem;color:rgba(255,255,255,0.75);margin-top:1px;}
+.side-menu-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 0;}
+.side-menu-item{
+  width:100%;display:flex;align-items:center;gap:16px;
+  padding:13px 20px;font-size:0.92rem;font-weight:500;color:var(--text);
+  transition:background .12s;text-align:left;
+}
+.side-menu-item:active{background:var(--purple-light);}
+.side-menu-item .smi-icon{width:24px;text-align:center;font-size:18px;flex-shrink:0;}
+.side-menu-item .smi-state{margin-left:auto;font-size:0.72rem;color:var(--text2);font-weight:600;}
+.side-menu-sep{height:1px;background:var(--border);margin:8px 0;}
+.side-menu-close{
+  position:absolute;top:18px;right:12px;width:34px;height:34px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;
+}
+.side-menu-close:active{background:rgba(255,255,255,0.18);}
 
 /* ── CHIP BAR (filtros de tipo) ── */
 .chipbar{
@@ -537,7 +579,7 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
 <!-- TOP BAR -->
 <div class="topbar">
   <div class="topbar-left">
-    <button class="menu-btn" onclick="openGlobalSearch()" title="Menu">☰</button>
+    <button class="menu-btn" onclick="openSideMenu()" title="Menu">☰</button>
     <div class="topbar-title">
       <strong>Jardim Ivete</strong>
       <span id="topbar-subtitle">Gestão de Território</span>
@@ -735,6 +777,30 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
   <div class="search-overlay-results" id="activityList"></div>
 </div>
 
+<!-- SIDE MENU -->
+<div class="side-menu-backdrop" id="sideMenuBackdrop" onclick="closeSideMenu()"></div>
+<div class="side-menu" id="sideMenu">
+  <div class="side-menu-header">
+    <button class="side-menu-close" onclick="closeSideMenu()">✕</button>
+    <div class="side-menu-header-avatar" id="sideMenuAvatar">👤</div>
+    <div>
+      <div class="side-menu-header-name" id="sideMenuName">Território Jardim Ivete</div>
+      <div class="side-menu-header-sub" id="sideMenuSub">Menu</div>
+    </div>
+  </div>
+  <div class="side-menu-body">
+    <button class="side-menu-item" onclick="closeSideMenu();openGlobalSearch()"><span class="smi-icon">🔍</span> Buscar</button>
+    <button class="side-menu-item" onclick="closeSideMenu();showActivityLog()"><span class="smi-icon">📜</span> Atividade recente</button>
+    <div class="side-menu-sep"></div>
+    <button class="side-menu-item" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
+    <button class="side-menu-item" onclick="closeSideMenu();document.getElementById('importFile').click()"><span class="smi-icon">📥</span> Importar dados</button>
+    <button class="side-menu-item" onclick="closeSideMenu();showMoreMenu()"><span class="smi-icon">🧹</span> Limpar cache</button>
+    <div class="side-menu-sep"></div>
+    <button class="side-menu-item" onclick="closeSideMenu();togglePresentationMode()"><span class="smi-icon">🖥</span> Modo apresentação</button>
+    <button class="side-menu-item" id="sideMenuDarkBtn" onclick="toggleDarkMode();updateSideMenuState()"><span class="smi-icon">🌙</span> Modo escuro <span class="smi-state" id="sideMenuDarkState"></span></button>
+  </div>
+</div>
+
 <!-- BOTTOM NAV -->
 <div class="bottom-nav">
   <button class="nav-item active" id="nav-inicio" onclick="setViewMode('home')">
@@ -752,7 +818,7 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
     <div class="nav-icon">📋</div>
     Lista
   </button>
-  <button class="nav-item" id="nav-mais" onclick="showMaisMenu()">
+  <button class="nav-item" id="nav-mais" onclick="openSideMenu()">
     <div class="nav-icon">···</div>
     Mais
   </button>
@@ -814,6 +880,7 @@ function undoLast() {
 }
 document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undoLast(); }
+  if (e.key === 'Escape') { closeSideMenu(); }
 });
 
 // ── MORE MENU ──
@@ -822,15 +889,30 @@ function showMoreMenu() {
     localStorage.removeItem(DATA_STORAGE); location.reload();
   }
 }
-function showMaisMenu() {
-  const choice = prompt('Mais opções:\n1 - Exportar dados\n2 - Importar dados\n3 - Limpar cache\n4 - 📜 Atividade recente\n5 - 🖥 Modo apresentação\n6 - 🌙 Modo escuro\n\nDigite o número:');
-  if (choice==='1') exportData();
-  else if (choice==='2') document.getElementById('importFile').click();
-  else if (choice==='3') showMoreMenu();
-  else if (choice==='4') showActivityLog();
-  else if (choice==='5') togglePresentationMode();
-  else if (choice==='6') toggleDarkMode();
+function openSideMenu() {
+  document.getElementById('sideMenu').classList.add('show');
+  document.getElementById('sideMenuBackdrop').classList.add('show');
+  updateSideMenuState();
 }
+function closeSideMenu() {
+  document.getElementById('sideMenu').classList.remove('show');
+  document.getElementById('sideMenuBackdrop').classList.remove('show');
+}
+function updateSideMenuState() {
+  const dark = document.body.classList.contains('dark-mode');
+  const stateEl = document.getElementById('sideMenuDarkState');
+  if (stateEl) stateEl.textContent = dark ? 'Ativado' : 'Desativado';
+  const nameEl = document.getElementById('sideMenuName');
+  const subEl = document.getElementById('sideMenuSub');
+  const avatarEl = document.getElementById('sideMenuAvatar');
+  if (currentUser && nameEl && subEl) {
+    nameEl.textContent = currentUser.displayName || currentUser.email || 'Território Jardim Ivete';
+    subEl.textContent = isAdmin ? '👑 Administradora' : 'Visitante';
+    if (avatarEl) avatarEl.innerHTML = currentUser.photoURL ? `<img src="${currentUser.photoURL}" alt="">` : '👤';
+  }
+}
+// Mantido por compatibilidade — agora abre o painel lateral
+function showMaisMenu() { openSideMenu(); }
 function togglePresentationMode() {
   const on = document.body.classList.toggle('presentation-mode');
   showSnack(on ? '🖥 Modo apresentação ativado — toque no ✕ pra sair' : '🖥 Modo apresentação desativado');
