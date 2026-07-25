@@ -1037,41 +1037,41 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     try { return await fetch(url, { ...options, signal: ctrl.signal }); }
     finally { clearTimeout(t); }
   }
-  // Checagem rápida: o app consegue nem alcançar o domínio do OpenStreetMap?
-  // Isso separa "bloqueio/DNS desse domínio específico" de "servidor lento/fila cheia".
-  async function alcancaOverpass() {
+  // Teste de conectividade GERAL (não do overpass) — usa o mesmo endpoint que o
+  // Android usa internamente pra checar internet. mode:'no-cors' funciona mesmo
+  // sem CORS, só serve pra saber se a rede de fato conecta em algum lugar.
+  async function temInternetGeral() {
     try {
-      const resp = await fetchComTimeout('https://overpass-api.de/api/status', {}, 7000);
-      return !!resp;
+      await fetchComTimeout('https://www.gstatic.com/generate_204', { mode: 'no-cors', cache: 'no-store' }, 5000);
+      return true;
     } catch (e) { return false; }
   }
   async function detectarCasasQuadra(qd) {
     const pts = qd.coords || [];
     if (pts.length < 3) return null;
-    const alcanca = await alcancaOverpass();
-    if (!alcanca) {
-      const err = new Error('Não consegui nem alcançar overpass-api.de — algo na sua rede (wifi/roteador/operadora) está bloqueando ou demorando demais pra esse domínio específico, mesmo com internet normal pros outros sites. Tente trocar entre wifi e dados móveis.');
-      err.tipo = 'bloqueio';
-      throw err;
-    }
     const polyStr = pts.map(p => `${p[0]} ${p[1]}`).join(' ');
     const query = `[out:json][timeout:25];(way["building"](poly:"${polyStr}");relation["building"](poly:"${polyStr}"););out count;`;
     let lastErr = null;
     for (const url of OVERPASS_ENDPOINTS) {
       try {
-        const resp = await fetchComTimeout(url, { method: 'POST', body: 'data=' + encodeURIComponent(query) }, 28000);
+        const resp = await fetchComTimeout(url, { method: 'POST', body: 'data=' + encodeURIComponent(query) }, 15000);
         if (!resp.ok) { lastErr = new Error('Servidor respondeu ' + resp.status); continue; }
         const data = await resp.json();
         const el = (data.elements || []).find(e => e.type === 'count');
         const total = el && el.tags ? parseInt(el.tags.total, 10) : 0;
         return isNaN(total) ? 0 : total;
       } catch (e) {
-        lastErr = (e && e.name === 'AbortError')
-          ? new Error('O domínio respondeu, mas essa consulta específica demorou demais (fila cheia no servidor gratuito do OpenStreetMap). Tente de novo em alguns minutos.')
-          : e;
+        lastErr = e;
       }
     }
-    throw lastErr || new Error('Falha desconhecida');
+    // Nenhum dos 3 servidores respondeu — descobre se é rede geral ou só esses domínios
+    const internetOk = await temInternetGeral();
+    if (!internetOk) {
+      const err = new Error('Sua internet parece indisponível agora (mesmo com sinal cheio na tela). Verifique a conexão e tente de novo.');
+      throw err;
+    }
+    const err = new Error('Sua internet está OK, mas nenhum dos 3 servidores do OpenStreetMap respondeu (overpass-api.de e espelhos) — pode ser bloqueio dessa rede específica a esses domínios, ou os servidores gratuitos estarem sobrecarregados agora. Tente outra rede (wifi ↔ dados móveis) pra confirmar, ou tente de novo em alguns minutos.');
+    throw err;
   }
 
   // ---------- Persistência local (salva automaticamente as edições no navegador) ----------
