@@ -973,7 +973,8 @@ function updateSideMenuState() {
 }
 function switchTerritoryPrompt() {
   if (!currentTerritoryConfig || !currentTerritoryConfig.canSwitchTerritory) return;
-  sessionStorage.removeItem('territorio-escolhido');
+  territoryActivatedThisSession = false;
+  closeSideMenu();
   document.getElementById('territoryPickerOverlay').style.display = 'flex';
 }
 // Mantido por compatibilidade — agora abre o painel lateral
@@ -2545,6 +2546,7 @@ renderHomeStats();
 
 // ── FIREBASE AUTH INIT ──
 // Aguarda o módulo Firebase carregar
+let territoryActivatedThisSession = false; // evita reabrir o seletor em re-disparos do onAuthStateChanged na mesma sessão
 // Ativa o território escolhido: define config efetiva, zera/repovoa os dados,
 // atualiza a UI e carrega os dados daquele território do Firebase.
 async function proceedWithTerritory(territoryKey) {
@@ -2552,7 +2554,7 @@ async function proceedWithTerritory(territoryKey) {
     || { docId: territoryKey === 'jardim-ivete' ? 'dados' : ('dados-' + territoryKey), label: territoryKey };
 
   currentTerritoryConfig = { ...currentTerritoryConfig, territory: territoryKey, docId: avail.docId, label: avail.label };
-  try { sessionStorage.setItem('territorio-escolhido', territoryKey); } catch(e) {}
+  territoryActivatedThisSession = true;
 
   const picker = document.getElementById('territoryPickerOverlay');
   if (picker) picker.style.display = 'none';
@@ -2649,12 +2651,12 @@ function initFirebaseAuth() {
       applyUserRole(user);
 
       if (cfg.canSwitchTerritory) {
-        // Usuária que pode alternar entre territórios: mostra a tela de escolha,
-        // a menos que já tenha escolhido um território nesta sessão.
-        let remembered = null;
-        try { remembered = sessionStorage.getItem('territorio-escolhido'); } catch(e) {}
-        if (remembered && window._fb.AVAILABLE_TERRITORIES[remembered]) {
-          await proceedWithTerritory(remembered);
+        // Usuária que pode alternar entre territórios: mostra sempre a tela de
+        // escolha a cada novo login. Só não reabre se o território já foi
+        // ativado nesta mesma sessão do app (ex.: onAuthStateChanged disparando
+        // de novo por um refresh de token, sem o usuário ter saído).
+        if (territoryActivatedThisSession && currentTerritoryConfig && currentTerritoryConfig.territory) {
+          await proceedWithTerritory(currentTerritoryConfig.territory);
         } else {
           if (picker) picker.style.display = 'flex';
           return; // aguarda o clique em um dos botões da tela de escolha
@@ -2672,7 +2674,7 @@ function initFirebaseAuth() {
       if (picker) picker.style.display = 'none';
       currentUser = null;
       isAdmin = false;
-      try { sessionStorage.removeItem('territorio-escolhido'); } catch(e) {}
+      territoryActivatedThisSession = false;
     }
   });
 
