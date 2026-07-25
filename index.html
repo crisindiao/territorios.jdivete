@@ -1917,64 +1917,140 @@ function drawImageCover(ctx, img, x, y, w, h) {
 }
 async function montarCartaoTemplate(qd, mapCanvas) {
   if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch(e){} }
-  const W = 1000, H = 1400;
+  // Resolução alta para ficar nítido mesmo impresso/ampliado
+  const SCALE = 2;
+  const W = 1000 * SCALE, H = 1400 * SCALE;
   const canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
+  ctx.scale(SCALE, SCALE);
+  const w = 1000, h = 1400; // coordenadas de desenho na escala lógica
 
+  // ── Fundo (papel) ──
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#e5c9c9';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(3, 3, w - 6, h - 6);
+  // faixa rosada no topo, como no modelo impresso
+  ctx.fillStyle = '#f7e2df';
+  ctx.fillRect(0, 0, w, 14);
 
-  const grad = ctx.createLinearGradient(0, 0, W, 0);
-  grad.addColorStop(0, '#6a2c91'); grad.addColorStop(1, '#3d1c5c');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, 200);
+  const territorioNome = (typeof currentTerritoryConfig !== 'undefined' && currentTerritoryConfig && currentTerritoryConfig.label) || '';
 
-  ctx.fillStyle = 'rgba(255,255,255,0.78)';
-  ctx.font = '600 24px Inter, sans-serif';
-  ctx.fillText('CARTÃO DE TERRITÓRIO', 40, 50);
+  // ── Título "Cartão de Mapa de Território" ──
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#1a1a1a';
+  ctx.font = '700 44px Georgia, "Times New Roman", serif';
+  ctx.fillText('Cartão de Mapa de Território', w / 2, 100);
+  ctx.textAlign = 'left';
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '800 60px Inter, sans-serif';
-  ctx.fillText('Mapa ' + (qd.mapa || ''), 40, 125);
+  // ── Linha "Localidade ......... Terr. N.° ....." ──
+  const lineY = 150;
+  ctx.font = '700 26px Georgia, serif';
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillText('Localidade', 40, lineY);
+  const locLabelW = ctx.measureText('Localidade ').width;
+  ctx.font = '400 24px Georgia, serif';
+  const localidadeTxt = territorioNome + (qd.nome ? ' — ' + qd.nome : '');
+  ctx.fillText(localidadeTxt, 40 + locLabelW + 8, lineY);
+  // pontilhado até perto do campo "Terr. N.°"
+  const dotsEndX = 760;
+  drawDottedLine(ctx, 40 + locLabelW + 8 + ctx.measureText(localidadeTxt).width + 8, lineY - 6, dotsEndX, lineY - 6);
 
-  const territorioNome = (typeof currentTerritoryConfig !== 'undefined' && currentTerritoryConfig && currentTerritoryConfig.label) || 'Território';
-  ctx.font = '500 25px Inter, sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,0.9)';
-  ctx.fillText(territorioNome + (qd.nome ? ' — ' + qd.nome : ''), 40, 168);
+  ctx.font = '700 26px Georgia, serif';
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillText('Terr. N.°', dotsEndX + 15, lineY);
+  const terrLabelW = ctx.measureText('Terr. N.° ').width;
+  ctx.font = '400 24px Georgia, serif';
+  const terrTxt = String(qd.mapa || '');
+  ctx.fillText(terrTxt, dotsEndX + 15 + terrLabelW + 6, lineY);
+  drawDottedLine(ctx, dotsEndX + 15 + terrLabelW + 6 + ctx.measureText(terrTxt).width + 6, lineY - 6, w - 40, lineY - 6);
 
-  const mapMarginX = 40, mapY = 230, mapH = 850;
-  const mapW = W - mapMarginX * 2;
-  roundRectPath(ctx, mapMarginX, mapY, mapW, mapH, 18);
-  ctx.save(); ctx.clip();
+  // ── Área do mapa (onde se "cola" o mapa da quadra) ──
+  const mapMarginX = 40, mapY = 195, mapH = 880;
+  const mapW = w - mapMarginX * 2;
+  ctx.strokeStyle = '#c9c9c9'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(mapMarginX, mapY, mapW, mapH);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(mapMarginX, mapY, mapW, mapH);
+  ctx.clip();
   drawImageCover(ctx, mapCanvas, mapMarginX, mapY, mapW, mapH);
   ctx.restore();
-  ctx.strokeStyle = '#e8e0f0'; ctx.lineWidth = 3;
-  roundRectPath(ctx, mapMarginX, mapY, mapW, mapH, 18); ctx.stroke();
+  ctx.strokeStyle = '#c9c9c9'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(mapMarginX, mapY, mapW, mapH);
 
-  let y = mapY + mapH + 55;
-  ctx.fillStyle = '#1a1a2e';
-  ctx.font = '700 30px Inter, sans-serif';
+  // ── Legenda "(Cole o mapa acima ou desenhe o território)" ──
+  let y = mapY + mapH + 34;
+  ctx.textAlign = 'center';
+  ctx.font = '700 15px Arial, sans-serif';
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillText('(Cole o mapa acima ou desenhe o território)', w / 2, y);
+  ctx.textAlign = 'left';
+
+  // ── Instrução do modelo impresso ──
+  y += 30;
+  ctx.font = '700 20px Georgia, serif';
+  ctx.fillStyle = '#1a1a1a';
+  const instrucao = 'Guarde este cartão no envelope. Tome cuidado para não o manchar, marcar ou dobrar. Cada vez que o território for coberto, queira informar disso o irmão que cuida do arquivo de territórios.';
+  y = wrapText(ctx, instrucao, mapMarginX, y, mapW, 27);
+
+  // ── Dados reais da quadra (informação prática, discreta, abaixo da nota) ──
+  y += 20;
+  ctx.font = '600 22px Arial, sans-serif';
+  ctx.fillStyle = '#374151';
   ctx.fillText(qd.grupo ? ('Grupo responsável: ' + qd.grupo) : 'Sem grupo atribuído', mapMarginX, y);
 
-  y += 44;
-  ctx.font = '500 24px Inter, sans-serif';
+  y += 32;
+  ctx.font = '400 20px Arial, sans-serif';
   ctx.fillStyle = '#6b7280';
   const perim = calcPerimetroQuadra(qd);
   const casasTxt = qd.casas ? `🏠 ${qd.casas} casas estimadas` : '';
   ctx.fillText(`📏 ~${perim}m de perímetro` + (casasTxt ? '   •   ' + casasTxt : ''), mapMarginX, y);
 
-  y += 42;
+  y += 30;
   const statusTxt = qd.coberta ? ('✓ Coberta' + (qd.coberturaData ? ' em ' + formatarDataBR(qd.coberturaData) : '')) : '○ Pendente de cobertura';
   ctx.fillStyle = qd.coberta ? '#16a34a' : '#d97706';
-  ctx.font = '600 24px Inter, sans-serif';
+  ctx.font = '600 20px Arial, sans-serif';
   ctx.fillText(statusTxt, mapMarginX, y);
 
-  ctx.fillStyle = '#9a9aa8';
-  ctx.font = '400 20px Inter, sans-serif';
-  ctx.fillText('Gerado em ' + new Date().toLocaleDateString('pt-BR'), mapMarginX, H - 30);
+  // ── Rodapé estilo modelo (S-12-T ... / Impresso no Brasil) ──
+  ctx.font = '400 16px Arial, sans-serif';
+  ctx.fillStyle = '#4b4b4b';
+  ctx.fillText('S-12-T   Gerado em ' + new Date().toLocaleDateString('pt-BR'), mapMarginX, h - 25);
+  ctx.textAlign = 'right';
+  ctx.fillText('Impresso no Brasil', w - 40, h - 25);
+  ctx.textAlign = 'left';
 
   return canvas;
+}
+function drawDottedLine(ctx, x1, y, x2, y2) {
+  ctx.save();
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3, 4]);
+  ctx.beginPath();
+  ctx.moveTo(x1, y);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  ctx.restore();
+}
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(' ');
+  let line = '';
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + ' ';
+    if (ctx.measureText(testLine).width > maxWidth && n > 0) {
+      ctx.fillText(line, x, y);
+      line = words[n] + ' ';
+      y += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line, x, y);
+  return y + lineHeight;
 }
 async function baixarCartaoQuadra(idx) {
   const qd = quadrasData[idx];
@@ -1992,14 +2068,23 @@ async function baixarCartaoQuadra(idx) {
   const prevZoom = map.getZoom();
   const originalStyle = { color: qd._layer.options.color, weight: qd._layer.options.weight, fillOpacity: qd._layer.options.fillOpacity };
 
+  // Esconde o contorno vermelho do território inteiro e as demais quadras,
+  // deixando visível apenas a quadra que está sendo capturada (visão limpa).
+  const hadTerritoryPoly = territoryPoly && map.hasLayer(territoryPoly);
+  if (hadTerritoryPoly) map.removeLayer(territoryPoly);
+  const otherQuadrasHidden = [];
+  quadrasData.forEach((q, i) => {
+    if (i !== idx && q._layer && map.hasLayer(q._layer)) { map.removeLayer(q._layer); otherQuadrasHidden.push(q._layer); }
+  });
+
   try {
-    qd._layer.setStyle({ color: '#d93025', weight: (qd.weight || 3) + 3, fillOpacity: 0.12 });
+    qd._layer.setStyle({ color: '#1967d2', weight: (qd.weight || 3) + 3, fillColor: '#ffd54a', fillOpacity: 0.28 });
     qd._layer.bringToFront();
     map.fitBounds(qd._layer.getBounds(), { padding: [50, 50], maxZoom: 19, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
     await new Promise(r => setTimeout(r, 900)); // espera os tiles carregarem/renderizarem
 
-    const mapCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#fff' });
+    const mapCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#fff', scale: Math.max(2, window.devicePixelRatio || 1) });
     const cardCanvas = await montarCartaoTemplate(qd, mapCanvas);
     const url = cardCanvas.toDataURL('image/png');
     const a = document.createElement('a');
@@ -2011,6 +2096,8 @@ async function baixarCartaoQuadra(idx) {
     showSnack('⚠️ Não foi possível capturar o mapa (restrição do provedor de imagens). Tente novamente em alguns instantes.', 7000);
   } finally {
     qd._layer.setStyle(originalStyle);
+    if (hadTerritoryPoly) territoryPoly.addTo(map);
+    otherQuadrasHidden.forEach(l => l.addTo(map));
     map.setView(prevCenter, prevZoom, { animate: false });
   }
 }
