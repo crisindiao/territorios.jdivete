@@ -973,7 +973,6 @@ function updateSideMenuState() {
 }
 function switchTerritoryPrompt() {
   if (!currentTerritoryConfig || !currentTerritoryConfig.canSwitchTerritory) return;
-  territoryActivatedThisSession = false;
   closeSideMenu();
   document.getElementById('territoryPickerOverlay').style.display = 'flex';
 }
@@ -1603,6 +1602,7 @@ function toggleSatellite() {
 }
 const territoryPoly = L.polygon(territoryCoords, { color: '#d93025', weight: 3, fillColor: '#d93025', fillOpacity: 0.07, dashArray: '10,6' }).addTo(map);
 let mapFitted = false; // evita fitBounds enquanto o #map ainda está com display:none (tamanho 0x0)
+let currentBoundaryPoly = territoryPoly; // contorno do território ativo no momento (usado pelo fitBounds)
 
 let editMode = false;
 let activeTab = 'grupos';
@@ -2140,7 +2140,7 @@ function setViewMode(mode) {
     if (editMode) document.getElementById('fabBtn').style.display = 'flex';
     setTimeout(()=>{
       map.invalidateSize();
-      if (!mapFitted) { map.fitBounds(territoryPoly.getBounds(), { padding: [20, 20] }); mapFitted = true; }
+      if (!mapFitted) { map.fitBounds(currentBoundaryPoly.getBounds(), { padding: [20, 20] }); mapFitted = true; }
     }, 50);
   } else if (mode==='lista') {
     document.getElementById('listView').classList.add('show');
@@ -2546,7 +2546,7 @@ renderHomeStats();
 
 // ── FIREBASE AUTH INIT ──
 // Aguarda o módulo Firebase carregar
-let territoryActivatedThisSession = false; // evita reabrir o seletor em re-disparos do onAuthStateChanged na mesma sessão
+const TERRITORY_CHOICE_STORAGE = 'territorio-master-escolhido'; // lembra a última escolha entre sessões
 // Ativa o território escolhido: define config efetiva, zera/repovoa os dados,
 // atualiza a UI e carrega os dados daquele território do Firebase.
 async function proceedWithTerritory(territoryKey) {
@@ -2554,7 +2554,10 @@ async function proceedWithTerritory(territoryKey) {
     || { docId: territoryKey === 'jardim-ivete' ? 'dados' : ('dados-' + territoryKey), label: territoryKey };
 
   currentTerritoryConfig = { ...currentTerritoryConfig, territory: territoryKey, docId: avail.docId, label: avail.label };
-  territoryActivatedThisSession = true;
+  // Lembra a escolha pra próxima vez que abrir o app (não precisa selecionar de novo)
+  if (currentTerritoryConfig.canSwitchTerritory) {
+    try { localStorage.setItem(TERRITORY_CHOICE_STORAGE, territoryKey); } catch(e) {}
+  }
 
   const picker = document.getElementById('territoryPickerOverlay');
   if (picker) picker.style.display = 'none';
@@ -2606,12 +2609,16 @@ async function proceedWithTerritory(territoryKey) {
 function restoreIveteBoundary() {
   if (typeof conceicaoPoly !== 'undefined' && conceicaoPoly) { map.removeLayer(conceicaoPoly); conceicaoPoly = null; }
   if (territoryPoly && !map.hasLayer(territoryPoly)) territoryPoly.addTo(map);
+  currentBoundaryPoly = territoryPoly;
+  // Mesma lógica: só ajusta o zoom na hora se o mapa já estiver visível.
   mapFitted = false;
-  setTimeout(() => {
-    map.invalidateSize();
-    map.fitBounds(territoryPoly.getBounds(), { padding: [20, 20] });
-    mapFitted = true;
-  }, 300);
+  if (viewMode === 'mapa' && document.getElementById('map').style.display !== 'none') {
+    setTimeout(() => {
+      map.invalidateSize();
+      map.fitBounds(territoryPoly.getBounds(), { padding: [20, 20] });
+      mapFitted = true;
+    }, 300);
+  }
 }
 
 function initFirebaseAuth() {
@@ -2653,12 +2660,14 @@ function initFirebaseAuth() {
       applyUserRole(user);
 
       if (cfg.canSwitchTerritory) {
-        // Usuária que pode alternar entre territórios: mostra sempre a tela de
-        // escolha a cada novo login. Só não reabre se o território já foi
-        // ativado nesta mesma sessão do app (ex.: onAuthStateChanged disparando
-        // de novo por um refresh de token, sem o usuário ter saído).
-        if (territoryActivatedThisSession && currentTerritoryConfig && currentTerritoryConfig.territory) {
-          await proceedWithTerritory(currentTerritoryConfig.territory);
+        // Usuária que pode alternar entre territórios (a "master"): entra direto
+        // no último território escolhido (lembrado entre sessões). O seletor só
+        // aparece se ainda não houver nenhuma escolha salva — depois disso, pra
+        // trocar é só usar "Trocar território" no menu lateral.
+        let remembered = null;
+        try { remembered = localStorage.getItem(TERRITORY_CHOICE_STORAGE); } catch(e) {}
+        if (remembered && window._fb.AVAILABLE_TERRITORIES[remembered]) {
+          await proceedWithTerritory(remembered);
         } else {
           if (picker) picker.style.display = 'flex';
           return; // aguarda o clique em um dos botões da tela de escolha
@@ -2676,7 +2685,6 @@ function initFirebaseAuth() {
       if (picker) picker.style.display = 'none';
       currentUser = null;
       isAdmin = false;
-      territoryActivatedThisSession = false;
     }
   });
 
@@ -2715,13 +2723,19 @@ function loadTerritoryBoundary(territory) {
       color: '#1971c2', weight: 3, fillColor: '#1971c2',
       fillOpacity: 0.07, dashArray: '10,6'
     }).addTo(map);
-    // Ajusta o fit do mapa
+    currentBoundaryPoly = conceicaoPoly;
+    // Só ajusta o zoom agora se o mapa já estiver visível na tela; caso contrário,
+    // fitBounds com o container escondido (display:none) calcula um zoom/posição
+    // errado. Deixamos mapFitted=false para que setViewMode('mapa') faça o fit
+    // certo assim que a aba Mapa for aberta.
     mapFitted = false;
-    setTimeout(() => {
-      map.invalidateSize();
-      map.fitBounds(conceicaoPoly.getBounds(), { padding: [20, 20] });
-      mapFitted = true;
-    }, 300);
+    if (viewMode === 'mapa' && document.getElementById('map').style.display !== 'none') {
+      setTimeout(() => {
+        map.invalidateSize();
+        map.fitBounds(conceicaoPoly.getBounds(), { padding: [20, 20] });
+        mapFitted = true;
+      }, 300);
+    }
     // Atualiza topbar
     document.querySelector('.topbar-title strong').textContent = 'Jardim Conceição';
     document.getElementById('topbar-subtitle').textContent = 'Gestão de Território';
