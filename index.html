@@ -487,9 +487,14 @@ body.presentation-mode .presentation-exit-btn{display:flex;}
 .btn-cancelar-draw{background:var(--error);color:white;}
 
 /* ── LEGEND ── */
-.legend{position:fixed;bottom:calc(var(--nav-h) + 12px);left:12px;z-index:190;background:var(--surface);border-radius:var(--r);box-shadow:var(--sh2);padding:10px 14px;font-size:0.73rem;line-height:1.75;max-width:46vw;max-height:35vh;overflow-y:auto;border:1.5px solid var(--border);}
-.legend-title{font-weight:700;font-size:0.76rem;color:var(--text);margin-bottom:4px;display:block;}
-.legend .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle;border:1px solid white;box-shadow:0 0 0 1px rgba(0,0,0,0.15);}
+.legend{position:fixed;bottom:calc(var(--nav-h) + 12px);left:12px;z-index:190;background:var(--surface);border-radius:var(--r);box-shadow:var(--sh2);padding:8px 12px;font-size:0.68rem;line-height:1.6;max-width:62vw;max-height:22vh;overflow-y:auto;border:1.5px solid var(--border);}
+.legend-title{font-weight:700;font-size:0.72rem;color:var(--text);margin-bottom:3px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;}
+.legend .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle;border:1px solid white;box-shadow:0 0 0 1px rgba(0,0,0,0.15);flex-shrink:0;}
+.legend > div{display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.legend.collapsed{max-height:32px;overflow:hidden;padding:8px 12px;}
+.legend.collapsed .legend-title{margin-bottom:0;}
+.legend-toggle{font-size:0.7rem;color:var(--text2);flex-shrink:0;transition:transform .15s;}
+.legend.collapsed .legend-toggle{transform:rotate(180deg);}
 
 /* ── COBERTURA ── */
 .cobertura-badge{display:inline-flex;align-items:center;gap:4px;font-size:0.74rem;font-weight:700;border-radius:8px;padding:4px 10px;margin-bottom:8px;width:fit-content;}
@@ -1873,13 +1878,15 @@ function switchTab(name, btn) {
 // ── LEGEND ──
 function updateLegend() {
   const box = document.getElementById('legendBox'); let html='';
-  if (activeTab==='grupos') { html='<span class="legend-title">Saídas de campo</span>'; saidasData.forEach(s=>html+=`<div style="${activeSaidaGrupoFilter&&activeSaidaGrupoFilter!==s.grupo?'opacity:0.3':''}"><span class="dot" style="background:${s.cor}"></span>${s.grupo} — ${s.nome}</div>`); if (activeSaidaGrupoFilter) html+=`<div style="margin-top:4px;font-size:0.68rem;color:#5f6368">Filtro: ${activeSaidaGrupoFilter}</div>`; }
-  if (activeTab==='publicadores') { html='<span class="legend-title">Grupos</span>'; Object.entries(groupColors).forEach(([g,c])=>html+=`<div style="${activeGroupFilter&&activeGroupFilter!==g?'opacity:0.3':''}"><span class="dot" style="background:${c}"></span>${g}</div>`); if (activeGroupFilter) html+=`<div style="margin-top:4px;font-size:0.68rem;color:#5f6368">Filtro: ${activeGroupFilter}</div>`; }
-  if (activeTab==='comercios') { html='<span class="legend-title">Comércios</span><div style="font-size:0.7rem;color:#5f6368">Toque num ponto</div>'; }
-  if (activeTab==='condominios') { html='<span class="legend-title">Condomínios</span><div style="font-size:0.7rem;color:#5f6368">Toque num ponto</div>'; }
+  const toggleAttr = `onclick="toggleLegendCollapse()"`;
+  const arrow = `<span class="legend-toggle">▾</span>`;
+  if (activeTab==='grupos') { html=`<span class="legend-title" ${toggleAttr}>Saídas de campo${arrow}</span>`; saidasData.forEach(s=>html+=`<div style="${activeSaidaGrupoFilter&&activeSaidaGrupoFilter!==s.grupo?'opacity:0.3':''}"><span class="dot" style="background:${s.cor}"></span>${s.grupo} — ${s.nome}</div>`); if (activeSaidaGrupoFilter) html+=`<div style="margin-top:4px;font-size:0.68rem;color:#5f6368">Filtro: ${activeSaidaGrupoFilter}</div>`; }
+  if (activeTab==='publicadores') { html=`<span class="legend-title" ${toggleAttr}>Grupos${arrow}</span>`; Object.entries(groupColors).forEach(([g,c])=>html+=`<div style="${activeGroupFilter&&activeGroupFilter!==g?'opacity:0.3':''}"><span class="dot" style="background:${c}"></span>${g}</div>`); if (activeGroupFilter) html+=`<div style="margin-top:4px;font-size:0.68rem;color:#5f6368">Filtro: ${activeGroupFilter}</div>`; }
+  if (activeTab==='comercios') { html=`<span class="legend-title" ${toggleAttr}>Comércios${arrow}</span><div style="font-size:0.7rem;color:#5f6368">Toque num ponto</div>`; }
+  if (activeTab==='condominios') { html=`<span class="legend-title" ${toggleAttr}>Condomínios${arrow}</span><div style="font-size:0.7rem;color:#5f6368">Toque num ponto</div>`; }
   if (activeTab==='quadras') {
     if (quadraCatMode==='grupo') {
-      html='<span class="legend-title">Quadras por grupo</span>';
+      html=`<span class="legend-title" ${toggleAttr}>Quadras por grupo${arrow}</span>`;
       const semGrupo = quadrasData.filter(qd=>!qd.grupo).length;
       if (!quadrasData.length) html+='<div style="font-size:0.7rem;color:#9aa0a6;margin-top:4px">Nenhuma quadra ainda</div>';
       else {
@@ -1891,14 +1898,14 @@ function updateLegend() {
       const total = quadrasData.length;
       const feitas = quadrasData.filter(qd=>qd.coberta).length;
       const pct = total ? Math.round((feitas/total)*100) : 0;
-      html = '<span class="legend-title">Cobertura de território</span>';
+      html = `<span class="legend-title" ${toggleAttr}>Cobertura de território${arrow}</span>`;
       if (!total) html += '<div style="font-size:0.7rem;color:#9aa0a6;margin-top:4px">Nenhuma quadra ainda</div>';
       else {
         html += `<div style="margin:4px 0 6px 0"><div style="background:#e0d5eb;border-radius:6px;height:8px;overflow:hidden;width:140px"><div style="background:${CORES_COBERTURA.feita};height:100%;width:${pct}%"></div></div><div style="font-size:0.7rem;color:#5f6368;margin-top:3px">${feitas} de ${total} quadras (${pct}%)</div></div>`;
         html += `<div><span class="dot" style="background:${CORES_COBERTURA.feita}"></span>Coberta</div><div><span class="dot" style="background:${CORES_COBERTURA.pendente}"></span>Pendente</div>`;
       }
     } else {
-      html='<span class="legend-title">Quadras por mapa</span>';
+      html=`<span class="legend-title" ${toggleAttr}>Quadras por mapa${arrow}</span>`;
       const nums={}; quadrasData.forEach(qd=>{if(!nums[qd.mapa]) nums[qd.mapa]=qd.cor||getColorForMapa(qd.mapa);});
       if (!Object.keys(nums).length) html+='<div style="font-size:0.7rem;color:#9aa0a6;margin-top:4px">Nenhuma quadra ainda</div>';
       else Object.entries(nums).forEach(([n,c])=>html+=`<div style="${activeMapaFilter&&activeMapaFilter!==n?'opacity:0.3':''}"><span class="dot" style="background:${c}"></span>Mapa ${n}</div>`);
@@ -1906,6 +1913,9 @@ function updateLegend() {
     }
   }
   box.innerHTML = html || '<span style="color:#9aa0a6">Nenhuma camada ativa</span>';
+}
+function toggleLegendCollapse() {
+  document.getElementById('legendBox').classList.toggle('collapsed');
 }
 
 // ── EDIT MODE ──
