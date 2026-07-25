@@ -578,6 +578,17 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
   <div class="auth-loading" id="authLoading" style="display:none">Verificando...</div>
 </div>
 
+<!-- TERRITORY PICKER OVERLAY (aparece só p/ quem pode alternar território) -->
+<div id="territoryPickerOverlay" style="display:none;position:fixed;inset:0;z-index:9998;background:var(--grad);align-items:center;justify-content:center;flex-direction:column;gap:24px;padding:32px;">
+  <div class="auth-card">
+    <div class="auth-logo">🗺️</div>
+    <div class="auth-title">Escolha o território</div>
+    <div class="auth-sub">Selecione qual território você quer visualizar e gerenciar agora.</div>
+    <button class="btn-google" id="btnPickIvete" style="margin-bottom:10px;">🏘️ Jardim Ivete</button>
+    <button class="btn-google" id="btnPickConceicao">🏘️ Jardim Conceição</button>
+  </div>
+</div>
+
 <!-- LIGHTBOX -->
 <div id="imgLightbox">
   <button type="button" class="lightbox-close" id="lightboxClose">✕</button>
@@ -798,6 +809,7 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
   <div class="side-menu-body">
     <button class="side-menu-item" onclick="closeSideMenu();openGlobalSearch()"><span class="smi-icon">🔍</span> Buscar</button>
     <button class="side-menu-item" onclick="closeSideMenu();showActivityLog()"><span class="smi-icon">📜</span> Atividade recente</button>
+    <button class="side-menu-item" id="sideMenuSwitchTerritory" style="display:none" onclick="switchTerritoryPrompt()"><span class="smi-icon">🔁</span> Trocar território</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
     <button class="side-menu-item" onclick="closeSideMenu();document.getElementById('importFile').click()"><span class="smi-icon">📥</span> Importar dados</button>
@@ -872,11 +884,19 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
   };
 
   const ADMIN_EMAIL = "crystiam.vanessa@gmail.com"; // admin principal (compatibilidade)
+
+  // Territórios que existem no sistema e para onde apontam os dados (Firestore docId + rótulo).
+  // Usado pela tela de seleção de território (para quem tem canSwitchTerritory: true).
+  const AVAILABLE_TERRITORIES = {
+    "jardim-ivete": { docId: "dados", label: "Jardim Ivete" },
+    "jardim-conceicao": { docId: "dados-jd-conceicao", label: "Jardim Conceição" }
+  };
+
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
   const provider = new GoogleAuthProvider();
-  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, ADMIN_EMAIL, TERRITORY_CONFIG };
+  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, ADMIN_EMAIL, TERRITORY_CONFIG, AVAILABLE_TERRITORIES };
 </script>
 
 <script>
@@ -948,6 +968,13 @@ function updateSideMenuState() {
     subEl.textContent = roleLabel;
     if (avatarEl) avatarEl.innerHTML = currentUser.photoURL ? `<img src="${currentUser.photoURL}" alt="">` : '👤';
   }
+  const switchBtn = document.getElementById('sideMenuSwitchTerritory');
+  if (switchBtn) switchBtn.style.display = (currentTerritoryConfig && currentTerritoryConfig.canSwitchTerritory) ? 'flex' : 'none';
+}
+function switchTerritoryPrompt() {
+  if (!currentTerritoryConfig || !currentTerritoryConfig.canSwitchTerritory) return;
+  sessionStorage.removeItem('territorio-escolhido');
+  document.getElementById('territoryPickerOverlay').style.display = 'flex';
 }
 // Mantido por compatibilidade — agora abre o painel lateral
 function showMaisMenu() { openSideMenu(); }
@@ -983,6 +1010,32 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     { id: 'bondade', grupo: "Bondade", nome: "Casa do Juarez", endereco: "", cor: "#f08c00", lat: -23.5502987, lng: -46.809897 },
     { id: 'paciencia', grupo: "Paciência", nome: "Casa da Elza", endereco: "", cor: "#9c36b5", lat: -23.5449, lng: -46.8081435 },
   ];
+
+  // ---------- BACKUP DOS DADOS PADRÃO (Jardim Ivete) ----------
+  // Os arrays acima (comerciosData, condominiosData, publicadoresData, saidasData) vêm
+  // pré-carregados com os dados reais do Jardim Ivete. Quando outro território é selecionado
+  // (ex.: Jardim Conceição), esses arrays precisam ficar em branco até que os dados daquele
+  // território (Firestore) ou a busca automática no mapa (Overpass) os preencham.
+  // Guardamos uma cópia aqui para poder restaurar o Jardim Ivete ao trocar de volta.
+  const DEFAULT_SAIDAS = JSON.parse(JSON.stringify(saidasData));
+  const DEFAULT_COMERCIOS = JSON.parse(JSON.stringify(comerciosData));
+  const DEFAULT_CONDOMINIOS = JSON.parse(JSON.stringify(condominiosData));
+  const DEFAULT_PUBLICADORES = JSON.parse(JSON.stringify(publicadoresData));
+
+  function resetDatasetForTerritory(territory) {
+    saidasData.length = 0;
+    comerciosData.length = 0;
+    condominiosData.length = 0;
+    publicadoresData.length = 0;
+    if (territory === 'jardim-ivete') {
+      DEFAULT_SAIDAS.forEach(x => saidasData.push(x));
+      DEFAULT_COMERCIOS.forEach(x => comerciosData.push(x));
+      DEFAULT_CONDOMINIOS.forEach(x => condominiosData.push(x));
+      DEFAULT_PUBLICADORES.forEach(x => publicadoresData.push(x));
+    }
+    // Outros territórios (ex.: jardim-conceicao) começam em branco — os dados vêm do
+    // Firestore daquele território (se já houver algo salvo) ou da importação automática.
+  }
 
   const groupColors = { "Amor": "#e03131", "Paz": "#1971c2", "Alegria": "#2f9e44", "Bondade": "#f08c00", "Paciência": "#9c36b5" };
 
@@ -2492,6 +2545,71 @@ renderHomeStats();
 
 // ── FIREBASE AUTH INIT ──
 // Aguarda o módulo Firebase carregar
+// Ativa o território escolhido: define config efetiva, zera/repovoa os dados,
+// atualiza a UI e carrega os dados daquele território do Firebase.
+async function proceedWithTerritory(territoryKey) {
+  const avail = (window._fb.AVAILABLE_TERRITORIES && window._fb.AVAILABLE_TERRITORIES[territoryKey])
+    || { docId: territoryKey === 'jardim-ivete' ? 'dados' : ('dados-' + territoryKey), label: territoryKey };
+
+  currentTerritoryConfig = { ...currentTerritoryConfig, territory: territoryKey, docId: avail.docId, label: avail.label };
+  try { sessionStorage.setItem('territorio-escolhido', territoryKey); } catch(e) {}
+
+  const picker = document.getElementById('territoryPickerOverlay');
+  if (picker) picker.style.display = 'none';
+
+  // Zera os dados em memória e só repovoa com os padrões se for o Jardim Ivete —
+  // assim nenhum território "herda" dados de outro enquanto o Firestore não carrega.
+  resetDatasetForTerritory(territoryKey);
+
+  const topbarTitle = document.querySelector('.topbar-title strong');
+  if (topbarTitle) topbarTitle.textContent = currentTerritoryConfig.label;
+  document.title = 'Território ' + currentTerritoryConfig.label;
+
+  const adminBadgeEl = document.getElementById('adminBadge');
+  if (currentTerritoryConfig.role === 'admin') {
+    adminBadgeEl.style.display = 'inline';
+    adminBadgeEl.textContent = 'ADMIN';
+    adminBadgeEl.style.background = '#ffd700';
+    showSnack('👑 Bem-vinda, administradora! — ' + currentTerritoryConfig.label);
+  } else if (currentTerritoryConfig.role === 'editor') {
+    adminBadgeEl.style.display = 'inline';
+    adminBadgeEl.textContent = 'EDITOR';
+    adminBadgeEl.style.background = '#4CAF50';
+    showSnack('✏️ Logado como editor — ' + currentTerritoryConfig.label);
+  } else {
+    adminBadgeEl.style.display = 'none';
+    showSnack('✓ Logado como visitante — somente visualização');
+  }
+
+  // Carrega dados do território correto no Firebase (sobrepõe os padrões se houver algo salvo)
+  await loadState();
+
+  if (territoryKey === 'jardim-conceicao') {
+    await loadTerritoryBoundary('jardim-conceicao');
+    await autoImportOverpass();
+  } else if (territoryKey === 'jardim-ivete') {
+    restoreIveteBoundary();
+  }
+
+  // Garante que mapa/popups reflitam os dados e o papel já definidos
+  renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras();
+  updateLegend(); renderList(); renderHomeStats();
+  updateSideMenuState();
+}
+
+// Restaura o contorno original do Jardim Ivete no mapa (caso o usuário tenha
+// trocado para outro território e volte para o Jardim Ivete).
+function restoreIveteBoundary() {
+  if (typeof conceicaoPoly !== 'undefined' && conceicaoPoly) { map.removeLayer(conceicaoPoly); conceicaoPoly = null; }
+  if (territoryPoly && !map.hasLayer(territoryPoly)) territoryPoly.addTo(map);
+  mapFitted = false;
+  setTimeout(() => {
+    map.invalidateSize();
+    map.fitBounds(territoryPoly.getBounds(), { padding: [20, 20] });
+    mapFitted = true;
+  }, 300);
+}
+
 function initFirebaseAuth() {
   if (!window._fb) { setTimeout(initFirebaseAuth, 100); return; }
   const { auth, onAuthStateChanged, signInWithPopup, provider, ADMIN_EMAIL } = window._fb;
@@ -2503,7 +2621,7 @@ function initFirebaseAuth() {
     const badge = document.getElementById('userBadge');
     const photo = document.getElementById('userPhoto');
     const nameEl = document.getElementById('userName');
-    const adminBadgeEl = document.getElementById('adminBadge');
+    const picker = document.getElementById('territoryPickerOverlay');
 
     if (user) {
       // Verifica se o e-mail tem acesso configurado
@@ -2527,48 +2645,34 @@ function initFirebaseAuth() {
       badge.style.display = 'flex';
       updateHomeGreeting(user);
 
-      // Define papel e território
+      // Define papel base e território padrão (pode ser sobrescrito abaixo)
       applyUserRole(user);
 
-      // Atualiza título do app com o território
-      const topbarTitle = document.querySelector('.topbar-title strong');
-      if (topbarTitle && cfg.label) topbarTitle.textContent = cfg.label;
-      document.title = 'Território ' + cfg.label;
-
-      // Snack de boas-vindas com papel
-      if (cfg.role === 'admin') {
-        adminBadgeEl.style.display = 'inline';
-        showSnack('👑 Bem-vinda, administradora!');
-      } else if (cfg.role === 'editor') {
-        adminBadgeEl.style.display = 'inline';
-        adminBadgeEl.textContent = 'EDITOR';
-        adminBadgeEl.style.background = '#4CAF50';
-        showSnack('✏️ Logado como editor — ' + cfg.label);
+      if (cfg.canSwitchTerritory) {
+        // Usuária que pode alternar entre territórios: mostra a tela de escolha,
+        // a menos que já tenha escolhido um território nesta sessão.
+        let remembered = null;
+        try { remembered = sessionStorage.getItem('territorio-escolhido'); } catch(e) {}
+        if (remembered && window._fb.AVAILABLE_TERRITORIES[remembered]) {
+          await proceedWithTerritory(remembered);
+        } else {
+          if (picker) picker.style.display = 'flex';
+          return; // aguarda o clique em um dos botões da tela de escolha
+        }
       } else {
-        adminBadgeEl.style.display = 'none';
-        showSnack('✓ Logado como visitante — somente visualização');
+        // Usuária com território fixo (ex.: editora do Jardim Conceição)
+        await proceedWithTerritory(cfg.territory);
       }
-
-      // Carrega dados do território correto no Firebase
-      await loadState();
-
-      // Se é o admin principal do Jd. Conceição, roda busca automática Overpass (1ª vez apenas)
-      if (cfg.territory === 'jardim-conceicao') {
-        await loadTerritoryBoundary('jardim-conceicao');
-        await autoImportOverpass();
-      }
-
-      // Garante que mapa/popups reflitam o papel já definido
-      renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras();
-      updateLegend(); renderList(); renderHomeStats();
 
     } else {
       // Não logado — mostra tela de login
       overlay.classList.remove('hidden');
       loading.style.display = 'none';
       badge.style.display = 'none';
+      if (picker) picker.style.display = 'none';
       currentUser = null;
       isAdmin = false;
+      try { sessionStorage.removeItem('territorio-escolhido'); } catch(e) {}
     }
   });
 
@@ -2583,6 +2687,12 @@ function initFirebaseAuth() {
       alert('Erro ao fazer login: ' + e.message);
     }
   };
+
+  // Botões da tela de escolha de território
+  const btnIvete = document.getElementById('btnPickIvete');
+  const btnConceicao = document.getElementById('btnPickConceicao');
+  if (btnIvete) btnIvete.onclick = () => proceedWithTerritory('jardim-ivete');
+  if (btnConceicao) btnConceicao.onclick = () => proceedWithTerritory('jardim-conceicao');
 }
 
 // ── MULTI-TERRITÓRIO: POLÍGONOS ADICIONAIS ──
