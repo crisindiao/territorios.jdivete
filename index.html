@@ -2013,7 +2013,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 12px monospace';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-e id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  const debugTxt = `build:2026-07-25-f-canvasfix id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
   ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
   ctx.restore();
   let y = mapY + mapH + 34;
@@ -2138,6 +2138,12 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
 
     // SÓ AGORA, com o mapa já parado no lugar certo, adicionamos o contorno.
     highlightPoly = L.polygon(qd.coords, {
+      // Renderer Canvas (em vez do SVG padrão do Leaflet): o html2canvas
+      // captura elementos <canvas> lendo os pixels diretamente, enquanto a
+      // captura de formas SVG dentro dos panes do Leaflet é instável e pode
+      // sair deslocada/duplicada no cartão exportado. Isso resolve a causa
+      // raiz do deslocamento, além do reforço manual desenhado mais abaixo.
+      renderer: L.canvas({ padding: 0.5 }),
       color: '#e6007a', weight: (qd.weight || 3) + 2, fillColor: '#ffd54a', fillOpacity: 0.28, opacity: 1
     }).addTo(map);
     highlightPoly.bringToFront();
