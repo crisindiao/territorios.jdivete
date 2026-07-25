@@ -811,7 +811,6 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
     <button class="side-menu-item" onclick="closeSideMenu();openGlobalSearch()"><span class="smi-icon">🔍</span> Buscar</button>
     <button class="side-menu-item" onclick="closeSideMenu();showActivityLog()"><span class="smi-icon">📜</span> Atividade recente</button>
     <button class="side-menu-item" id="sideMenuSwitchTerritory" style="display:none" onclick="switchTerritoryPrompt()"><span class="smi-icon">🔁</span> Trocar território</button>
-    <button class="side-menu-item" id="sideMenuImportOSM" style="display:none" onclick="closeSideMenu();forcarImportOverpass()"><span class="smi-icon">🗺️</span> Buscar prédios/comércios (OSM)</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
     <button class="side-menu-item" onclick="closeSideMenu();document.getElementById('importFile').click()"><span class="smi-icon">📥</span> Importar dados</button>
@@ -972,8 +971,6 @@ function updateSideMenuState() {
   }
   const switchBtn = document.getElementById('sideMenuSwitchTerritory');
   if (switchBtn) switchBtn.style.display = (currentTerritoryConfig && currentTerritoryConfig.canSwitchTerritory) ? 'flex' : 'none';
-  const importOsmBtn = document.getElementById('sideMenuImportOSM');
-  if (importOsmBtn) importOsmBtn.style.display = (isAdmin && currentTerritoryConfig && currentTerritoryConfig.territory === 'jardim-conceicao') ? 'flex' : 'none';
 }
 function switchTerritoryPrompt() {
   if (!currentTerritoryConfig || !currentTerritoryConfig.canSwitchTerritory) return;
@@ -1019,7 +1016,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
   // Os arrays acima (comerciosData, condominiosData, publicadoresData, saidasData) vêm
   // pré-carregados com os dados reais do Jardim Ivete. Quando outro território é selecionado
   // (ex.: Jardim Conceição), esses arrays precisam ficar em branco até que os dados daquele
-  // território (Firestore) ou a busca automática no mapa (Overpass) os preencham.
+  // território (Firestore) ou a carga inicial de dados reais os preencham.
   // Guardamos uma cópia aqui para poder restaurar o Jardim Ivete ao trocar de volta.
   const DEFAULT_SAIDAS = JSON.parse(JSON.stringify(saidasData));
   const DEFAULT_COMERCIOS = JSON.parse(JSON.stringify(comerciosData));
@@ -2715,7 +2712,7 @@ async function proceedWithTerritory(territoryKey) {
 
   if (territoryKey === 'jardim-conceicao') {
     await loadTerritoryBoundary('jardim-conceicao');
-    await autoImportOverpass();
+    await seedConceicaoComerciosCondominios();
   } else if (territoryKey === 'jardim-ivete') {
     restoreIveteBoundary();
   }
@@ -2864,132 +2861,69 @@ function loadTerritoryBoundary(territory) {
   }
 }
 
-// ── OVERPASS: IMPORTAÇÃO AUTOMÁTICA DE COMÉRCIOS/PRÉDIOS ──
-// Roda apenas na primeira vez que o usuário do Jd. Conceição loga (sem dados ainda)
-async function forcarImportOverpass() {
-  if (!isAdmin) { showSnack('❌ Apenas o administrador pode importar dados do mapa'); return; }
-  if (!confirm('Isso vai buscar novamente no OpenStreetMap os comércios e prédios da área do Jardim Conceição e adicionar somente os que ainda não estão cadastrados (sem duplicar). Continuar?')) return;
-  await autoImportOverpass(true);
-}
+const CONCEICAO_COMERCIOS_SEED = [
+  { nome: 'Barbosa Supermercados', endereco: 'R. Pernambucana, 239, Osasco - SP', categoria: 'Supermercado/Mercado', cor: '#82c91e', lat: -23.5732541, lng: -46.8042605, _source: 'pesquisa-web' },
+  { nome: 'Natan Supermercado', endereco: 'Av. dos Trabalhadores, 41, Osasco - SP', categoria: 'Supermercado/Mercado', cor: '#82c91e', lat: -23.5776738, lng: -46.8046284, _source: 'pesquisa-web' },
+  { nome: 'Supermercado Natan', endereco: 'R. Agostinho Navarro, 668, Osasco - SP', categoria: 'Supermercado/Mercado', cor: '#82c91e', lat: -23.5776739, lng: -46.798924, _source: 'pesquisa-web' },
+  { nome: 'Gica Box Supermercado', endereco: 'R. Paranaense, 878, Osasco - SP', categoria: 'Supermercado/Mercado', cor: '#82c91e', lat: -23.5794527, lng: -46.8018139, _source: 'pesquisa-web' },
+  { nome: 'Mercado Paraná', endereco: 'R. Apóstolo João Batista, Osasco - SP', categoria: 'Supermercado/Mercado', cor: '#82c91e', lat: -23.5812499, lng: -46.8041807, _source: 'pesquisa-web' },
+  { nome: 'Drogaria Paraná', endereco: 'R. Paranaense, 985, Osasco - SP', categoria: 'Farmácia', cor: '#37b24d', lat: -23.5802932, lng: -46.801553, _source: 'pesquisa-web' },
+  { nome: 'Drogaria Poup Farma', endereco: 'R. Monte das Oliveiras, 33, Osasco - SP', categoria: 'Farmácia', cor: '#37b24d', lat: -23.5731472, lng: -46.8039743, _source: 'pesquisa-web' },
+  { nome: 'Droga Nino', endereco: 'Praça Sabantã, 18, Osasco - SP', categoria: 'Farmácia', cor: '#37b24d', lat: -23.5778842, lng: -46.8002129, _source: 'pesquisa-web' },
+  { nome: 'Droga Tudo', endereco: 'R. Pernambucana, Osasco - SP', categoria: 'Farmácia', cor: '#37b24d', lat: -23.5726793, lng: -46.8019769, _source: 'pesquisa-web' },
+  { nome: 'Drogaria e Perfumaria S.Farma', endereco: 'R. Pernambucana, 19, Osasco - SP', categoria: 'Farmácia', cor: '#37b24d', lat: -23.5727085, lng: -46.8018952, _source: 'pesquisa-web' },
+  { nome: 'Drogaria Dom Farma', endereco: 'Av. Clóvis Assaf, 271, Osasco - SP', categoria: 'Farmácia', cor: '#37b24d', lat: -23.577812, lng: -46.8045434, _source: 'pesquisa-web' },
+  { nome: 'Confeitaria Belo Sonho', endereco: 'R. da Miná, 02, Osasco - SP', categoria: 'Alimentação', cor: '#e8590c', lat: -23.5798923, lng: -46.8039097, _source: 'pesquisa-web' },
+  { nome: 'Belém Pães e Doces', endereco: 'R. Matias de Albuquerque, 02, Osasco - SP', categoria: 'Alimentação', cor: '#e8590c', lat: -23.5760159, lng: -46.8029671, _source: 'pesquisa-web' },
+  { nome: 'Padaria M.F', endereco: 'Av. Juvenil, 46, Osasco - SP', categoria: 'Alimentação', cor: '#e8590c', lat: -23.5783431, lng: -46.8035513, _source: 'pesquisa-web' },
+  { nome: 'Padaria Bellatriz', endereco: 'Av. dos Trabalhadores, 28, Osasco - SP', categoria: 'Alimentação', cor: '#e8590c', lat: -23.5772077, lng: -46.8048359, _source: 'pesquisa-web' },
+  { nome: 'Que Seja Doce Nana - Confeitaria', endereco: 'R. Pernambucana, 683, Osasco - SP', categoria: 'Alimentação', cor: '#e8590c', lat: -23.5718175, lng: -46.806921, _source: 'pesquisa-web' },
+  { nome: 'Espetos e Assados Beefão', endereco: 'R. Sacerdote Moisés, 54, Osasco - SP', categoria: 'Alimentação', cor: '#e8590c', lat: -23.5792154, lng: -46.803928, _source: 'pesquisa-web' },
+  { nome: '3 Refeições', endereco: 'Av. Clóvis Assaf, 560, Osasco - SP', categoria: 'Alimentação', cor: '#e8590c', lat: -23.5809641, lng: -46.8026282, _source: 'pesquisa-web' },
+  { nome: 'Cantina D\'Nice', endereco: 'R. João Camilo Bueno, 40, Osasco - SP', categoria: 'Alimentação', cor: '#e8590c', lat: -23.5798078, lng: -46.7992384, _source: 'pesquisa-web' },
+  { nome: 'RR Supreme', endereco: 'R. José Luís de Jesus Santos, 55, Osasco - SP', categoria: 'Alimentação', cor: '#e8590c', lat: -23.5793744, lng: -46.8061364, _source: 'pesquisa-web' },
+  { nome: 'Restaurante Do Pirata', endereco: 'Av. Olga Benário, 42, Osasco - SP', categoria: 'Alimentação', cor: '#e8590c', lat: -23.5766839, lng: -46.806603, _source: 'pesquisa-web' },
+  { nome: 'EMEF Prof. Renato Fiuza Teles', endereco: 'R. Orlando Torres, 490, Osasco - SP', categoria: 'Educação', cor: '#1971c2', lat: -23.5795935, lng: -46.8025739, _source: 'pesquisa-web' },
+  { nome: 'EMEI Esmeralda Ferreira Simão Nóbrega', endereco: 'R. Orlando Torres, 520, Osasco - SP', categoria: 'Educação', cor: '#1971c2', lat: -23.5799149, lng: -46.8022319, _source: 'pesquisa-web' },
+  { nome: 'Escola de Educação Infantil Modelo', endereco: 'R. Daiana Cristina Cunha de Oliveira, 98, Osasco - SP', categoria: 'Educação', cor: '#1971c2', lat: -23.5783532, lng: -46.7991691, _source: 'pesquisa-web' },
+  { nome: 'EE Prof. Armando Gabán', endereco: 'R. Paranaense, 352, Osasco - SP', categoria: 'Educação', cor: '#1971c2', lat: -23.5745044, lng: -46.8028601, _source: 'pesquisa-web' },
+  { nome: 'EMEI Oswaldo Salles Nemer', endereco: 'R. Alagoana, 937, Osasco - SP', categoria: 'Educação', cor: '#1971c2', lat: -23.5776686, lng: -46.8008609, _source: 'pesquisa-web' },
+  { nome: 'Espaço Lecair', endereco: 'R. Pernambucana, 239, Osasco - SP', categoria: 'Beleza', cor: '#e64980', lat: -23.5732541, lng: -46.8042605, _source: 'pesquisa-web' },
+  { nome: 'RO Cabelos', endereco: 'R. Canaã, 168, Osasco - SP', categoria: 'Beleza', cor: '#e64980', lat: -23.5738341, lng: -46.8037159, _source: 'pesquisa-web' },
+  { nome: 'Studio Andreia Ornelas', endereco: 'R. dos Pioneiros, Osasco - SP', categoria: 'Beleza', cor: '#e64980', lat: -23.5770462, lng: -46.8032349, _source: 'pesquisa-web' },
+  { nome: 'Studio Tc Hair&Nails', endereco: 'Av. Juvenil, 289, Osasco - SP', categoria: 'Beleza', cor: '#e64980', lat: -23.578069, lng: -46.8035889, _source: 'pesquisa-web' },
+  { nome: 'A&R Beleza', endereco: 'R. Penedo, 24, Osasco - SP', categoria: 'Beleza', cor: '#e64980', lat: -23.578044, lng: -46.8032061, _source: 'pesquisa-web' },
+  { nome: 'Milly Fashion', endereco: 'Av. Juvenil, 44, Osasco - SP', categoria: 'Moda/Vestuário', cor: '#f06595', lat: -23.5784377, lng: -46.8035297, _source: 'pesquisa-web' },
+  { nome: 'Your Closet Moda Feminina', endereco: 'R. Pernambucana, 76, Osasco - SP', categoria: 'Moda/Vestuário', cor: '#f06595', lat: -23.5726774, lng: -46.8025229, _source: 'pesquisa-web' },
+  { nome: 'Brellian', endereco: 'Av. dos Trabalhadores, Osasco - SP', categoria: 'Moda/Vestuário', cor: '#f06595', lat: -23.5774285, lng: -46.8047235, _source: 'pesquisa-web' },
+  { nome: 'Gold Grifes', endereco: 'Av. dos Trabalhadores, Osasco - SP', categoria: 'Moda/Vestuário', cor: '#f06595', lat: -23.5794394, lng: -46.8038181, _source: 'pesquisa-web' },
+  { nome: 'Pet Conceição', endereco: 'R. Penedo, 56, Osasco - SP', categoria: 'Pet Shop', cor: '#f76707', lat: -23.5780137, lng: -46.8035783, _source: 'pesquisa-web' },
+  { nome: 'Pet Shop Osasco - Monteiros Pet', endereco: 'R. Elízia Matos de Carvalho, 15, Osasco - SP', categoria: 'Pet Shop', cor: '#f76707', lat: -23.5776647, lng: -46.7990529, _source: 'pesquisa-web' },
+  { nome: 'Pet Shop Penélope', endereco: 'R. Paranaense, 495, Osasco - SP', categoria: 'Pet Shop', cor: '#f76707', lat: -23.5758206, lng: -46.8023305, _source: 'pesquisa-web' },
+  { nome: 'Pet Family Casa de Ração e Estética Animal', endereco: 'R. Paranaense, 935, Osasco - SP', categoria: 'Pet Shop', cor: '#f76707', lat: -23.5797685, lng: -46.8015076, _source: 'pesquisa-web' },
+];
+const CONCEICAO_CONDOMINIOS_SEED = [
+  { nome: 'Residencial Guarujá', endereco: 'R. Pernambucana, 341, Osasco - SP', categoria: 'Condomínio/Prédio', cor: '#364fc7', lat: -23.5731163, lng: -46.8061233, _source: 'pesquisa-web' },
+  { nome: 'Condomínio Nova Conceição II', endereco: 'R. Pernambucana, 250, Osasco - SP', categoria: 'Condomínio/Prédio', cor: '#364fc7', lat: -23.57301, lng: -46.80419, _source: 'pesquisa-web' },
+  { nome: 'Condomínio Nova Conceição VI', endereco: 'R. Pernambucana, 540, Osasco - SP', categoria: 'Condomínio/Prédio', cor: '#364fc7', lat: -23.571845, lng: -46.8064139, _source: 'pesquisa-web' },
+  { nome: 'Condomínio Domus 360', endereco: 'R. José Martins de Souza, 42, Osasco - SP', categoria: 'Condomínio/Prédio', cor: '#364fc7', lat: -23.5783252, lng: -46.7984211, _source: 'pesquisa-web' },
+  { nome: 'Residencial Reserva Veneza', endereco: 'R. Pernambucana, 300, Osasco - SP', categoria: 'Condomínio/Prédio', cor: '#364fc7', lat: -23.5726712, lng: -46.8044529, _source: 'pesquisa-web' },
+  { nome: 'Residencial Reserva Toscana', endereco: 'R. Pernambucana, 360, Osasco - SP', categoria: 'Condomínio/Prédio', cor: '#364fc7', lat: -23.5723159, lng: -46.8048204, _source: 'pesquisa-web' },
+];
 
-async function autoImportOverpass(force = false) {
-  // Só roda automaticamente se não há dados ainda (evita duplicar em logins seguintes).
-  // Quando chamada manualmente (force=true) roda sempre, mas com deduplicação por nome+posição.
-  if (!force && (comerciosData.length > 0 || condominiosData.length > 0)) return;
+// ── DADOS REAIS DE COMÉRCIOS E PRÉDIOS DO JARDIM CONCEIÇÃO ──
+// Pesquisados manualmente (fora do app) e inseridos aqui como carga inicial.
+// Roda só na primeira vez que o território estiver sem dados (não duplica em logins seguintes).
+async function seedConceicaoComerciosCondominios() {
+  if (comerciosData.length > 0 || condominiosData.length > 0) return;
 
-  showSnack('🔍 Buscando comércios e prédios no mapa... aguarde', 15000);
+  CONCEICAO_COMERCIOS_SEED.forEach(item => comerciosData.push({ ...item }));
+  CONCEICAO_CONDOMINIOS_SEED.forEach(item => condominiosData.push({ ...item }));
 
-  const coords = TERRITORY_BOUNDARIES['jardim-conceicao'];
-  // Formata polygon para Overpass: lat lng lat lng ...
-  const poly = coords.map(p => `${p[0]} ${p[1]}`).join(' ');
-
-  // Query Overpass: busca shops, amenities, buildings residenciais dentro do polígono
-  const query = `
-[out:json][timeout:30];
-(
-  node["shop"](poly:"${poly}");
-  node["amenity"~"restaurant|cafe|pharmacy|school|hospital|clinic|bank|fuel|supermarket|fast_food|bar|bakery|marketplace"](poly:"${poly}");
-  way["building"~"apartments|residential|commercial"](poly:"${poly}");
-  node["building"~"apartments|residential"](poly:"${poly}");
-);
-out center 200;
-`;
-
-  try {
-    const resp = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      body: 'data=' + encodeURIComponent(query)
-    });
-    if (!resp.ok) throw new Error('Overpass indisponível');
-    const data = await resp.json();
-    const elements = data.elements || [];
-
-    const catMap = {
-      // shops
-      'supermarket':'Supermercado/Mercado','convenience':'Supermercado/Mercado',
-      'bakery':'Alimentação','butcher':'Alimentação','greengrocer':'Alimentação',
-      'restaurant':'Alimentação','cafe':'Alimentação','fast_food':'Alimentação',
-      'bar':'Alimentação','food':'Alimentação',
-      'pharmacy':'Farmácia','chemist':'Farmácia',
-      'school':'Educação','kindergarten':'Educação',
-      'hospital':'Saúde','clinic':'Saúde','dentist':'Saúde',
-      'bank':'Banco/Financeiro','atm':'Banco/Financeiro',
-      'fuel':'Automotivo','car_repair':'Automotivo',
-      'hairdresser':'Beleza','beauty':'Beleza',
-      'clothes':'Moda/Vestuário','shoes':'Moda/Vestuário',
-      'electronics':'Eletrônicos','mobile_phone':'Eletrônicos',
-      'hardware':'Materiais de Construção',
-      'sports':'Academia',
-      'church':'Igreja','place_of_worship':'Igreja',
-      'pet':'Pet Shop','veterinary':'Pet Shop',
-    };
-    const corMap = {
-      'Supermercado/Mercado':'#82c91e','Alimentação':'#e8590c','Farmácia':'#37b24d',
-      'Educação':'#1971c2','Saúde':'#2f9e44','Banco/Financeiro':'#212529',
-      'Automotivo':'#495057','Beleza':'#e64980','Moda/Vestuário':'#f06595',
-      'Eletrônicos':'#0c8599','Materiais de Construção':'#5f3dc4','Academia':'#fab005',
-      'Igreja':'#862e9c','Pet Shop':'#f76707','Outros':'#868e96'
-    };
-
-    let addedCom = 0, addedCond = 0;
-
-    elements.forEach(el => {
-      const lat = el.lat || (el.center && el.center.lat);
-      const lng = el.lon || (el.center && el.center.lon);
-      if (!lat || !lng) return;
-
-      const tags = el.tags || {};
-      const nome = tags.name || tags['addr:street'] || '';
-      if (!nome) return; // sem nome, ignora
-
-      // Evita duplicar itens já existentes (mesmo nome e posição bem próxima)
-      const jaExiste = (arr) => arr.some(x => x.nome === nome && Math.abs(x.lat - lat) < 0.0002 && Math.abs(x.lng - lng) < 0.0002);
-
-      const building = tags.building;
-      if (building === 'apartments' || building === 'residential') {
-        // É um prédio/condomínio
-        if (jaExiste(condominiosData)) return;
-        const endereco = [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(', ');
-        condominiosData.push({
-          nome: nome,
-          endereco: endereco || '',
-          categoria: 'Condomínio/Prédio',
-          cor: '#364fc7',
-          lat, lng,
-          _source: 'overpass'
-        });
-        addedCond++;
-      } else {
-        // É um comércio / estabelecimento
-        if (jaExiste(comerciosData)) return;
-        const shopType = tags.shop || tags.amenity || '';
-        const categoria = catMap[shopType] || 'Outros';
-        const cor = corMap[categoria] || '#868e96';
-        const endereco = [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(', ');
-        comerciosData.push({
-          nome: nome,
-          endereco: endereco || '',
-          categoria,
-          cor,
-          lat, lng,
-          _source: 'overpass'
-        });
-        addedCom++;
-      }
-    });
-
-    if (addedCom + addedCond > 0) {
-      renderComercios(); renderCondominios(); renderList(); updateChipCounts(); renderHomeStats();
-      const result = await saveState();
-      showSnack(`✅ ${addedCom} comércios e ${addedCond} prédios importados do mapa OSM!`, 6000);
-      logActivity(`🗺️ Importação automática OSM: ${addedCom} comércios, ${addedCond} prédios`);
-    } else {
-      showSnack('ℹ️ Nenhum estabelecimento com nome encontrado na área pelo OSM. Adicione manualmente.', 5000);
-    }
-  } catch(e) {
-    console.error('Overpass error:', e);
-    showSnack('⚠️ Não foi possível buscar dados do mapa agora. Você pode adicionar manualmente.', 5000);
-  }
+  renderComercios(); renderCondominios(); renderList(); updateChipCounts(); renderHomeStats();
+  await saveState();
+  showSnack(`✅ ${CONCEICAO_COMERCIOS_SEED.length} comércios e ${CONCEICAO_CONDOMINIOS_SEED.length} prédios carregados no mapa!`, 6000);
+  logActivity(`📍 Carga inicial: ${CONCEICAO_COMERCIOS_SEED.length} comércios, ${CONCEICAO_CONDOMINIOS_SEED.length} prédios`);
 }
 
 initFirebaseAuth();
