@@ -2013,7 +2013,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 12px monospace';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-f-canvasfix id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  const debugTxt = `build:2026-07-25-g-noreinforce id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
   ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
   ctx.restore();
   let y = mapY + mapH + 34;
@@ -2153,29 +2153,14 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
     const captureScale = Math.max(2, window.devicePixelRatio || 1);
     const mapCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#fff', scale: captureScale });
 
-    // Reforço: desenha o contorno também direto no canvas já capturado,
-    // convertendo cada ponto lat/lng pra pixel usando a projeção atual do
-    // mapa (o mesmo estado/zoom/posição usado no print acima). Se por algum
-    // motivo a camada do Leaflet não aparecer no print, este desenho garante
-    // que o contorno saia mesmo assim.
-    try {
-      const pxPoints = qd.coords.map(pt => {
-        const lat = Array.isArray(pt) ? pt[0] : pt.lat;
-        const lng = Array.isArray(pt) ? pt[1] : pt.lng;
-        return map.latLngToContainerPoint([lat, lng]);
-      });
-      const ctx = mapCanvas.getContext('2d');
-      ctx.save();
-      ctx.scale(captureScale, captureScale);
-      ctx.beginPath();
-      pxPoints.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
-      ctx.closePath();
-      ctx.strokeStyle = '#e6007a';
-      ctx.lineWidth = (qd.weight || 3) + 2;
-      ctx.lineJoin = 'round';
-      ctx.stroke();
-      ctx.restore();
-    } catch (drawErr) { console.error('Falha ao reforçar contorno no canvas:', drawErr); }
+    // OBS: o reforço manual que existia aqui (redesenhar o contorno direto no
+    // canvas capturado, calculando os pixels via latLngToContainerPoint) foi
+    // removido. Ele foi criado como plano B para quando o SVG do Leaflet não
+    // aparecia certo no html2canvas — mas agora que o contorno usa o Canvas
+    // renderer do Leaflet (correto e capturado nativamente), esse reforço
+    // ficou redundante e passou a causar uma linha "fantasma" duplicada,
+    // levemente deslocada da principal, visível sobretudo em trechos longos
+    // e diagonais do contorno.
 
     const cardCanvas = await montarCartaoTemplate(qd, mapCanvas);
     const url = cardCanvas.toDataURL('image/png');
