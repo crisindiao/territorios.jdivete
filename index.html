@@ -366,6 +366,9 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .search-overlay-input .s-icon{font-size:17px;color:var(--text2);}
 .search-overlay-results{flex:1;overflow-y:auto;padding:8px 12px;}
 .search-result{background:var(--surface);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;box-shadow:var(--sh1);cursor:pointer;border:1.5px solid var(--border);}
+.activity-item{background:var(--surface);border-radius:var(--r);padding:10px 14px;margin-bottom:6px;box-shadow:var(--sh1);border:1.5px solid var(--border);}
+.activity-acao{font-size:0.86rem;color:var(--text);font-weight:500;}
+.activity-meta{font-size:0.72rem;color:var(--text2);margin-top:2px;}
 .search-result:active{box-shadow:var(--sh2);}
 .search-badge{width:40px;height:40px;border-radius:50%;background:var(--purple-light);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
 .search-info b{display:block;font-size:0.88rem;font-weight:600;color:var(--text);}
@@ -406,6 +409,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 /* ── LOCATE ── */
 .locate-fab{position:fixed;bottom:calc(var(--nav-h) + 16px);right:calc(52px + 20px);z-index:201;width:42px;height:42px;border-radius:50%;background:var(--surface);color:var(--purple);box-shadow:var(--sh2);display:flex;align-items:center;justify-content:center;font-size:19px;}
 .locate-fab:active{box-shadow:var(--sh1);}
+.locate-fab.active-loc{background:#1a73e8;color:#fff;}
 
 /* ── DRAW ── */
 .draw-toolbar{position:fixed;bottom:calc(var(--nav-h) + 80px);left:50%;transform:translateX(-50%);z-index:205;display:none;gap:8px;flex-wrap:wrap;justify-content:center;max-width:94vw;}
@@ -424,6 +428,9 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .cobertura-badge{display:inline-flex;align-items:center;gap:4px;font-size:0.74rem;font-weight:700;border-radius:8px;padding:4px 10px;margin-bottom:8px;width:fit-content;}
 .cobertura-badge.cobertura-feita{background:#dcfce7;color:#15803d;}
 .cobertura-badge.cobertura-pendente{background:#fce8e6;color:var(--error);}
+.quadra-historico{margin-bottom:8px;font-size:0.76rem;color:var(--text2);}
+.quadra-historico summary{cursor:pointer;font-weight:600;color:var(--purple);padding:4px 0;}
+.quadra-historico .hist-item{padding:3px 0 3px 10px;border-left:2px solid var(--border);margin-left:4px;}
 
 /* ── CARTÃO ── */
 .cartao-row{display:flex;align-items:center;gap:10px;margin-bottom:2px;}
@@ -669,7 +676,7 @@ body.viewer-mode #btnResetCobertura{display:none!important;}
   <button class="draw-btn btn-cancelar-draw" onclick="cancelDrawQuadra()">✕ Cancelar</button>
 </div>
 <button class="fab" id="fabBtn" onclick="startAddMode()">＋</button>
-<button class="locate-fab" onclick="locateMe()" title="Minha localização" style="display:none;">📍</button>
+<button class="locate-fab" id="myLocationBtn" onclick="toggleMyLocation()" title="Minha localização em tempo real" style="display:none;">📍</button>
 
 <!-- LIST VIEW -->
 <div class="list-view" id="listView">
@@ -693,6 +700,15 @@ body.viewer-mode #btnResetCobertura{display:none!important;}
     </div>
   </div>
   <div class="search-overlay-results" id="globalSearchResults"></div>
+</div>
+
+<!-- ACTIVITY LOG OVERLAY -->
+<div class="search-overlay" id="activityOverlay">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="closeActivityLog()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;">📜 Atividade recente</div>
+  </div>
+  <div class="search-overlay-results" id="activityList"></div>
 </div>
 
 <!-- BOTTOM NAV -->
@@ -757,12 +773,24 @@ function showMoreMenu() {
   }
 }
 function showMaisMenu() {
-  const opts = ['💾 Exportar dados','📂 Importar dados','🗑 Limpar cache local'];
-  const choice = prompt('Mais opções:\n1 - Exportar dados\n2 - Importar dados\n3 - Limpar cache\n\nDigite o número:');
+  const choice = prompt('Mais opções:\n1 - Exportar dados\n2 - Importar dados\n3 - Limpar cache\n4 - 📜 Atividade recente\n\nDigite o número:');
   if (choice==='1') exportData();
   else if (choice==='2') document.getElementById('importFile').click();
   else if (choice==='3') showMoreMenu();
+  else if (choice==='4') showActivityLog();
 }
+function showActivityLog() {
+  if (!activityLog.length) { showSnack('📜 Nenhuma atividade registrada ainda'); return; }
+  const overlay = document.getElementById('activityOverlay');
+  const box = document.getElementById('activityList');
+  box.innerHTML = activityLog.slice(0,80).map(a => {
+    const d = new Date(a.ts);
+    const dataStr = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="activity-item"><div class="activity-acao">${a.acao}</div><div class="activity-meta">${a.usuario} — ${dataStr}</div></div>`;
+  }).join('');
+  overlay.classList.add('show');
+}
+function closeActivityLog() { document.getElementById('activityOverlay').classList.remove('show'); }
   const territoryCoords = [[-23.55586054483037, -46.8033602016143], [-23.55582666771351, -46.80316071494285], [-23.555739521298477, -46.80290045772788], [-23.555621729730557, -46.80234459898294], [-23.555593142737315, -46.802055452564346], [-23.555142664797614, -46.801819637609746], [-23.554723767847364, -46.80159978735912], [-23.554339509036996, -46.8014031502642], [-23.553829457150197, -46.80114006593607], [-23.553487715823405, -46.80096574651115], [-23.55301632112978, -46.800721891114684], [-23.552660398032888, -46.80053536132137], [-23.552218160021233, -46.80030920999414], [-23.551570148705633, -46.79997396197755], [-23.55153838354633, -46.80007985597617], [-23.551473846136943, -46.80029336070983], [-23.551437606242395, -46.80046673706963], [-23.551299044040384, -46.800763403906195], [-23.55096280408899, -46.80117740972702], [-23.55095943271184, -46.80118607200204], [-23.550553999008482, -46.80166670826433], [-23.55028223085157, -46.80193248501632], [-23.55000201594278, -46.802150037470476], [-23.549952344572358, -46.80252277963664], [-23.55021533116418, -46.80274339136146], [-23.550688285497998, -46.80313059871793], [-23.55115727233594, -46.80254523965398], [-23.55144027268746, -46.802774410608514], [-23.55135187655463, -46.80293631991269], [-23.551146632687605, -46.80318595542857], [-23.550997202257555, -46.803393887294376], [-23.550853469856804, -46.803613677846364], [-23.550597028580878, -46.80397966081141], [-23.550465530996288, -46.80416368324094], [-23.55042807365257, -46.80430950502521], [-23.549881442336407, -46.80460671874885], [-23.54961508161084, -46.80478700266916], [-23.54952356781593, -46.80486015329104], [-23.54940475032762, -46.80496924870054], [-23.549457289638916, -46.805060181915564], [-23.549275541948266, -46.80529420121082], [-23.549230608216867, -46.805447023676805], [-23.549200387181436, -46.80556639507577], [-23.54918082964558, -46.80588044875918], [-23.549184627716798, -46.80603292210817], [-23.549171197466766, -46.80604345159146], [-23.54903239354429, -46.80610054392862], [-23.54864570854993, -46.80658037758712], [-23.54796665320193, -46.80710137359284], [-23.547380405534092, -46.80709919331155], [-23.54707073364413, -46.807052926961795], [-23.54705073184439, -46.807052771065116], [-23.546895197911866, -46.80707912285182], [-23.54668484078678, -46.80716377954111], [-23.546402330459188, -46.80726664830566], [-23.54619526841025, -46.8074964034688], [-23.54604828193598, -46.8077059272714], [-23.545948405205415, -46.807763560184185], [-23.545708160578656, -46.80754173454834], [-23.5454939106551, -46.80734303671669], [-23.545215498030107, -46.8072177042147], [-23.54508815531104, -46.80757376196722], [-23.544888155883992, -46.80797218293388], [-23.54493727980464, -46.80839403289924], [-23.544693781423096, -46.80861417369859], [-23.5441615698885, -46.808925589235756], [-23.54381498869579, -46.80912164767595], [-23.54334936229434, -46.809392039831486], [-23.543077187398342, -46.80955639840571], [-23.542760487534284, -46.80973318616761], [-23.542303654763042, -46.809805459260765], [-23.541945694983283, -46.80984056731655], [-23.541770052954092, -46.80987272261307], [-23.541634924702148, -46.81004379356296], [-23.54155200447395, -46.81065093357933], [-23.541549686918895, -46.811356988332314], [-23.541723404657635, -46.811881116148065], [-23.54191838581252, -46.812083482055414], [-23.542358401717287, -46.81247285264214], [-23.542495515488255, -46.812614526851036], [-23.54254254476651, -46.812746087488236], [-23.542203986057512, -46.81341175823836], [-23.54174346228266, -46.81361777360982], [-23.54146320325448, -46.81409087147601], [-23.54128531019382, -46.81455267643814], [-23.54105807221597, -46.815470823156446], [-23.541034108921405, -46.8162595352613], [-23.540959799711246, -46.81670692496048], [-23.54058931578518, -46.818092858148546], [-23.542217483354868, -46.81853618044515], [-23.543641687146582, -46.819014930125824], [-23.544605038783253, -46.819325302171535], [-23.546161124527586, -46.81986621106538], [-23.546405005885763, -46.818667918250604], [-23.54663380975904, -46.818718735225225], [-23.546956648363913, -46.8186150443289], [-23.54713933740224, -46.81844358927262], [-23.548058146589895, -46.81868701983603], [-23.54819433105107, -46.81856368785835], [-23.548242121366744, -46.818287721390206], [-23.548281785604775, -46.817926970026946], [-23.548386956055737, -46.817550050729906], [-23.548343126948126, -46.81730018479248], [-23.548387168570823, -46.81686562789619], [-23.548419549445658, -46.81635668503704], [-23.548381952471424, -46.81600357559103], [-23.548398214719967, -46.81571168086486], [-23.548454581940568, -46.81543947194008], [-23.548477195146216, -46.815239055426765], [-23.548427333450054, -46.81501781353016], [-23.548463753194923, -46.81482931960463], [-23.548459274331034, -46.81460392958792], [-23.5486302048209, -46.81431480257828], [-23.548829400859837, -46.814080313110686], [-23.54891403873499, -46.813496891496825], [-23.54895282335077, -46.81306472666816], [-23.5490769312693, -46.8128599556691], [-23.549436599386112, -46.81238095952963], [-23.549751259929263, -46.81200827018934], [-23.54988654071893, -46.81168132815666], [-23.54991435826235, -46.81139312273997], [-23.54992647282046, -46.81107197769786], [-23.550032540028674, -46.810883084317275], [-23.55024243780784, -46.810727631835945], [-23.55049567156139, -46.81073400195965], [-23.55069668532157, -46.81058722538236], [-23.550897435241275, -46.81044895644671], [-23.551293106947348, -46.81017803649017], [-23.551803378447975, -46.80982320260879], [-23.552113872322042, -46.809607437046736], [-23.55206767010416, -46.80945549388013], [-23.552249066125594, -46.80941632267582], [-23.552598485332307, -46.80934645574207], [-23.552830027986886, -46.80950238066022], [-23.553179662227816, -46.80955534018008], [-23.55312196893072, -46.809268728549284], [-23.553140589557017, -46.80886664306209], [-23.55319437169711, -46.808710942669656], [-23.553304381710642, -46.80848146513889], [-23.553404257049024, -46.80833279120631], [-23.55360739964394, -46.808110356525795], [-23.55393484333991, -46.8076912105971], [-23.554199373013436, -46.80736429098836], [-23.554459599378635, -46.80704340634988], [-23.55491794473721, -46.806461615805624], [-23.555149575533306, -46.806172732190255], [-23.55527153756317, -46.80602359651677], [-23.55537505914136, -46.80589122464966], [-23.555454626022488, -46.805783817834055], [-23.555522513987174, -46.80561203800213], [-23.555850165290398, -46.803530183986595], [-23.55586054483037, -46.8033602016143]];
 
   const comerciosData = [{"nome": "Ofício Presentes", "endereco": "R. José Timótheo da Silva, 394 - São Pedro, Osasco - SP, 06172-220, Brazil", "categoria": "Presentes", "cor": "#d6336c", "lat": -23.543084699999998, "lng": -46.816157499999996}, {"nome": "Drugstore Real Farma", "endereco": "Av. José Barbosa de Siqueira, 1002 - JD. PADROEIRA I, Osasco - SP, 06172-004, Brazil", "categoria": "Farmácia", "cor": "#37b24d", "lat": -23.5488069, "lng": -46.808581}, {"nome": "Jardim Roberto Comércio de Bebidas", "endereco": "R. Maria dos Anjos da Conceição, 501 - Jardim Roberto, Osasco - SP, 06170-100, Brazil", "categoria": "Bebidas/Adega", "cor": "#9c36b5", "lat": -23.5492112, "lng": -46.8056501}, {"nome": "Amorim Construction Materials", "endereco": "Av. José Barbosa de Siqueira, 849 - Padroeira, Osasco - SP, 06172-004, Brazil", "categoria": "Materiais de Construção", "cor": "#5f3dc4", "lat": -23.550001899999998, "lng": -46.8079222}, {"nome": "Quase Tudo", "endereco": "Av. José Barbosa de Siqueira, 1730 - Padroeira, Osasco - SP, 06172-006, Brazil", "categoria": "Comércio Geral", "cor": "#868e96", "lat": -23.5433691, "lng": -46.8124918}, {"nome": "Jd. Padroeira", "endereco": "R. Francisco Leonel dos Santos, 74-246 - São Pedro, Osasco - SP, 06162-210, Brazil", "categoria": "Comércio Geral", "cor": "#868e96", "lat": -23.5488519, "lng": -46.8092107}, {"nome": "Alecrim Madeiras Unidade 1", "endereco": "Av. José Barbosa de Siqueira, 1054 - Padroeira, Osasco - SP, 06172-002, Brazil", "categoria": "Materiais de Construção", "cor": "#5f3dc4", "lat": -23.548510399999998, "lng": -46.8088265}, {"nome": "KAPINHA KOM K - JD. ROBERTO", "endereco": "R. Elza Fagundes Moraes, 19 - Jardim Roberto, Osasco - SP, 06170-220, Brazil", "categoria": "Comércio Geral", "cor": "#868e96", "lat": -23.5450487, "lng": -46.8081239}, {"nome": "Braiani & Dinis", "endereco": "Av. João Batista Mascarenhas de Moraes, 670 - Jardim Padroeira, Osasco - SP, 06172-280, Brazil", "categoria": "Materiais de Construção", "cor": "#5f3dc4", "lat": -23.5483658, "lng": -46.8078396}, {"nome": "R.E CARTUCHOS", "endereco": "Av. João Batista Mascarenhas de Moraes, 933 - Jardim Roberto, Osasco - SP, 06172-280, Brazil", "categoria": "Informática", "cor": "#495057", "lat": -23.5461007, "lng": -46.808696999999995}, {"nome": "Equivalente Confecção e Brindes", "endereco": "R. José Dias da Silva - Jardim Roberto, Osasco - SP, 06170-090, Brazil", "categoria": "Moda/Vestuário", "cor": "#f06595", "lat": -23.549801499999997, "lng": -46.8058183}, {"nome": "Bia Store", "endereco": "Av. João Batista Mascarenhas de Moraes, 670 - São Pedro, Osasco - SP, 06172-280, Brazil", "categoria": "Moda/Vestuário", "cor": "#f06595", "lat": -23.5483379, "lng": -46.8077967}, {"nome": "T.O.G moda infantil", "endereco": "R. José Dias da Silva - Jardim Roberto, Osasco - SP, 06170-090, Brazil", "categoria": "Moda Infantil", "cor": "#f06595", "lat": -23.5501096, "lng": -46.805399799999996}, {"nome": "Alex eletro", "endereco": "Av. José Barbosa de Siqueira, 427 - Padroeira, Osasco - SP, 06172-000, Brazil", "categoria": "Eletrônicos", "cor": "#0c8599", "lat": -23.5527549, "lng": -46.804786299999996}, {"nome": "A Predileta Padaria", "endereco": "R. Achiles Beline, 520 - Padroeira, Osasco - SP, 06162-280, Brazil", "categoria": "Alimentação", "cor": "#e8590c", "lat": -23.554540100000004, "lng": -46.806805399999995}, {"nome": "Bella Crema Confeitaria", "endereco": "R. Achiles Beline, 594 - Padroeira, Osasco - SP, 06162-280, Brazil", "categoria": "Alimentação", "cor": "#e8590c", "lat": -23.5538101, "lng": -46.8076053}, {"nome": "Osasco info note e games", "endereco": "R. Achiles Beline, 78 - jardim padroeira, Osasco - SP, 06162-320, Brazil", "categoria": "Informática", "cor": "#495057", "lat": -23.5554706, "lng": -46.802855199999996}, {"nome": "Clara B Boutique", "endereco": "R. Achiles Beline, 594 - Padroeira, Osasco - SP, 06162-280, Brazil", "categoria": "Moda/Vestuário", "cor": "#f06595", "lat": -23.553807499999998, "lng": -46.8076067}, {"nome": "Studio Adriana Almeida e Equipe", "endereco": "Av. José Barbosa de Siqueira, 1362 - Padroeira, Osasco - SP, 06172-006, Brazil", "categoria": "Beleza", "cor": "#e64980", "lat": -23.5462325, "lng": -46.8100551}, {"nome": "Espaço da beleza Deise amarante", "endereco": "Av José Barbosa de siqueira,544 Padroeira 1 - Jardim Roberto, Osasco - SP, 06172-002, Brazil", "categoria": "Beleza", "cor": "#e64980", "lat": -23.551867899999998, "lng": -46.805454999999995}, {"nome": "Studio Lôh Estrela", "endereco": "R. Campo Grande, 750 - Padroeira, Osasco - SP, 06162-220, Brazil", "categoria": "Beleza", "cor": "#e64980", "lat": -23.5509766, "lng": -46.8075112}, {"nome": "Belari Studio", "endereco": "Av. José Barbosa de Siqueira, 1416 - Padroeira, Osasco - SP, 06172-006, Brazil", "categoria": "Beleza", "cor": "#e64980", "lat": -23.5456573, "lng": -46.8106534}, {"nome": "STUDIO SEIS", "endereco": "R. João Rodrigues dos Santos, 13 - Jardim Roberto, Osasco - SP, 06172-420, Brazil", "categoria": "Beleza", "cor": "#e64980", "lat": -23.545009000000004, "lng": -46.810644700000005}, {"nome": "La Lumi", "endereco": "Av. José Barbosa de Siqueira, 448 - Padroeira, Osasco - SP, 06172-006, Brazil", "categoria": "Beleza", "cor": "#e64980", "lat": -23.552440200000003, "lng": -46.804769799999995}, {"nome": "AND IS Colégio", "endereco": "Av. José Barbosa de Siqueira - Padroeira, Osasco - SP, 06172-007, Brazil", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5479736, "lng": -46.809441299999996}, {"nome": "Doce Saber (escola)", "endereco": "Av. José Barbosa de Siqueira, 708 - Padroeira, Osasco - SP, 06172-002, Brazil", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5507959, "lng": -46.8066819}, {"nome": "EMEI Dalva Mirian Portela Machado", "endereco": "R. Campo Grande, 25 - Padroeira, Osasco - SP, 06162-220, Brazil", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5510803, "lng": -46.8078043}, {"nome": "Escola de Educação Infantil Moriah", "endereco": "Av. José Barbosa de Siqueira, 1018 - Padroeira, Osasco - SP, 06172-004, Brazil", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5487435, "lng": -46.8087732}, {"nome": "Escola Família Kids", "endereco": "Av. José Barbosa de Siqueira, 1297 - Padroeira, Osasco - SP, 06172-004, Brazil", "categoria": "Educação", "cor": "#1971c2", "lat": -23.546505300000003, "lng": -46.8097675}, {"nome": "Congregação Cristã no Brasil | Jardim Roberto", "endereco": "R. João Finotti, 140 - Jardim Roberto, Osasco - SP, 06172-130, Brazil", "categoria": "Igreja", "cor": "#862e9c", "lat": -23.5452163, "lng": -46.809715499999996}, {"nome": "Igreja Nossa Senhora das Graças", "endereco": "R. João Finotti, 34 - Jardim Roberto, Osasco - SP, 06172-130, Brazil", "categoria": "Igreja", "cor": "#862e9c", "lat": -23.5445851, "lng": -46.808834999999995}, {"nome": "Igreja Nossa Sra. das Graças (Mascarenhas)", "endereco": "Av. João Batista Mascarenhas de Moraes, 634 - São Pedro, Osasco - SP, 06172-280, Brazil", "categoria": "Igreja", "cor": "#862e9c", "lat": -23.548646899999998, "lng": -46.8077768}, {"nome": "Igreja Torre forte", "endereco": "R. Arlíndo João Salgado, 14 - Jardim Roberto, Osasco - SP, 06172-008, Brazil", "categoria": "Igreja", "cor": "#862e9c", "lat": -23.549503599999998, "lng": -46.807684099999996}, {"nome": "Congregação Cristã no Brasil | Jardim Vicentina", "endereco": "Av. José Barbosa de Siqueira, 650 - Padroeira, Osasco - SP, 06172-004, Brazil", "categoria": "Igreja", "cor": "#862e9c", "lat": -23.5512044, "lng": -46.8060842}, {"nome": "Mirp (igreja)", "endereco": "Av. José Barbosa de Siqueira, 1346 - Padroeira, Osasco - SP, 06172-002, Brazil", "categoria": "Igreja", "cor": "#862e9c", "lat": -23.5464579, "lng": -46.8099583}, {"nome": "Igreja Assembléia de Deus", "endereco": "Av. José Barbosa de Siqueira, 14 - Padroeira, Osasco - SP, 06172-000, Brazil", "categoria": "Igreja", "cor": "#862e9c", "lat": -23.549527599999998, "lng": -46.8075848}, {"nome": "Pet Shop Favorito", "endereco": "Av. José Barbosa de Siqueira, 906 - Jardim Roberto, Osasco - SP, 06172-002, Brazil", "categoria": "Pet Shop", "cor": "#f76707", "lat": -23.5494906, "lng": -46.8080364}, {"nome": "Coelho Implantes Odontologia", "endereco": "Av. José Barbosa de Siqueira, 25D - Padroeira, Osasco - SP, 06172-000, Brazil", "categoria": "Saúde", "cor": "#2f9e44", "lat": -23.549287399999997, "lng": -46.8082705}, {"nome": "OTICA POPULAR (Campo Grande)", "endereco": "R. Campo Grande - Padroeira, Osasco - SP, 06162-220, Brazil", "categoria": "Ótica", "cor": "#1c7ed6", "lat": -23.5494788, "lng": -46.808807}, {"nome": "Pizzaria e Lanchonete TUTTI", "endereco": "Av. José Barbosa de Siqueira, 682 - Jardim Roberto, Osasco - SP, 06172-004, Brazil", "categoria": "Alimentação", "cor": "#e8590c", "lat": -23.5508973, "lng": -46.8064713}, {"nome": "Food Truck D&G", "endereco": "Av. José Barbosa de Siqueira, 1072 - Padroeira, Osasco - SP, 06172-004, Brazil", "categoria": "Alimentação", "cor": "#e8590c", "lat": -23.5484875, "lng": -46.8090301}, {"nome": "Nossa esfiha", "endereco": "Av. José Barbosa de Siqueira, 25d - Jardim Padroeira, Osasco - SP, 06172-002, Brazil", "categoria": "Alimentação", "cor": "#e8590c", "lat": -23.549287399999997, "lng": -46.8082705}, {"nome": "Pizzaria e Restaurante Águia", "endereco": "R. Doná Maria Emília Neves Ferro Silva, 204 - Padroeira, Osasco - SP, 06162-270, Brazil", "categoria": "Alimentação", "cor": "#e8590c", "lat": -23.5537349, "lng": -46.804873799999996}, {"nome": "Lanchonete & Pizzaria Mandakaru", "endereco": "R. Nova Conceição - Jardim Roberto, Osasco - SP, 02675-031, Brazil", "categoria": "Alimentação", "cor": "#e8590c", "lat": -23.5479794, "lng": -46.8111503}, {"nome": "Bazar & Papelaria Mari Novais", "endereco": "Av. José Barbosa de Siqueira, 1156 - Padroeira, Osasco - SP, 06172-004, Brazil", "categoria": "Papelaria/Bazar", "cor": "#f59f00", "lat": -23.547774699999998, "lng": -46.809100799999996}, {"nome": "Imóveis em Cotia", "endereco": "Av. José Barbosa de Siqueira, 289 - Padroeira, Osasco - SP, 06172-000, Brazil", "categoria": "Imobiliária", "cor": "#212529", "lat": -23.553493099999997, "lng": -46.803736099999995}, {"nome": "Vem de Ducha Lava Rapido", "endereco": "R. Campo Grande, 70 - Padroeira, Osasco - SP, 06162-220, Brazil", "categoria": "Automotivo", "cor": "#495057", "lat": -23.549875, "lng": -46.808822}, {"nome": "Car Wash Caramujo", "endereco": "Av. João Batista Mascarenhas de Moraes, 937 - Jardim Roberto, Osasco - SP, 06172-280, Brazil", "categoria": "Automotivo", "cor": "#495057", "lat": -23.546018099999998, "lng": -46.8087465}, {"nome": "UBS Luciano Rodrigues Costa", "endereco": "Praça Maria José da Silveira, 100 - Jardim Roberto, Osasco - SP, 06132-000, Brazil", "categoria": "Posto de Saúde", "cor": "#0ca678", "lat": -23.5447052, "lng": -46.8082372}, {"nome": "Cemitério Municipal Santo Antônio", "endereco": "R. Antônio Russo, 175 - Santo Antônio, Osasco - SP, 06170-000, Brazil", "categoria": "Cemitério", "cor": "#343a40", "lat": -23.5508232, "lng": -46.8015708}, {"nome": "EMEF José Veríssimo de Matos", "endereco": "R. Elvira Liberato de Araújo - Jardim Roberto, Osasco - SP, 06170-280, Brazil", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5477294, "lng": -46.8036664}, {"nome": "CRECHE Agentil dos Reis", "endereco": "R. Antônio Russo, 680 - Jardim Padroeira I, Osasco - SP, 06170-000, Brazil", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5483322, "lng": -46.8041741}, {"nome": "EMEF Olavo Antônio Barbosa Spinola", "endereco": "R. Francisco Sebastião Pestana, 1 - Vl Pestana, Osasco - SP, 06170-470, Brazil", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5447451, "lng": -46.8032629}, {"nome": "CRECHE Maria José da Silva Jesus", "endereco": "R. Cláudio Aparecido Oliveira, 85 - Jardim Roberto, Osasco - SP, 06124-130, Brazil", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5456666, "lng": -46.8010082}, {"nome": "EMEF Benedito Alves Turibio", "endereco": "R. Maria de Lurdes Galvão de França, 361 - Jd Turibio, Osasco - SP, 06162-010, Brazil", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5560001, "lng": -46.8088154}, {"nome": "Leonardo Vilas Boas (escola)", "endereco": "Av. José Barbosa de Siqueira, 71 - Jardim Roberto, Osasco - SP, 06172-000, Brazil", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5477425, "lng": -46.8099133}, {"nome": "Academia Atitudes Fitness", "endereco": "R. Campo Grande, 706 - Padroeira, Osasco - SP", "categoria": "Academia", "cor": "#fab005", "lat": -23.5509053, "lng": -46.807596}, {"nome": "Galpão Gym", "endereco": "R. Nova Conceição, 100 - Padroeira, Osasco - SP", "categoria": "Academia", "cor": "#fab005", "lat": -23.5501579, "lng": -46.8079345}, {"nome": "Kronus Fit - Unidade Padroeira", "endereco": "Av. José Barbosa de Siqueira, 869 - Padroeira, Osasco - SP", "categoria": "Academia", "cor": "#fab005", "lat": -23.5498225, "lng": -46.8079623}, {"nome": "Personal Gabriel Ferrarez (Personal Trainer)", "endereco": "R. Achiles Beline, 386 - Padroeira, Osasco - SP", "categoria": "Academia", "cor": "#fab005", "lat": -23.5548222, "lng": -46.8056078}, {"nome": "Moinho dos Pães", "endereco": "Av. José Barbosa de Siqueira, 21 - Padroeira, Osasco - SP", "categoria": "Alimentação", "cor": "#e8590c", "lat": -23.5493747, "lng": -46.8080212}, {"nome": "Oficina LM", "endereco": "Av. José Barbosa de Siqueira, 1140 - Padroeira, Osasco - SP", "categoria": "Automotivo", "cor": "#495057", "lat": -23.5479105, "lng": -46.8090873}, {"nome": "CRECHE João Correa", "endereco": "Passagem Joaquim Lopes Filho, 55 - Padroeira, Osasco - SP", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5496579, "lng": -46.8072345}, {"nome": "CRECHE Pedro Alves de Oliveira", "endereco": "R. José Timótheo da Silva, 389 - São Pedro, Osasco - SP", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5430847, "lng": -46.8161575}, {"nome": "Creche Escola Jardim São Pedro", "endereco": "R. José Timótheo da Silva, 389 - São Pedro, Osasco - SP", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5430847, "lng": -46.8161575}, {"nome": "SESI Jardim Roberto (inativa desde 2019)", "endereco": "R. Eduardo Dias, 132 - Jardim Roberto, Osasco - SP", "categoria": "Educação", "cor": "#1971c2", "lat": -23.5476935, "lng": -46.8075429}, {"nome": "Rede Droga Líder do Padroeira", "endereco": "Av. José Barbosa de Siqueira, 668 - Padroeira, Osasco - SP", "categoria": "Farmácia", "cor": "#37b24d", "lat": -23.5510317, "lng": -46.8063019}, {"nome": "Comunidade Sagrada Família de Nazaré", "endereco": "R. Campo Grande, 209 - Padroeira, Osasco - SP", "categoria": "Igreja", "cor": "#862e9c", "lat": -23.5501002, "lng": -46.8085541}, {"nome": "Comunidade Santa Teresinha (Pª N.S. Aparecida)", "endereco": "R. Madre Tereza Grillo Michel, 213 - Padroeira, Osasco - SP", "categoria": "Igreja", "cor": "#862e9c", "lat": -23.5511617, "lng": -46.8088451}, {"nome": "Igreja Universal", "endereco": "R. Francisco Leonel dos Santos, 10 - Jardim Padroeira, Osasco - SP", "categoria": "Igreja", "cor": "#862e9c", "lat": -23.5488519, "lng": -46.8092107}, {"nome": "Ministério Transbordar do Espírito", "endereco": "Av. José Barbosa de Siqueira, 25 - Padroeira 1, Osasco - SP", "categoria": "Igreja", "cor": "#862e9c", "lat": -23.5492874, "lng": -46.8082705}, {"nome": "Boutique Pimenta", "endereco": "R. Gildo Cadastro, 206 - Jardim Roberto, Osasco - SP", "categoria": "Moda/Vestuário", "cor": "#f06595", "lat": -23.5476619, "lng": -46.808835}, {"nome": "UBS Getulino José Dias", "endereco": "R. Joana Pereira Dias, 75 - Padroeira, Osasco - SP", "categoria": "Posto de Saúde", "cor": "#0ca678", "lat": -23.5497579, "lng": -46.8073745}, {"nome": "Super Tok", "endereco": "Av. José Barbosa de Siqueira, 5D - Padroeira, Osasco - SP", "categoria": "Supermercado/Mercado", "cor": "#82c91e", "lat": -23.5495276, "lng": -46.8075848}, {"nome": "Supermercado Almeida", "endereco": "R. Cecília Marquês Silva, 167 - Jardim Roberto, Osasco - SP", "categoria": "Supermercado/Mercado", "cor": "#82c91e", "lat": -23.5478935, "lng": -46.8078229}, {"nome": "Supermercado Jazan", "endereco": "Av. José Barbosa de Siqueira, 12 - Jd. Padroeira, Osasco - SP", "categoria": "Supermercado/Mercado", "cor": "#82c91e", "lat": -23.5495276, "lng": -46.8075848}, {"nome": "Portal VistAllegro", "endereco": "Av. José Barbosa de Siqueira, 1805 - Padroeira, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5433691, "lng": -46.8124918}, {"nome": "Torres São José", "endereco": "Av. José Barbosa de Siqueira, 1495 - Padroeira / Jardim Padroeira I, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5450816, "lng": -46.8111159}, {"nome": "Residencial Antonini Village", "endereco": "R. Antônio Almeida Tavares, 291 - São Pedro, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5471303, "lng": -46.8100954}, {"nome": "Residencial das Oliveiras", "endereco": "R. Achiles Beline, 460 - Padroeira, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5546664, "lng": -46.8062692}, {"nome": "Residencial Encantto / Encantto Home Club", "endereco": "R. Cláudio Aparecido Oliveira, s/n - Jardim Roberto, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5456666, "lng": -46.8010082}, {"nome": "Movimento Habitacional Casa para Todos", "endereco": "Av. José Barbosa de Siqueira, 1415 - Padroeira, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.545668, "lng": -46.8106423}, {"nome": "Condomínio Av. José Barbosa de Siq., 1300", "endereco": "Av. José Barbosa de Siqueira, 1300 - Padroeira, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5465024, "lng": -46.8097792}, {"nome": "Residencial Privilegie Dom Lugo", "endereco": "R. Achiles Belline, 336 - Padroeira, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5549275, "lng": -46.805161}, {"nome": "Residencial Campestre Garden", "endereco": "R. Aquiles Bellini, 420 - Padroeira, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5501579, "lng": -46.8079345}, {"nome": "Condomínio Flex Osasco (Campestre / Girassol)", "endereco": "R. Aquiles Belline, 420 - Bloco II Edifício Girassol, Padroeira, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5496579, "lng": -46.8072345}, {"nome": "Ocean Park Condomínio Clube", "endereco": "R. Aquiles Beline, 616 - Padroeira, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5500579, "lng": -46.8077945}, {"nome": "Oasis Eco Vida", "endereco": "R. Cláudio Aparecido Oliveira, 528 - Jardim Roberto, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5456666, "lng": -46.8010082}, {"nome": "Resort Eco Vida", "endereco": "R. Vicente Alves da Silva, 700 - Jardim Roberto, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5473935, "lng": -46.8071229}, {"nome": "Recanto das Flores", "endereco": "R. Santa Marcela, 98 - Jardim Roberto, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5473211, "lng": -46.8004349}, {"nome": "Residencial Camburi", "endereco": "Av. João Batista Mascarenhas de Moraes, 1981 - São Pedro / Jd. São Pedro, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5460181, "lng": -46.8087465}, {"nome": "Condomínio R. Achiles Beline, 286", "endereco": "R. Achiles Beline, 286 - Padroeira, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5550327, "lng": -46.8047141}, {"nome": "Residência (R. Cláudio Aparecido Oliveira, 573)", "endereco": "R. Cláudio Aparecido Oliveira, 573 - Jardim Roberto, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5456666, "lng": -46.8010082}, {"nome": "Condomínio Av. José Barbosa de Siq. (s/n — coop.)", "endereco": "Av. José Barbosa de Siqueira, s/n - Padroeira, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5489758, "lng": -46.8081711}, {"nome": "Condomínio R. João Paulo II", "endereco": "Av. João Paulo II, 110 - São Pedro, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5446497, "lng": -46.8138766}, {"nome": "Condomínio R. João Paulo II, 180", "endereco": "Av. João Paulo II, 180 - São Pedro, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5446497, "lng": -46.8138766}, {"nome": "Condomínio R. Francisco Sebastião Pestana, 177", "endereco": "R. Francisco Sebastião Pestana, 177 - Jardim Roberto, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5447451, "lng": -46.8032629}, {"nome": "Condomínio R. Itaperuna, 230", "endereco": "R. Itaperuna, 230 - Padroeira, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5514892, "lng": -46.8088985}, {"nome": "Condomínio R. Elza Fagundes Moraes, 761", "endereco": "R. Elza Fagundes Moraes, 761 - Jardim Roberto, Osasco - SP", "categoria": "Condomínio/Prédio", "cor": "#364fc7", "lat": -23.5450535, "lng": -46.8081571}];
@@ -799,6 +827,19 @@ function showMaisMenu() {
   let drawingQuadra = false;
   let drawPoints = [];
   let drawPreviewLayer = null;
+
+  // ---------- LOG DE ATIVIDADE ----------
+  let activityLog = []; // {ts, usuario, acao}
+  function logActivity(acao) {
+    const usuario = currentUser ? (currentUser.displayName ? currentUser.displayName.split(' ')[0] : currentUser.email) : 'Alguém';
+    activityLog.unshift({ ts: new Date().toISOString(), usuario, acao });
+    if (activityLog.length > 200) activityLog.length = 200;
+  }
+  function diasDesde(iso) {
+    if (!iso) return null;
+    const ms = Date.now() - new Date(iso).getTime();
+    return Math.floor(ms / 86400000);
+  }
 
   // ---------- Persistência local (salva automaticamente as edições no navegador) ----------
 
@@ -847,7 +888,7 @@ function showMaisMenu() {
   async function saveState() {
     // Também salva localmente como cache
     try {
-      const payload = { saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, savedAt: new Date().toISOString() };
+      const payload = { saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, activityLog, savedAt: new Date().toISOString() };
       localStorage.setItem(DATA_STORAGE, JSON.stringify(payload, jsonReplacer));
     } catch(e) {}
 
@@ -855,7 +896,7 @@ function showMaisMenu() {
     if (!currentUser || !isAdmin) return { ok: false, reason: isAdmin ? 'no-user' : 'not-admin' };
     try {
       await migrateBase64Photos();
-      const payload = JSON.parse(JSON.stringify({ saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, savedAt: new Date().toISOString() }, jsonReplacer));
+      const payload = JSON.parse(JSON.stringify({ saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, activityLog, savedAt: new Date().toISOString() }, jsonReplacer));
       // Corrige arrays aninhados em quadrasData.coords (não suportado pelo Firestore)
       payload.quadrasData = (payload.quadrasData || []).map(qd => ({ ...qd, coords: coordsToFirestore(qd.coords) }));
       const sizeBytes = new Blob([JSON.stringify(payload)]).size;
@@ -910,6 +951,7 @@ function showMaisMenu() {
     if (Array.isArray(saved.condominiosData)) { condominiosData.length = 0; saved.condominiosData.forEach(x => condominiosData.push(x)); }
     if (Array.isArray(saved.publicadoresData)) { publicadoresData.length = 0; saved.publicadoresData.forEach(x => publicadoresData.push(x)); }
     if (Array.isArray(saved.quadrasData)) { quadrasData.length = 0; saved.quadrasData.forEach(x => quadrasData.push(x)); }
+    if (Array.isArray(saved.activityLog)) { activityLog.length = 0; saved.activityLog.forEach(x => activityLog.push(x)); }
   }
 
 // ── GEO ──
@@ -1268,6 +1310,68 @@ function makeDotIcon(color) {
   return L.divIcon({ className: '', html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2.5px solid white;box-shadow:0 1px 5px rgba(0,0,0,0.4)"></div>`, iconSize:[16,16], iconAnchor:[8,8] });
 }
 
+// ── MINHA LOCALIZAÇÃO (tempo real) ──
+let myLocationWatchId = null;
+let myLocationMarker = null;
+let myLocationAccuracyCircle = null;
+let myLocationFollowing = false;
+function myLocationIcon(heading) {
+  const rot = (typeof heading === 'number' && !isNaN(heading)) ? heading : 0;
+  return L.divIcon({
+    className: '',
+    html: `<div style="position:relative;width:22px;height:22px;">
+      <div style="width:22px;height:22px;border-radius:50%;background:#1a73e8;border:3px solid white;box-shadow:0 1px 6px rgba(0,0,0,0.5);"></div>
+      ${typeof heading==='number' && !isNaN(heading) ? `<div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%) rotate(${rot}deg);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:10px solid #1a73e8;"></div>` : ''}
+    </div>`,
+    iconSize:[22,22], iconAnchor:[11,11]
+  });
+}
+function toggleMyLocation() {
+  if (myLocationWatchId !== null) { stopMyLocation(); return; }
+  if (!navigator.geolocation) { showSnack('❌ Seu navegador não suporta geolocalização'); return; }
+  showSnack('📡 Ativando sua localização...');
+  myLocationFollowing = true;
+  const btn = document.getElementById('myLocationBtn');
+  if (btn) btn.classList.add('active-loc');
+  myLocationWatchId = navigator.geolocation.watchPosition(onMyLocationUpdate, onMyLocationError, {
+    enableHighAccuracy: true, maximumAge: 2000, timeout: 15000
+  });
+}
+function stopMyLocation() {
+  if (myLocationWatchId !== null) { navigator.geolocation.clearWatch(myLocationWatchId); myLocationWatchId = null; }
+  if (myLocationMarker) { map.removeLayer(myLocationMarker); myLocationMarker = null; }
+  if (myLocationAccuracyCircle) { map.removeLayer(myLocationAccuracyCircle); myLocationAccuracyCircle = null; }
+  myLocationFollowing = false;
+  const btn = document.getElementById('myLocationBtn');
+  if (btn) btn.classList.remove('active-loc');
+  showSnack('📡 Localização desativada');
+}
+function onMyLocationUpdate(pos) {
+  const { latitude, longitude, accuracy, heading } = pos.coords;
+  const latlng = [latitude, longitude];
+  if (!myLocationMarker) {
+    myLocationMarker = L.marker(latlng, { icon: myLocationIcon(heading), zIndexOffset: 1000 }).addTo(map);
+    myLocationAccuracyCircle = L.circle(latlng, { radius: accuracy, color:'#1a73e8', weight:1, fillColor:'#1a73e8', fillOpacity:0.12 }).addTo(map);
+    setViewMode('mapa');
+    map.setView(latlng, 18);
+  } else {
+    myLocationMarker.setLatLng(latlng);
+    myLocationMarker.setIcon(myLocationIcon(heading));
+    myLocationAccuracyCircle.setLatLng(latlng);
+    myLocationAccuracyCircle.setRadius(accuracy);
+    if (myLocationFollowing) map.panTo(latlng, { animate: true });
+  }
+}
+function onMyLocationError(err) {
+  let msg = '❌ Não foi possível obter sua localização';
+  if (err.code === 1) msg = '❌ Permissão de localização negada';
+  else if (err.code === 3) msg = '❌ Tempo esgotado ao buscar localização';
+  showSnack(msg);
+  stopMyLocation();
+}
+// Se o usuário arrastar o mapa manualmente, para de seguir automaticamente (mas continua atualizando o ponto)
+map.on('dragstart', () => { myLocationFollowing = false; });
+
 // ── POPUPS ──
 function editSaidaPopup(marker, s) {
   if (!isAdmin) return `<b>Grupo ${s.grupo}</b><br>Saída: ${s.nome}${s.endereco?'<br><small style="color:#5f6368">'+s.endereco+'</small>':''}`;
@@ -1396,7 +1500,9 @@ function renderQuadras() {
     }
     const poly = L.polygon(qd.coords, { color:cor, weight, fillColor:cor, fillOpacity, opacity:borderOpacity });
     const coberturaBtn = `<br><button onclick="toggleQuadraCobertura(${idx})" style="margin-top:6px;background:${qd.coberta?'#5f6368':'var(--md-success)'};color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button>`;
-    poly.bindPopup(`<b>Mapa ${qd.mapa}</b>${qd.nome?'<br>'+qd.nome:''}${qd.grupo?`<br>👥 Grupo responsável: <b>${qd.grupo}</b>`:''}<br><small>${qd.coords.length} pontos</small>${qd.coberta?`<br><small style="color:#1e8e3e">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</small>`:''}<br><button onclick="showQuadraCartao(${idx})" style="margin-top:6px;background:var(--md-primary);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📋 Cartão</button>`+(isAdmin?coberturaBtn:'')+(editMode?`<br><button onclick="deleteQuadra(${idx})" style="margin-top:6px;background:#d93025;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">🗑 Excluir</button>`:''));
+    const diasUltPopup = diasDesde(qd.ultimaCobertura);
+    const atrasadaPopup = !qd.coberta && (diasUltPopup===null || diasUltPopup>90);
+    poly.bindPopup(`<b>Mapa ${qd.mapa}</b>${qd.nome?'<br>'+qd.nome:''}${qd.grupo?`<br>👥 Grupo responsável: <b>${qd.grupo}</b>`:''}<br><small>${qd.coords.length} pontos</small>${qd.coberta?`<br><small style="color:#1e8e3e">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</small>`:''}${atrasadaPopup?`<br><small style="color:#d97706">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</small>`:''}<br><button onclick="showQuadraCartao(${idx})" style="margin-top:6px;background:var(--md-primary);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📋 Cartão</button>`+(isAdmin?coberturaBtn:'')+(editMode?`<br><button onclick="deleteQuadra(${idx})" style="margin-top:6px;background:#d93025;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">🗑 Excluir</button>`:''));
     poly.addTo(layerGroups.quadras);
     const center = poly.getBounds().getCenter();
     const labelBorder = isCobertura ? cor : cor;
@@ -1409,18 +1515,36 @@ function renderQuadras() {
 function formatarDataBR(iso) {
   try { const d = new Date(iso); return d.toLocaleDateString('pt-BR'); } catch(e) { return ''; }
 }
+function nomeUsuarioAtual() {
+  return currentUser ? (currentUser.displayName ? currentUser.displayName.split(' ')[0] : currentUser.email) : '—';
+}
 function toggleQuadraCobertura(idx) {
   if (!isAdmin) { showSnack('❌ Apenas o administrador pode dar baixa nas quadras'); return; }
   const qd = quadrasData[idx]; if (!qd) return;
   qd.coberta = !qd.coberta;
   qd.coberturaData = qd.coberta ? new Date().toISOString() : null;
+  if (!qd.historico) qd.historico = [];
+  if (qd.coberta) {
+    qd.ultimaCobertura = qd.coberturaData;
+    qd.historico.unshift({ data: qd.coberturaData, usuario: nomeUsuarioAtual(), acao: 'Marcada como coberta' });
+  } else {
+    qd.historico.unshift({ data: new Date().toISOString(), usuario: nomeUsuarioAtual(), acao: 'Baixa desfeita' });
+  }
+  if (qd.historico.length > 30) qd.historico.length = 30;
+  logActivity(`${qd.coberta?'✓ deu baixa':'↺ desfez baixa'} na quadra ${qd.mapa}${qd.nome?' ('+qd.nome+')':''}`);
   renderQuadras(); renderCatbar(); updateLegend(); renderList();
   showSnack(qd.coberta ? '✓ Quadra marcada como coberta' : '↺ Baixa desfeita');
 }
 function resetCobertura() {
   if (!isAdmin) { showSnack('❌ Apenas o administrador pode reiniciar a cobertura'); return; }
   if (!confirm('Isso vai desmarcar TODAS as quadras como não cobertas, para começar um novo ciclo de território. Continuar?')) return;
-  quadrasData.forEach(qd => { qd.coberta = false; qd.coberturaData = null; });
+  quadrasData.forEach(qd => {
+    qd.coberta = false; qd.coberturaData = null;
+    if (!qd.historico) qd.historico = [];
+    qd.historico.unshift({ data: new Date().toISOString(), usuario: nomeUsuarioAtual(), acao: 'Novo ciclo iniciado' });
+    if (qd.historico.length > 30) qd.historico.length = 30;
+  });
+  logActivity('🔄 reiniciou a cobertura de todas as quadras (novo ciclo)');
   renderQuadras(); renderCatbar(); updateLegend(); renderList();
   showSnack('🔄 Cobertura reiniciada — novo ciclo iniciado');
 }
@@ -1436,7 +1560,9 @@ function showQuadraCartao(idx) {
 }
 function deleteQuadra(idx) {
   if (!isAdmin) { showSnack('❌ Apenas o administrador pode remover quadras'); return; }
+  const qd = quadrasData[idx]; if (!qd) return;
   if (!confirm('Remover esta quadra?')) return;
+  logActivity(`🗑 removeu a quadra ${qd.mapa}${qd.nome?' ('+qd.nome+')':''}`);
   quadrasData.splice(idx,1); renderQuadras(); renderCatbar(); renderList();
 }
 
@@ -1476,7 +1602,8 @@ function finalizeDrawQuadra() {
   if (drawPoints.length<3) { alert('Marque pelo menos 3 cantos.'); return; }
   const mapa = prompt('Número do mapa (ex: 15):'); if (!mapa) return;
   const nome = prompt('Nome/observação (opcional):', '') || '';
-  quadrasData.push({ mapa: mapa.trim(), nome, coords: drawPoints.slice(), cor: null, grupo: '' });
+  quadrasData.push({ mapa: mapa.trim(), nome, coords: drawPoints.slice(), cor: null, grupo: '', historico: [] });
+  logActivity(`➕ criou a quadra ${mapa.trim()}${nome?' ('+nome+')':''}`);
   stopDrawing(); refreshHintForTab(); renderQuadras(); renderCatbar(); renderList(); updateLegend();
 }
 
@@ -1836,14 +1963,36 @@ function renderGlobalSearch() {
   condominiosData.forEach(c=>{const text=(c.nome+' '+c.endereco).toLowerCase(); if(!q||text.includes(q)) results.push({badge:'🏢',title:c.nome,sub:c.endereco,tab:'condominios',item:c});});
   publicadoresData.forEach(p=>{const text=(p.membros.join(' ')+' '+p.grupo+' '+(p.endereco||'')).toLowerCase(); if(!q||text.includes(q)) results.push({badge:'🏠',title:p.membros.join(', '),sub:'Grupo '+p.grupo+(p.endereco?' — '+p.endereco:''),tab:'publicadores',item:p});});
   quadrasData.forEach(qd=>{const text=('mapa '+qd.mapa+' '+(qd.nome||'')+' '+(qd.grupo||'')).toLowerCase(); if(!q||text.includes(q)) results.push({badge:'🧩',title:'Mapa '+qd.mapa+(qd.nome?' — '+qd.nome:''),sub:qd.coords.length+' pontos'+(qd.grupo?' — Grupo '+qd.grupo:''),tab:'quadras',item:qd});});
-  if (!results.length) { box.innerHTML='<div class="empty-msg"><strong>😕</strong>Nada encontrado</div>'; return; }
   box.innerHTML='';
+  if (q.length>=4) {
+    const addrDiv=document.createElement('div'); addrDiv.className='search-result';
+    addrDiv.innerHTML=`<span class="search-badge">🌍</span><div class="search-info"><b>Buscar endereço no mapa</b><span>"${q}" — ir até o local</span></div>`;
+    addrDiv.onclick=()=>buscarEnderecoNoMapa(q);
+    box.appendChild(addrDiv);
+  }
+  if (!results.length) {
+    if (q.length<4) box.innerHTML+='<div class="empty-msg"><strong>😕</strong>Nada encontrado</div>';
+    return;
+  }
   results.slice(0,200).forEach(r=>{
     const div=document.createElement('div'); div.className='search-result';
     div.innerHTML=`<span class="search-badge">${r.badge}</span><div class="search-info"><b>${r.title}</b><span>${r.sub}</span></div>`;
     div.onclick=()=>{ closeGlobalSearch(); activeCategoryFilter=null; activeGroupFilter=null; activeSaidaGrupoFilter=null; activeMapaFilter=null; activeQuadraGrupoFilter=null; switchTab(r.tab); setTimeout(()=>focusItem(r.item),60); };
     box.appendChild(div);
   });
+}
+let _searchMarker = null;
+async function buscarEnderecoNoMapa(query) {
+  showSnack('🔎 Buscando endereço...');
+  const res = await geocode(query + ', Osasco, SP');
+  if (!res) { showSnack('❌ Endereço não encontrado'); return; }
+  closeGlobalSearch();
+  setViewMode('mapa');
+  if (_searchMarker) map.removeLayer(_searchMarker);
+  _searchMarker = L.marker([res.lat, res.lng], { icon: L.divIcon({ className:'', html:'<div style="font-size:28px">📍</div>', iconSize:[28,28], iconAnchor:[14,28] }) }).addTo(map);
+  _searchMarker.bindPopup(`<b>${query}</b>`).openPopup();
+  map.setView([res.lat, res.lng], 18);
+  setTimeout(()=>{ if (_searchMarker) { map.removeLayer(_searchMarker); _searchMarker=null; } }, 60000);
 }
 
 // ── FOCUS ──
@@ -1956,9 +2105,14 @@ function renderList() {
     items.forEach(qd=>{
       const cor=qd.cor||getColorForMapa(qd.mapa); const weight=qd.weight||3;
       const card=document.createElement('div'); card.className='card'; card.style.borderLeftColor=cor;
-      const coberturaBadge = qd.coberta ? `<div class="cobertura-badge cobertura-feita">✓ Coberta${qd.coberturaData?' — '+formatarDataBR(qd.coberturaData):''}</div>` : `<div class="cobertura-badge cobertura-pendente">○ Pendente</div>`;
+      const diasUlt = diasDesde(qd.ultimaCobertura);
+      const atrasada = !qd.coberta && (diasUlt===null || diasUlt>90);
+      const coberturaBadge = qd.coberta
+        ? `<div class="cobertura-badge cobertura-feita">✓ Coberta${qd.coberturaData?' — '+formatarDataBR(qd.coberturaData):''}</div>`
+        : `<div class="cobertura-badge cobertura-pendente">○ Pendente${atrasada?` — ⚠️ ${diasUlt===null?'nunca coberta':'há '+diasUlt+' dias sem cobertura'}`:''}</div>`;
+      const historicoHTML = (qd.historico&&qd.historico.length) ? `<details class="quadra-historico"><summary>📜 Histórico (${qd.historico.length})</summary>${qd.historico.slice(0,10).map(h=>`<div class="hist-item">${formatarDataBR(h.data)} — ${h.acao}${h.usuario?' — '+h.usuario:''}</div>`).join('')}</details>` : '';
       const idxQd = quadrasData.indexOf(qd);
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${qd.mapa}</div><div class="card-sub">${qd.nome||'Sem nome'} — ${qd.coords.length} pontos${qd.grupo?' — 👥 '+qd.grupo:''}</div></div></div>${coberturaBadge}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${qd.mapa}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${qd.nome||''}"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${qd.mapa}</div><div class="card-sub">${qd.nome||'Sem nome'} — ${qd.coords.length} pontos${qd.grupo?' — 👥 '+qd.grupo:''}</div></div></div>${coberturaBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${qd.mapa}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${qd.nome||''}"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div>`;
       wireDirty(card);
       wireCartaoBlock(card,qd,renderQuadras);
       card.querySelector('.btn-cor-auto').onclick=()=>{if(!isAdmin)return; card.querySelector('[data-f="cor"]').value=getColorForMapa(card.querySelector('[data-f="mapa"]').value.trim()||qd.mapa); card.classList.add('dirty'); card.querySelector('.btn-save-card').disabled=false;};
@@ -1973,7 +2127,7 @@ function renderList() {
 
 // ── EXPORT/IMPORT ──
 function exportData() {
-  const payload={saidasData,comerciosData,condominiosData,publicadoresData,quadrasData,exportedAt:new Date().toISOString()};
+  const payload={saidasData,comerciosData,condominiosData,publicadoresData,quadrasData,activityLog,exportedAt:new Date().toISOString()};
   const blob=new Blob([JSON.stringify(payload,jsonReplacer,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob); const a=document.createElement('a');
   a.href=url; a.download=`territorio-jardim-ivete-${new Date().toISOString().slice(0,10)}.json`;
