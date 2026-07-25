@@ -561,6 +561,19 @@ body.viewer-mode .btn-cartao-remove{display:none!important;}
 body.viewer-mode .btn-cobertura-toggle{display:none!important;}
 body.viewer-mode #btnResetCobertura{display:none!important;}
 body.viewer-mode .btn-cor-auto{display:none!important;}
+
+/* Desliga toda animação/transição do Leaflet durante a captura do cartão de
+   território — sem isso, o contorno (SVG) pode ser fotografado no meio de
+   uma transição CSS e aparecer "deslocado" em relação aos tiles do mapa. */
+body.no-anim .leaflet-pane,
+body.no-anim .leaflet-marker-icon,
+body.no-anim .leaflet-marker-shadow,
+body.no-anim .leaflet-image-layer,
+body.no-anim .leaflet-tile,
+body.no-anim .leaflet-zoom-animated{
+  transition:none!important;
+  animation:none!important;
+}
 </style>
 </head>
 <body>
@@ -2061,8 +2074,23 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
   map.invalidateSize();
   map.closePopup();
 
+  // Desliga transições/animações do Leaflet enquanto capturamos — evita que o
+  // contorno (SVG) seja fotografado no meio de uma transição e apareça
+  // deslocado em relação aos tiles do mapa.
+  document.body.classList.add('no-anim');
+
   const prevCenter = map.getCenter();
   const prevZoom = map.getZoom();
+
+  function waitTilesLoaded() {
+    const layers = [streetLayer, satelliteLayer].filter(l => map.hasLayer(l));
+    return Promise.all(layers.map(l => new Promise(resolve => {
+      if (!l.isLoading || !l.isLoading()) { resolve(); return; }
+      l.once('load', resolve);
+      setTimeout(resolve, 3000); // salvaguarda: nunca trava esperando
+    })));
+  }
+  function nextFrame() { return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); }
 
   // Esconde TUDO que não seja a quadra selecionada: o grupo inteiro de quadras
   // (polígonos + etiquetas numeradas de todas as quadras) e o contorno do
@@ -2085,13 +2113,16 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
     try { await navigator.clipboard.writeText(debugCoords); showSnack('📋 Coordenadas da quadra copiadas (cole no chat pra debug)', 6000); } catch(e) {}
     map.fitBounds(highlightPoly.getBounds(), { paddingTopLeft: [50, 110], paddingBottomRight: [50, 110], maxZoom: 18, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
-    await new Promise(r => setTimeout(r, 900)); // espera os tiles carregarem/renderizarem
+    await waitTilesLoaded();
+    await nextFrame();
     // Reaplica o enquadramento (garante que nenhum tile/realinhamento tardio
     // tenha deslocado a quadra pra fora da área visível antes da captura)
     map.fitBounds(highlightPoly.getBounds(), { paddingTopLeft: [50, 110], paddingBottomRight: [50, 110], maxZoom: 18, animate: false });
-    await new Promise(r => setTimeout(r, 400));
+    await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
+    await waitTilesLoaded();
+    await nextFrame();
     map.closePopup();
-    await new Promise(r => setTimeout(r, 50));
+    await nextFrame();
 
     const mapCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#fff', scale: Math.max(2, window.devicePixelRatio || 1) });
     const cardCanvas = await montarCartaoTemplate(qd, mapCanvas);
@@ -2104,6 +2135,7 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
     console.error('Erro ao gerar cartão de território:', e);
     showSnack('⚠️ Não foi possível capturar o mapa (restrição do provedor de imagens). Tente novamente em alguns instantes.', 7000);
   } finally {
+    document.body.classList.remove('no-anim');
     map.removeLayer(highlightPoly);
     if (hadBoundary) boundaryToHide.addTo(map);
     if (hadQuadrasGroup) layerGroups.quadras.addTo(map);
