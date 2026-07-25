@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Território Jardim Ivete</title>
+<title>Gerenciador de Territórios</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -568,8 +568,8 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
 <div id="authOverlay">
   <div class="auth-card">
     <div class="auth-logo">🗺️</div>
-    <div class="auth-title">Território Jardim Ivete</div>
-    <div class="auth-sub">Faça login com sua conta Google autorizada para acessar o mapa de território.</div>
+    <div class="auth-title">Gerenciador de Territórios</div>
+    <div class="auth-sub">Faça login com sua conta Google autorizada para acessar o gerenciador de territórios.</div>
     <button class="btn-google" id="btnGoogleLogin">
       <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
       Entrar com Google
@@ -634,7 +634,7 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
   <!-- header com gradiente -->
   <div class="home-header">
     <div class="home-greeting" id="homeGreeting">Olá! 👋</div>
-    <div class="home-sub">Bem-vindo ao Território Jardim Ivete</div>
+    <div class="home-sub" id="homeSub">Bem-vindo ao Território Jardim Ivete</div>
     <div class="home-avatar" id="homeAvatar">🗺️</div>
   </div>
 
@@ -2566,6 +2566,8 @@ async function proceedWithTerritory(territoryKey) {
   const topbarTitle = document.querySelector('.topbar-title strong');
   if (topbarTitle) topbarTitle.textContent = currentTerritoryConfig.label;
   document.title = 'Território ' + currentTerritoryConfig.label;
+  const homeSubEl = document.getElementById('homeSub');
+  if (homeSubEl) homeSubEl.textContent = 'Bem-vindo ao Território ' + currentTerritoryConfig.label;
 
   const adminBadgeEl = document.getElementById('adminBadge');
   if (currentTerritoryConfig.role === 'admin') {
