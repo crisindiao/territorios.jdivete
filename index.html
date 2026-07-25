@@ -2055,6 +2055,7 @@ async function baixarCartaoQuadra(idx) {
   const prevViewMode = viewMode;
   if (viewMode !== 'mapa') { setViewMode('mapa'); await new Promise(r => setTimeout(r, 350)); }
   map.invalidateSize();
+  map.closePopup();
 
   const prevCenter = map.getCenter();
   const prevZoom = map.getZoom();
@@ -2078,6 +2079,8 @@ async function baixarCartaoQuadra(idx) {
     map.fitBounds(highlightPoly.getBounds(), { padding: [50, 50], maxZoom: 19, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
     await new Promise(r => setTimeout(r, 900)); // espera os tiles carregarem/renderizarem
+    map.closePopup();
+    await new Promise(r => setTimeout(r, 50));
 
     const mapCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#fff', scale: Math.max(2, window.devicePixelRatio || 1) });
     const cardCanvas = await montarCartaoTemplate(qd, mapCanvas);
