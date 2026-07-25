@@ -2102,17 +2102,16 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
   const hadBoundary = boundaryToHide && map.hasLayer(boundaryToHide);
   if (hadBoundary) map.removeLayer(boundaryToHide);
 
-  // IMPORTANTE: não usamos mais um L.polygon do Leaflet pra destacar a quadra.
-  // Esse polígono (camada SVG do Leaflet) podia ficar dessincronizado dos
-  // tiles no instante exato da captura pelo html2canvas — o mapa aparecia no
-  // lugar certo, mas o contorno "escorregava" pra outro ponto da tela. Em vez
-  // disso: calculamos os limites da quadra sem adicionar nada ao mapa, damos
-  // o fitBounds, tiramos o print só dos tiles, e SÓ DEPOIS desenhamos o
-  // contorno manualmente em cima da imagem já capturada — usando a projeção
-  // do mapa (lat/lng → pixel) no exato instante da captura. Assim o contorno
-  // nunca pode ficar deslocado: ele é calculado a partir do mesmo estado do
-  // mapa que gerou a imagem.
+  // Estratégia: primeiro deixamos o mapa assentar COMPLETAMENTE no zoom e na
+  // posição final da quadra (sem nenhum contorno adicionado ainda). Só depois
+  // de tudo estável é que criamos o contorno e o adicionamos ao mapa — assim
+  // ele já nasce direto na posição certa, sem precisar se "realinhar" depois
+  // de um pan/zoom (que era a causa do contorno aparecer deslocado). Também
+  // desenhamos o contorno manualmente em cima da imagem já capturada, como
+  // reforço, caso a camada do Leaflet não seja fielmente capturada pelo
+  // html2canvas em algum navegador.
   const quadraBounds = L.latLngBounds(qd.coords);
+  let highlightPoly = null;
 
   try {
     map.fitBounds(quadraBounds, { paddingTopLeft: [50, 110], paddingBottomRight: [50, 110], maxZoom: 18, animate: false });
@@ -2126,28 +2125,41 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
     await waitTilesLoaded();
     await nextFrame();
     map.closePopup();
+
+    // SÓ AGORA, com o mapa já parado no lugar certo, adicionamos o contorno.
+    highlightPoly = L.polygon(qd.coords, {
+      color: '#e6007a', weight: (qd.weight || 3) + 2, fillColor: '#ffd54a', fillOpacity: 0.28, opacity: 1
+    }).addTo(map);
+    highlightPoly.bringToFront();
+    await nextFrame();
     await nextFrame();
 
     const captureScale = Math.max(2, window.devicePixelRatio || 1);
     const mapCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#fff', scale: captureScale });
 
-    // Desenha o contorno da quadra DIRETO no canvas já capturado, convertendo
-    // cada ponto lat/lng pra pixel usando a projeção atual do mapa (mesmo
-    // estado/zoom/posição usado no print acima).
-    const pxPoints = qd.coords.map(([lat, lng]) => map.latLngToContainerPoint([lat, lng]));
-    const ctx = mapCanvas.getContext('2d');
-    ctx.save();
-    ctx.scale(captureScale, captureScale);
-    ctx.beginPath();
-    pxPoints.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(255, 213, 74, 0.28)';
-    ctx.fill();
-    ctx.strokeStyle = '#e6007a';
-    ctx.lineWidth = (qd.weight || 3) + 2;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-    ctx.restore();
+    // Reforço: desenha o contorno também direto no canvas já capturado,
+    // convertendo cada ponto lat/lng pra pixel usando a projeção atual do
+    // mapa (o mesmo estado/zoom/posição usado no print acima). Se por algum
+    // motivo a camada do Leaflet não aparecer no print, este desenho garante
+    // que o contorno saia mesmo assim.
+    try {
+      const pxPoints = qd.coords.map(pt => {
+        const lat = Array.isArray(pt) ? pt[0] : pt.lat;
+        const lng = Array.isArray(pt) ? pt[1] : pt.lng;
+        return map.latLngToContainerPoint([lat, lng]);
+      });
+      const ctx = mapCanvas.getContext('2d');
+      ctx.save();
+      ctx.scale(captureScale, captureScale);
+      ctx.beginPath();
+      pxPoints.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+      ctx.closePath();
+      ctx.strokeStyle = '#e6007a';
+      ctx.lineWidth = (qd.weight || 3) + 2;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+      ctx.restore();
+    } catch (drawErr) { console.error('Falha ao reforçar contorno no canvas:', drawErr); }
 
     const cardCanvas = await montarCartaoTemplate(qd, mapCanvas);
     const url = cardCanvas.toDataURL('image/png');
@@ -2160,6 +2172,7 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
     showSnack('⚠️ Não foi possível capturar o mapa (restrição do provedor de imagens). Tente novamente em alguns instantes.', 7000);
   } finally {
     document.body.classList.remove('no-anim');
+    if (highlightPoly) map.removeLayer(highlightPoly);
     if (hadBoundary) boundaryToHide.addTo(map);
     if (hadQuadrasGroup) layerGroups.quadras.addTo(map);
     map.setView(prevCenter, prevZoom, { animate: false });
