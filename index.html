@@ -2005,7 +2005,17 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.strokeStyle = '#c9c9c9'; ctx.lineWidth = 1.5;
   ctx.strokeRect(mapMarginX, mapY, mapW, mapH);
 
-  // ── Legenda "(Cole o mapa acima ou desenhe o território)" ──
+  // ── Marca de depuração (temporária) — versão do build + dados da quadra
+  // usados pra gerar este cartão. Ajuda a confirmar se o app está rodando o
+  // código atualizado e exatamente quais coordenadas foram usadas. ──
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.font = '600 12px monospace';
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
+  const debugTxt = `build:2026-07-25-e id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
+  ctx.restore();
   let y = mapY + mapH + 34;
   ctx.textAlign = 'center';
   ctx.font = '700 15px Arial, sans-serif';
