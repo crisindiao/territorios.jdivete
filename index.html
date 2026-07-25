@@ -1046,15 +1046,18 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
       return true;
     } catch (e) { return false; }
   }
-  async function detectarCasasQuadra(qd) {
+  async function detectarCasasQuadra(qd, onProgress) {
     const pts = qd.coords || [];
     if (pts.length < 3) return null;
     const polyStr = pts.map(p => `${p[0]} ${p[1]}`).join(' ');
     const query = `[out:json][timeout:25];(way["building"](poly:"${polyStr}");relation["building"](poly:"${polyStr}"););out count;`;
     let lastErr = null;
+    let n = 0;
     for (const url of OVERPASS_ENDPOINTS) {
+      n++;
+      if (onProgress) onProgress(n, OVERPASS_ENDPOINTS.length);
       try {
-        const resp = await fetchComTimeout(url, { method: 'POST', body: 'data=' + encodeURIComponent(query) }, 15000);
+        const resp = await fetchComTimeout(url, { method: 'POST', body: 'data=' + encodeURIComponent(query) }, 25000);
         if (!resp.ok) { lastErr = new Error('Servidor respondeu ' + resp.status); continue; }
         const data = await resp.json();
         const el = (data.elements || []).find(e => e.type === 'count');
@@ -2405,7 +2408,7 @@ function renderList() {
         const btnD=card.querySelector('.btn-detect-casas'); const original=btnD.textContent;
         btnD.textContent='⏳ Consultando...'; btnD.disabled=true;
         try {
-          const total = await detectarCasasQuadra(qd);
+          const total = await detectarCasasQuadra(qd, (n, of) => { btnD.textContent = `⏳ Servidor ${n}/${of}...`; });
           if (total===null) { showSnack('⚠️ Essa quadra ainda não tem contorno desenhado'); }
           else if (total===0) { showSnack('⚠️ Nenhuma construção encontrada no OpenStreetMap nessa área — confira o mapa ou preencha manualmente'); }
           else {
