@@ -1598,7 +1598,7 @@ function wireCartasBlock(card, c, rerenderFn) {
 const map = L.map('map', { zoomControl: true, tap: true });
 const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', crossOrigin: true }).addTo(map);
 const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics', crossOrigin: true });
-const satelliteLabelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', crossOrigin: true });
+const satelliteLabelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_matter_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', crossOrigin: true });
 let mapLayerMode = 'street';
 function toggleSatellite() {
   const btn = document.getElementById('satelliteBtn');
@@ -2013,7 +2013,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 12px monospace';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-g-noreinforce id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  const debugTxt = `build:2026-07-25-h-sharpstyle id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
   ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
   ctx.restore();
   let y = mapY + mapH + 34;
@@ -2124,13 +2124,18 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
   let highlightPoly = null;
 
   try {
-    map.fitBounds(quadraBounds, { paddingTopLeft: [50, 110], paddingBottomRight: [50, 110], maxZoom: 18, animate: false });
+    // Padding reduzido (era [50,110]) e maxZoom igual ao máximo nativo dos
+    // tiles (19) — assim o mapa se aproxima o máximo possível da quadra sem
+    // cortá-la, usando tiles na resolução mais nítida disponível em vez de
+    // tiles de um zoom menor ampliados (que saem borradas).
+    const fitPadding = [18, 18];
+    map.fitBounds(quadraBounds, { paddingTopLeft: fitPadding, paddingBottomRight: fitPadding, maxZoom: 19, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
     await waitTilesLoaded();
     await nextFrame();
     // Reaplica o enquadramento (garante que nenhum tile/realinhamento tardio
     // tenha deslocado a área visível antes da captura)
-    map.fitBounds(quadraBounds, { paddingTopLeft: [50, 110], paddingBottomRight: [50, 110], maxZoom: 18, animate: false });
+    map.fitBounds(quadraBounds, { paddingTopLeft: fitPadding, paddingBottomRight: fitPadding, maxZoom: 19, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
     await waitTilesLoaded();
     await nextFrame();
@@ -2144,13 +2149,16 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
       // sair deslocada/duplicada no cartão exportado. Isso resolve a causa
       // raiz do deslocamento, além do reforço manual desenhado mais abaixo.
       renderer: L.canvas({ padding: 0.5 }),
-      color: '#e6007a', weight: (qd.weight || 3) + 2, fillColor: '#ffd54a', fillOpacity: 0.28, opacity: 1
+      // Linha fina (era peso+2) e preenchimento quase transparente (10%),
+      // para marcar a quadra sem apagar o nome das ruas por baixo.
+      color: '#e6007a', weight: 2, fillColor: '#ffd54a', fillOpacity: 0.10, opacity: 1
     }).addTo(map);
     highlightPoly.bringToFront();
     await nextFrame();
     await nextFrame();
 
-    const captureScale = Math.max(2, window.devicePixelRatio || 1);
+    // Escala de captura mais alta (mínimo 3, era 2) para um PNG mais nítido.
+    const captureScale = Math.max(3, window.devicePixelRatio || 1);
     const mapCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#fff', scale: captureScale });
 
     // OBS: o reforço manual que existia aqui (redesenhar o contorno direto no
