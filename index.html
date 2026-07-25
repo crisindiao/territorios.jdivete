@@ -1812,7 +1812,11 @@ function renderPublicadores() {
   document.getElementById('cnt-publicadores').textContent = (activeGroupFilter?items.length+'/':'')+publicadoresData.length;
   saveState();
 }
+function ensureQuadraIds() {
+  quadrasData.forEach(qd => { if (!qd.id) qd.id = 'q_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9); });
+}
 function renderQuadras() {
+  ensureQuadraIds();
   layerGroups.quadras.clearLayers();
   quadrasData.forEach((qd, idx) => {
     const baseWeight = qd.weight||3;
@@ -1841,7 +1845,7 @@ function renderQuadras() {
     const estMinPopup = estimativaTempoQuadra(qd);
     const estimativaPopupHTML = estMinPopup ? `<br><small>⏱ ~${formatMinutos(estMinPopup)} estimado (${qd.casas} casas × ${MINUTOS_POR_CASA}min)</small>` : '';
     const shareBtn = `<br><button onclick="(function(){const c=quadrasData[${idx}]._layer.getBounds().getCenter();shareWhatsApp('Quadra ${qd.mapa}',c.lat,c.lng);})()" style="margin-top:6px;background:#25d366;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📤 WhatsApp</button>`;
-    const baixarCartaoBtn = `<br><button onclick="baixarCartaoQuadra(${idx})" style="margin-top:6px;background:#1967d2;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">⬇️ Baixar cartão</button>`;
+    const baixarCartaoBtn = `<br><button onclick="baixarCartaoQuadra('${qd.id}')" style="margin-top:6px;background:#1967d2;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">⬇️ Baixar cartão</button>`;
     poly.bindPopup(`<b>Mapa ${qd.mapa}</b>${qd.nome?'<br>'+qd.nome:''}${qd.grupo?`<br>👥 Grupo responsável: <b>${qd.grupo}</b>`:''}<br><small>${qd.coords.length} pontos — 📏 ~${perimQd}m de perímetro</small>${estimativaPopupHTML}${qd.coberta?`<br><small style="color:#1e8e3e">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</small>`:''}${atrasadaPopup?`<br><small style="color:#d97706">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</small>`:''}<br><button onclick="showQuadraCartao(${idx})" style="margin-top:6px;background:var(--md-primary);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📋 Cartão</button>`+baixarCartaoBtn+shareBtn+(isAdmin?coberturaBtn:'')+(editMode?`<br><button onclick="deleteQuadra(${idx})" style="margin-top:6px;background:#d93025;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">🗑 Excluir</button>`:''));
     poly.addTo(layerGroups.quadras);
     const center = poly.getBounds().getCenter();
@@ -2025,7 +2029,9 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   ctx.fillText(line, x, y);
   return y + lineHeight;
 }
-async function baixarCartaoQuadra(idx) {
+async function baixarCartaoQuadra(idOrIdx) {
+  ensureQuadraIds();
+  let idx = typeof idOrIdx === 'string' ? quadrasData.findIndex(q => q.id === idOrIdx) : idOrIdx;
   const qd = quadrasData[idx];
   if (!qd) { showSnack('❌ Quadra não encontrada'); return; }
   if (typeof html2canvas === 'undefined') { showSnack('❌ Recurso de captura não carregado. Verifique sua internet e tente novamente.'); return; }
@@ -2057,7 +2063,9 @@ async function baixarCartaoQuadra(idx) {
   highlightPoly.bringToFront();
 
   try {
-    console.log('[cartaoQuadra] build v2026-07-25b — coords:', JSON.stringify(qd.coords));
+    const debugCoords = JSON.stringify(qd.coords);
+    console.log('[cartaoQuadra] build v2026-07-25c — coords:', debugCoords);
+    try { await navigator.clipboard.writeText(debugCoords); showSnack('📋 Coordenadas da quadra copiadas (cole no chat pra debug)', 6000); } catch(e) {}
     map.fitBounds(highlightPoly.getBounds(), { paddingTopLeft: [50, 110], paddingBottomRight: [50, 110], maxZoom: 18, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
     await new Promise(r => setTimeout(r, 900)); // espera os tiles carregarem/renderizarem
@@ -2132,7 +2140,7 @@ function finalizeDrawQuadra() {
   if (drawPoints.length<3) { alert('Marque pelo menos 3 cantos.'); return; }
   const mapa = prompt('Número do mapa (ex: 15):'); if (!mapa) return;
   const nome = prompt('Nome/observação (opcional):', '') || '';
-  quadrasData.push({ mapa: mapa.trim(), nome, coords: drawPoints.slice(), cor: null, grupo: '', historico: [] });
+  quadrasData.push({ id: 'q_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9), mapa: mapa.trim(), nome, coords: drawPoints.slice(), cor: null, grupo: '', historico: [] });
   logActivity(`➕ criou a quadra ${mapa.trim()}${nome?' ('+nome+')':''}`);
   stopDrawing(); refreshHintForTab(); renderQuadras(); renderCatbar(); renderList(); updateLegend();
 }
@@ -2653,7 +2661,7 @@ function renderList() {
       card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${qd.mapa}</div><div class="card-sub">${qd.nome||'Sem nome'} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+qd.grupo:''}${estimativaHTML}</div></div></div>${coberturaBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${qd.mapa}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${qd.nome||''}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button><button class="btn-action btn-baixar-cartao" style="background:#e8f0fe;color:#1967d2">⬇️ Baixar cartão</button></div>`;
       wireDirty(card);
       wireCartaoBlock(card,qd,renderQuadras);
-      card.querySelector('.btn-baixar-cartao').onclick=()=>baixarCartaoQuadra(idxQd);
+      card.querySelector('.btn-baixar-cartao').onclick=()=>baixarCartaoQuadra(qd.id);
       card.querySelector('.btn-cor-auto').onclick=()=>{if(!isAdmin)return; card.querySelector('[data-f="cor"]').value=getColorForMapa(card.querySelector('[data-f="mapa"]').value.trim()||qd.mapa); card.classList.add('dirty'); card.querySelector('.btn-save-card').disabled=false;};
       card.querySelector('.btn-save-card').onclick=()=>{if(!isAdmin)return; qd.mapa=card.querySelector('[data-f="mapa"]').value.trim(); qd.nome=card.querySelector('[data-f="nome"]').value; const casasVal=parseInt(card.querySelector('[data-f="casas"]').value,10); qd.casas=isNaN(casasVal)?null:Math.max(0,casasVal); qd.grupo=card.querySelector('[data-f="grupo"]').value||''; qd.cor=card.querySelector('[data-f="cor"]').value; const w=parseInt(card.querySelector('[data-f="weight"]').value,10); qd.weight=isNaN(w)?3:Math.max(1,Math.min(12,w)); renderQuadras(); renderCatbar(); updateLegend(); finishSave(card);};
       card.querySelector('.btn-locate').onclick=()=>focusItem(qd);
