@@ -1037,22 +1037,38 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     try { return await fetch(url, { ...options, signal: ctrl.signal }); }
     finally { clearTimeout(t); }
   }
+  // Checagem rápida: o app consegue nem alcançar o domínio do OpenStreetMap?
+  // Isso separa "bloqueio/DNS desse domínio específico" de "servidor lento/fila cheia".
+  async function alcancaOverpass() {
+    try {
+      const resp = await fetchComTimeout('https://overpass-api.de/api/status', {}, 7000);
+      return !!resp;
+    } catch (e) { return false; }
+  }
   async function detectarCasasQuadra(qd) {
     const pts = qd.coords || [];
     if (pts.length < 3) return null;
+    const alcanca = await alcancaOverpass();
+    if (!alcanca) {
+      const err = new Error('Não consegui nem alcançar overpass-api.de — algo na sua rede (wifi/roteador/operadora) está bloqueando ou demorando demais pra esse domínio específico, mesmo com internet normal pros outros sites. Tente trocar entre wifi e dados móveis.');
+      err.tipo = 'bloqueio';
+      throw err;
+    }
     const polyStr = pts.map(p => `${p[0]} ${p[1]}`).join(' ');
     const query = `[out:json][timeout:25];(way["building"](poly:"${polyStr}");relation["building"](poly:"${polyStr}"););out count;`;
     let lastErr = null;
     for (const url of OVERPASS_ENDPOINTS) {
       try {
-        const resp = await fetchComTimeout(url, { method: 'POST', body: 'data=' + encodeURIComponent(query) }, 20000);
+        const resp = await fetchComTimeout(url, { method: 'POST', body: 'data=' + encodeURIComponent(query) }, 28000);
         if (!resp.ok) { lastErr = new Error('Servidor respondeu ' + resp.status); continue; }
         const data = await resp.json();
         const el = (data.elements || []).find(e => e.type === 'count');
         const total = el && el.tags ? parseInt(el.tags.total, 10) : 0;
         return isNaN(total) ? 0 : total;
       } catch (e) {
-        lastErr = (e && e.name === 'AbortError') ? new Error('Tempo esgotado — conexão lenta ou instável') : e;
+        lastErr = (e && e.name === 'AbortError')
+          ? new Error('O domínio respondeu, mas essa consulta específica demorou demais (fila cheia no servidor gratuito do OpenStreetMap). Tente de novo em alguns minutos.')
+          : e;
       }
     }
     throw lastErr || new Error('Falha desconhecida');
@@ -2397,7 +2413,7 @@ function renderList() {
             card.classList.add('dirty'); card.querySelector('.btn-save-card').disabled=false;
             showSnack(`🏠 ${total} construções encontradas via OpenStreetMap — confira o número e toque em Salvar`);
           }
-        } catch(e) { showSnack('❌ Falha ao consultar OpenStreetMap: ' + (e && e.message ? e.message : 'erro desconhecido'), 6000); }
+        } catch(e) { showSnack('❌ Falha ao consultar OpenStreetMap: ' + (e && e.message ? e.message : 'erro desconhecido'), 9000); }
         btnD.textContent=original; btnD.disabled=false;
       };
       card.querySelector('.btn-save-card').onclick=()=>{if(!isAdmin)return; qd.mapa=card.querySelector('[data-f="mapa"]').value.trim(); qd.nome=card.querySelector('[data-f="nome"]').value; const casasVal=parseInt(card.querySelector('[data-f="casas"]').value,10); qd.casas=isNaN(casasVal)?null:Math.max(0,casasVal); qd.grupo=card.querySelector('[data-f="grupo"]').value||''; qd.cor=card.querySelector('[data-f="cor"]').value; const w=parseInt(card.querySelector('[data-f="weight"]').value,10); qd.weight=isNaN(w)?3:Math.max(1,Math.min(12,w)); renderQuadras(); renderCatbar(); updateLegend(); finishSave(card);};
