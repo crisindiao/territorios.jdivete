@@ -14,6 +14,7 @@
 <meta name="theme-color" content="#3d1c5c">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -810,6 +811,7 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
     <button class="side-menu-item" onclick="closeSideMenu();openGlobalSearch()"><span class="smi-icon">🔍</span> Buscar</button>
     <button class="side-menu-item" onclick="closeSideMenu();showActivityLog()"><span class="smi-icon">📜</span> Atividade recente</button>
     <button class="side-menu-item" id="sideMenuSwitchTerritory" style="display:none" onclick="switchTerritoryPrompt()"><span class="smi-icon">🔁</span> Trocar território</button>
+    <button class="side-menu-item" id="sideMenuImportOSM" style="display:none" onclick="closeSideMenu();forcarImportOverpass()"><span class="smi-icon">🗺️</span> Buscar prédios/comércios (OSM)</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
     <button class="side-menu-item" onclick="closeSideMenu();document.getElementById('importFile').click()"><span class="smi-icon">📥</span> Importar dados</button>
@@ -970,6 +972,8 @@ function updateSideMenuState() {
   }
   const switchBtn = document.getElementById('sideMenuSwitchTerritory');
   if (switchBtn) switchBtn.style.display = (currentTerritoryConfig && currentTerritoryConfig.canSwitchTerritory) ? 'flex' : 'none';
+  const importOsmBtn = document.getElementById('sideMenuImportOSM');
+  if (importOsmBtn) importOsmBtn.style.display = (isAdmin && currentTerritoryConfig && currentTerritoryConfig.territory === 'jardim-conceicao') ? 'flex' : 'none';
 }
 function switchTerritoryPrompt() {
   if (!currentTerritoryConfig || !currentTerritoryConfig.canSwitchTerritory) return;
@@ -1582,9 +1586,9 @@ function wireCartasBlock(card, c, rerenderFn) {
 
 // ── MAP ──
 const map = L.map('map', { zoomControl: true, tap: true });
-const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
-const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics' });
-const satelliteLabelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd' });
+const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', crossOrigin: true }).addTo(map);
+const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics', crossOrigin: true });
+const satelliteLabelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', crossOrigin: true });
 let mapLayerMode = 'street';
 function toggleSatellite() {
   const btn = document.getElementById('satelliteBtn');
@@ -1840,7 +1844,8 @@ function renderQuadras() {
     const estMinPopup = estimativaTempoQuadra(qd);
     const estimativaPopupHTML = estMinPopup ? `<br><small>⏱ ~${formatMinutos(estMinPopup)} estimado (${qd.casas} casas × ${MINUTOS_POR_CASA}min)</small>` : '';
     const shareBtn = `<br><button onclick="(function(){const c=quadrasData[${idx}]._layer.getBounds().getCenter();shareWhatsApp('Quadra ${qd.mapa}',c.lat,c.lng);})()" style="margin-top:6px;background:#25d366;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📤 WhatsApp</button>`;
-    poly.bindPopup(`<b>Mapa ${qd.mapa}</b>${qd.nome?'<br>'+qd.nome:''}${qd.grupo?`<br>👥 Grupo responsável: <b>${qd.grupo}</b>`:''}<br><small>${qd.coords.length} pontos — 📏 ~${perimQd}m de perímetro</small>${estimativaPopupHTML}${qd.coberta?`<br><small style="color:#1e8e3e">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</small>`:''}${atrasadaPopup?`<br><small style="color:#d97706">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</small>`:''}<br><button onclick="showQuadraCartao(${idx})" style="margin-top:6px;background:var(--md-primary);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📋 Cartão</button>`+shareBtn+(isAdmin?coberturaBtn:'')+(editMode?`<br><button onclick="deleteQuadra(${idx})" style="margin-top:6px;background:#d93025;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">🗑 Excluir</button>`:''));
+    const baixarCartaoBtn = `<br><button onclick="baixarCartaoQuadra(${idx})" style="margin-top:6px;background:#1967d2;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">⬇️ Baixar cartão</button>`;
+    poly.bindPopup(`<b>Mapa ${qd.mapa}</b>${qd.nome?'<br>'+qd.nome:''}${qd.grupo?`<br>👥 Grupo responsável: <b>${qd.grupo}</b>`:''}<br><small>${qd.coords.length} pontos — 📏 ~${perimQd}m de perímetro</small>${estimativaPopupHTML}${qd.coberta?`<br><small style="color:#1e8e3e">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</small>`:''}${atrasadaPopup?`<br><small style="color:#d97706">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</small>`:''}<br><button onclick="showQuadraCartao(${idx})" style="margin-top:6px;background:var(--md-primary);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📋 Cartão</button>`+baixarCartaoBtn+shareBtn+(isAdmin?coberturaBtn:'')+(editMode?`<br><button onclick="deleteQuadra(${idx})" style="margin-top:6px;background:#d93025;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">🗑 Excluir</button>`:''));
     poly.addTo(layerGroups.quadras);
     const center = poly.getBounds().getCenter();
     const labelBorder = isCobertura ? cor : cor;
@@ -1894,6 +1899,122 @@ function showQuadraCartao(idx) {
     showSnack('📋 Sem cartão ainda — abra a lista de Quadras para enviar a foto');
   } else {
     showSnack('📋 Esta quadra ainda não tem cartão de território cadastrado');
+  }
+}
+// ── BAIXAR CARTÃO DE TERRITÓRIO (screenshot do mapa da quadra + modelo) ──
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function drawImageCover(ctx, img, x, y, w, h) {
+  const iw = img.width, ih = img.height;
+  const scale = Math.max(w / iw, h / ih);
+  const sw = w / scale, sh = h / scale;
+  const sx = (iw - sw) / 2, sy = (ih - sh) / 2;
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+}
+async function montarCartaoTemplate(qd, mapCanvas) {
+  if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch(e){} }
+  const W = 1000, H = 1400;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, '#6a2c91'); grad.addColorStop(1, '#3d1c5c');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, 200);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.78)';
+  ctx.font = '600 24px Inter, sans-serif';
+  ctx.fillText('CARTÃO DE TERRITÓRIO', 40, 50);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '800 60px Inter, sans-serif';
+  ctx.fillText('Mapa ' + (qd.mapa || ''), 40, 125);
+
+  const territorioNome = (typeof currentTerritoryConfig !== 'undefined' && currentTerritoryConfig && currentTerritoryConfig.label) || 'Território';
+  ctx.font = '500 25px Inter, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.fillText(territorioNome + (qd.nome ? ' — ' + qd.nome : ''), 40, 168);
+
+  const mapMarginX = 40, mapY = 230, mapH = 850;
+  const mapW = W - mapMarginX * 2;
+  roundRectPath(ctx, mapMarginX, mapY, mapW, mapH, 18);
+  ctx.save(); ctx.clip();
+  drawImageCover(ctx, mapCanvas, mapMarginX, mapY, mapW, mapH);
+  ctx.restore();
+  ctx.strokeStyle = '#e8e0f0'; ctx.lineWidth = 3;
+  roundRectPath(ctx, mapMarginX, mapY, mapW, mapH, 18); ctx.stroke();
+
+  let y = mapY + mapH + 55;
+  ctx.fillStyle = '#1a1a2e';
+  ctx.font = '700 30px Inter, sans-serif';
+  ctx.fillText(qd.grupo ? ('Grupo responsável: ' + qd.grupo) : 'Sem grupo atribuído', mapMarginX, y);
+
+  y += 44;
+  ctx.font = '500 24px Inter, sans-serif';
+  ctx.fillStyle = '#6b7280';
+  const perim = calcPerimetroQuadra(qd);
+  const casasTxt = qd.casas ? `🏠 ${qd.casas} casas estimadas` : '';
+  ctx.fillText(`📏 ~${perim}m de perímetro` + (casasTxt ? '   •   ' + casasTxt : ''), mapMarginX, y);
+
+  y += 42;
+  const statusTxt = qd.coberta ? ('✓ Coberta' + (qd.coberturaData ? ' em ' + formatarDataBR(qd.coberturaData) : '')) : '○ Pendente de cobertura';
+  ctx.fillStyle = qd.coberta ? '#16a34a' : '#d97706';
+  ctx.font = '600 24px Inter, sans-serif';
+  ctx.fillText(statusTxt, mapMarginX, y);
+
+  ctx.fillStyle = '#9a9aa8';
+  ctx.font = '400 20px Inter, sans-serif';
+  ctx.fillText('Gerado em ' + new Date().toLocaleDateString('pt-BR'), mapMarginX, H - 30);
+
+  return canvas;
+}
+async function baixarCartaoQuadra(idx) {
+  const qd = quadrasData[idx];
+  if (!qd) { showSnack('❌ Quadra não encontrada'); return; }
+  if (typeof html2canvas === 'undefined') { showSnack('❌ Recurso de captura não carregado. Verifique sua internet e tente novamente.'); return; }
+  if (!qd._layer) { showSnack('⚠️ Abra a aba Mapa antes de baixar o cartão desta quadra'); return; }
+
+  showSnack('📋 Gerando cartão de território... aguarde', 12000);
+
+  const prevViewMode = viewMode;
+  if (viewMode !== 'mapa') { setViewMode('mapa'); await new Promise(r => setTimeout(r, 350)); }
+  map.invalidateSize();
+
+  const prevCenter = map.getCenter();
+  const prevZoom = map.getZoom();
+  const originalStyle = { color: qd._layer.options.color, weight: qd._layer.options.weight, fillOpacity: qd._layer.options.fillOpacity };
+
+  try {
+    qd._layer.setStyle({ color: '#d93025', weight: (qd.weight || 3) + 3, fillOpacity: 0.12 });
+    qd._layer.bringToFront();
+    map.fitBounds(qd._layer.getBounds(), { padding: [50, 50], maxZoom: 19, animate: false });
+    await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
+    await new Promise(r => setTimeout(r, 900)); // espera os tiles carregarem/renderizarem
+
+    const mapCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#fff' });
+    const cardCanvas = await montarCartaoTemplate(qd, mapCanvas);
+    const url = cardCanvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url; a.download = `cartao-territorio-mapa-${qd.mapa}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    showSnack('✅ Cartão baixado com sucesso!', 5000);
+  } catch (e) {
+    console.error('Erro ao gerar cartão de território:', e);
+    showSnack('⚠️ Não foi possível capturar o mapa (restrição do provedor de imagens). Tente novamente em alguns instantes.', 7000);
+  } finally {
+    qd._layer.setStyle(originalStyle);
+    map.setView(prevCenter, prevZoom, { animate: false });
   }
 }
 function deleteQuadra(idx) {
@@ -2461,9 +2582,10 @@ function renderList() {
       const idxQd = quadrasData.indexOf(qd);
       const estMin = estimativaTempoQuadra(qd);
       const estimativaHTML = estMin ? ` — ⏱ ~${formatMinutos(estMin)} (${qd.casas} casas)` : '';
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${qd.mapa}</div><div class="card-sub">${qd.nome||'Sem nome'} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+qd.grupo:''}${estimativaHTML}</div></div></div>${coberturaBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${qd.mapa}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${qd.nome||''}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${qd.mapa}</div><div class="card-sub">${qd.nome||'Sem nome'} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+qd.grupo:''}${estimativaHTML}</div></div></div>${coberturaBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${qd.mapa}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${qd.nome||''}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button><button class="btn-action btn-baixar-cartao" style="background:#e8f0fe;color:#1967d2">⬇️ Baixar cartão</button></div>`;
       wireDirty(card);
       wireCartaoBlock(card,qd,renderQuadras);
+      card.querySelector('.btn-baixar-cartao').onclick=()=>baixarCartaoQuadra(idxQd);
       card.querySelector('.btn-cor-auto').onclick=()=>{if(!isAdmin)return; card.querySelector('[data-f="cor"]').value=getColorForMapa(card.querySelector('[data-f="mapa"]').value.trim()||qd.mapa); card.classList.add('dirty'); card.querySelector('.btn-save-card').disabled=false;};
       card.querySelector('.btn-save-card').onclick=()=>{if(!isAdmin)return; qd.mapa=card.querySelector('[data-f="mapa"]').value.trim(); qd.nome=card.querySelector('[data-f="nome"]').value; const casasVal=parseInt(card.querySelector('[data-f="casas"]').value,10); qd.casas=isNaN(casasVal)?null:Math.max(0,casasVal); qd.grupo=card.querySelector('[data-f="grupo"]').value||''; qd.cor=card.querySelector('[data-f="cor"]').value; const w=parseInt(card.querySelector('[data-f="weight"]').value,10); qd.weight=isNaN(w)?3:Math.max(1,Math.min(12,w)); renderQuadras(); renderCatbar(); updateLegend(); finishSave(card);};
       card.querySelector('.btn-locate').onclick=()=>focusItem(qd);
@@ -2744,9 +2866,16 @@ function loadTerritoryBoundary(territory) {
 
 // ── OVERPASS: IMPORTAÇÃO AUTOMÁTICA DE COMÉRCIOS/PRÉDIOS ──
 // Roda apenas na primeira vez que o usuário do Jd. Conceição loga (sem dados ainda)
-async function autoImportOverpass() {
-  // Só roda se não há dados ainda (evita duplicar em logins seguintes)
-  if (comerciosData.length > 0 || condominiosData.length > 0) return;
+async function forcarImportOverpass() {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode importar dados do mapa'); return; }
+  if (!confirm('Isso vai buscar novamente no OpenStreetMap os comércios e prédios da área do Jardim Conceição e adicionar somente os que ainda não estão cadastrados (sem duplicar). Continuar?')) return;
+  await autoImportOverpass(true);
+}
+
+async function autoImportOverpass(force = false) {
+  // Só roda automaticamente se não há dados ainda (evita duplicar em logins seguintes).
+  // Quando chamada manualmente (force=true) roda sempre, mas com deduplicação por nome+posição.
+  if (!force && (comerciosData.length > 0 || condominiosData.length > 0)) return;
 
   showSnack('🔍 Buscando comércios e prédios no mapa... aguarde', 15000);
 
@@ -2813,9 +2942,13 @@ out center 200;
       const nome = tags.name || tags['addr:street'] || '';
       if (!nome) return; // sem nome, ignora
 
+      // Evita duplicar itens já existentes (mesmo nome e posição bem próxima)
+      const jaExiste = (arr) => arr.some(x => x.nome === nome && Math.abs(x.lat - lat) < 0.0002 && Math.abs(x.lng - lng) < 0.0002);
+
       const building = tags.building;
       if (building === 'apartments' || building === 'residential') {
         // É um prédio/condomínio
+        if (jaExiste(condominiosData)) return;
         const endereco = [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(', ');
         condominiosData.push({
           nome: nome,
@@ -2828,6 +2961,7 @@ out center 200;
         addedCond++;
       } else {
         // É um comércio / estabelecimento
+        if (jaExiste(comerciosData)) return;
         const shopType = tags.shop || tags.amenity || '';
         const categoria = catMap[shopType] || 'Outros';
         const cor = corMap[categoria] || '#868e96';
