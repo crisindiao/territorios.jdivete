@@ -445,7 +445,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .section-header{font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);padding:4px 2px 8px;margin-top:4px;}
 
 /* ── SNACKBAR ── */
-.snackbar{position:fixed;bottom:calc(var(--nav-h) + 12px);left:50%;transform:translateX(-50%);background:#1a1a2e;color:white;padding:10px 20px;border-radius:10px;font-size:0.84rem;font-weight:500;box-shadow:var(--sh3);z-index:500;display:none;white-space:nowrap;}
+.snackbar{position:fixed;bottom:calc(var(--nav-h) + 12px);left:50%;transform:translateX(-50%);background:#1a1a2e;color:white;padding:10px 20px;border-radius:10px;font-size:0.84rem;font-weight:500;box-shadow:var(--sh3);z-index:500;display:none;white-space:normal;max-width:calc(100vw - 32px);width:max-content;text-align:center;line-height:1.4;}
 .snackbar.show{display:flex;align-items:center;gap:12px;animation:snackIn .2s ease;}
 .snack-undo-btn{background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:0.8rem;font-weight:700;flex-shrink:0;}
 .snack-undo-btn:active{background:rgba(255,255,255,0.3);}
@@ -1026,20 +1026,36 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
   // ("building") existem dentro do contorno da quadra. É uma estimativa:
   // depende do quanto a região está mapeada no OpenStreetMap, e cada
   // "construção" pode ser uma casa, um prédio inteiro, um comércio etc.
+  const OVERPASS_ENDPOINTS = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.openstreetmap.ru/api/interpreter'
+  ];
+  async function fetchComTimeout(url, options, ms) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    try { return await fetch(url, { ...options, signal: ctrl.signal }); }
+    finally { clearTimeout(t); }
+  }
   async function detectarCasasQuadra(qd) {
     const pts = qd.coords || [];
     if (pts.length < 3) return null;
     const polyStr = pts.map(p => `${p[0]} ${p[1]}`).join(' ');
     const query = `[out:json][timeout:25];(way["building"](poly:"${polyStr}");relation["building"](poly:"${polyStr}"););out count;`;
-    const resp = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      body: 'data=' + encodeURIComponent(query)
-    });
-    if (!resp.ok) throw new Error('status ' + resp.status);
-    const data = await resp.json();
-    const el = (data.elements || []).find(e => e.type === 'count');
-    const total = el && el.tags ? parseInt(el.tags.total, 10) : 0;
-    return isNaN(total) ? 0 : total;
+    let lastErr = null;
+    for (const url of OVERPASS_ENDPOINTS) {
+      try {
+        const resp = await fetchComTimeout(url, { method: 'POST', body: 'data=' + encodeURIComponent(query) }, 20000);
+        if (!resp.ok) { lastErr = new Error('Servidor respondeu ' + resp.status); continue; }
+        const data = await resp.json();
+        const el = (data.elements || []).find(e => e.type === 'count');
+        const total = el && el.tags ? parseInt(el.tags.total, 10) : 0;
+        return isNaN(total) ? 0 : total;
+      } catch (e) {
+        lastErr = (e && e.name === 'AbortError') ? new Error('Tempo esgotado — conexão lenta ou instável') : e;
+      }
+    }
+    throw lastErr || new Error('Falha desconhecida');
   }
 
   // ---------- Persistência local (salva automaticamente as edições no navegador) ----------
@@ -2381,7 +2397,7 @@ function renderList() {
             card.classList.add('dirty'); card.querySelector('.btn-save-card').disabled=false;
             showSnack(`🏠 ${total} construções encontradas via OpenStreetMap — confira o número e toque em Salvar`);
           }
-        } catch(e) { showSnack('❌ Não consegui consultar o OpenStreetMap agora. Tente de novo em instantes.'); }
+        } catch(e) { showSnack('❌ Falha ao consultar OpenStreetMap: ' + (e && e.message ? e.message : 'erro desconhecido'), 6000); }
         btnD.textContent=original; btnD.disabled=false;
       };
       card.querySelector('.btn-save-card').onclick=()=>{if(!isAdmin)return; qd.mapa=card.querySelector('[data-f="mapa"]').value.trim(); qd.nome=card.querySelector('[data-f="nome"]').value; const casasVal=parseInt(card.querySelector('[data-f="casas"]').value,10); qd.casas=isNaN(casasVal)?null:Math.max(0,casasVal); qd.grupo=card.querySelector('[data-f="grupo"]').value||''; qd.cor=card.querySelector('[data-f="cor"]').value; const w=parseInt(card.querySelector('[data-f="weight"]').value,10); qd.weight=isNaN(w)?3:Math.max(1,Math.min(12,w)); renderQuadras(); renderCatbar(); updateLegend(); finishSave(card);};
