@@ -52,6 +52,16 @@
   --top-h: 64px;
   --font: 'Inter', system-ui, sans-serif;
 }
+body.dark-mode{
+  --white:#1e1e26; --bg:#121218; --surface:#1c1c24; --border:#33333d;
+  --text:#eaeaf0; --text2:#9a9aa8;
+  --purple-light:#2a2035; --md-primary-light:#2a2035; --md-surface-variant:#26262f;
+}
+body.dark-mode #map .leaflet-tile-pane{filter:invert(92%) hue-rotate(180deg) brightness(0.92) contrast(0.92);}
+body.dark-mode.sat-mode #map .leaflet-tile-pane{filter:none;}
+body.dark-mode .search-overlay{background:var(--bg);}
+body.dark-mode .leaflet-popup-content-wrapper,body.dark-mode .leaflet-popup-tip{background:var(--surface);color:var(--text);}
+body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-content select{background:#26262f;color:var(--text);border:1px solid var(--border);}
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;width:100%;overflow:hidden;font-family:var(--font);color:var(--text);background:var(--bg);-webkit-tap-highlight-color:transparent;}
 button{font-family:inherit;cursor:pointer;border:none;background:none;}
@@ -397,6 +407,16 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .snackbar.show{display:flex;align-items:center;gap:12px;animation:snackIn .2s ease;}
 .snack-undo-btn{background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:0.8rem;font-weight:700;flex-shrink:0;}
 .snack-undo-btn:active{background:rgba(255,255,255,0.3);}
+body.presentation-mode .topbar-actions,
+body.presentation-mode .bottom-nav,
+body.presentation-mode .fab,
+body.presentation-mode #myLocationBtn,
+body.presentation-mode #satelliteBtn,
+body.presentation-mode .menu-btn{display:none!important;}
+body.presentation-mode #map{bottom:0!important;}
+body.presentation-mode .list-view{bottom:0!important;}
+.presentation-exit-btn{position:fixed;top:10px;right:10px;z-index:600;background:rgba(0,0,0,0.6);color:#fff;border-radius:50%;width:38px;height:38px;display:none;align-items:center;justify-content:center;font-size:16px;}
+body.presentation-mode .presentation-exit-btn{display:flex;}
 @keyframes snackIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 
 /* ── HINT TOAST ── */
@@ -680,6 +700,7 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
 </div>
 <button class="fab" id="fabBtn" onclick="startAddMode()">＋</button>
 <button class="locate-fab" id="myLocationBtn" onclick="toggleMyLocation()" title="Minha localização em tempo real" style="display:none;">📍</button>
+<button class="locate-fab" id="satelliteBtn" onclick="toggleSatellite()" title="Ver satélite" style="display:none;right:calc(52px + 20px + 52px);">🛰️</button>
 
 <!-- LIST VIEW -->
 <div class="list-view" id="listView">
@@ -739,6 +760,7 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
 
 <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(event)">
 <div class="snackbar" id="snackbar"></div>
+<button class="presentation-exit-btn" onclick="togglePresentationMode()" title="Sair do modo apresentação">✕</button>
 
 <!-- FIREBASE -->
 <script type="module">
@@ -801,11 +823,17 @@ function showMoreMenu() {
   }
 }
 function showMaisMenu() {
-  const choice = prompt('Mais opções:\n1 - Exportar dados\n2 - Importar dados\n3 - Limpar cache\n4 - 📜 Atividade recente\n\nDigite o número:');
+  const choice = prompt('Mais opções:\n1 - Exportar dados\n2 - Importar dados\n3 - Limpar cache\n4 - 📜 Atividade recente\n5 - 🖥 Modo apresentação\n6 - 🌙 Modo escuro\n\nDigite o número:');
   if (choice==='1') exportData();
   else if (choice==='2') document.getElementById('importFile').click();
   else if (choice==='3') showMoreMenu();
   else if (choice==='4') showActivityLog();
+  else if (choice==='5') togglePresentationMode();
+  else if (choice==='6') toggleDarkMode();
+}
+function togglePresentationMode() {
+  const on = document.body.classList.toggle('presentation-mode');
+  showSnack(on ? '🖥 Modo apresentação ativado — toque no ✕ pra sair' : '🖥 Modo apresentação desativado');
 }
 function showActivityLog() {
   if (!activityLog.length) { showSnack('📜 Nenhuma atividade registrada ainda'); return; }
@@ -867,6 +895,39 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     if (!iso) return null;
     const ms = Date.now() - new Date(iso).getTime();
     return Math.floor(ms / 86400000);
+  }
+
+  // ---------- MODO ESCURO ----------
+  const DARK_STORAGE = 'jardim-ivete-dark-mode-v1'; // 'auto' | 'on' | 'off'
+  function darkModePref() { return localStorage.getItem(DARK_STORAGE) || 'auto'; }
+  function isNightTime() { const h = new Date().getHours(); return h >= 18 || h < 6; }
+  function applyDarkMode() {
+    const pref = darkModePref();
+    let dark;
+    if (pref === 'on') dark = true;
+    else if (pref === 'off') dark = false;
+    else dark = isNightTime() || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.body.classList.toggle('dark-mode', dark);
+  }
+  function toggleDarkMode() {
+    const pref = darkModePref();
+    const next = pref === 'auto' ? 'on' : (pref === 'on' ? 'off' : 'auto');
+    localStorage.setItem(DARK_STORAGE, next);
+    applyDarkMode();
+    showSnack(next==='auto' ? '🌙 Modo escuro: automático (segue horário/sistema)' : next==='on' ? '🌙 Modo escuro: sempre ativado' : '☀️ Modo escuro: sempre desativado');
+  }
+  applyDarkMode();
+  if (window.matchMedia) { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyDarkMode); }
+  setInterval(applyDarkMode, 15*60*1000); // reavalia a cada 15min (pra pegar troca dia/noite)
+  function calcPerimetroQuadra(qd) {
+    const pts = qd.coords || [];
+    if (pts.length < 2) return 0;
+    let total = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i+1) % pts.length];
+      total += map.distance(a, b);
+    }
+    return Math.round(total);
   }
 
   // ---------- Persistência local (salva automaticamente as edições no navegador) ----------
@@ -1319,7 +1380,23 @@ function wireCartasBlock(card, c, rerenderFn) {
 
 // ── MAP ──
 const map = L.map('map', { zoomControl: true, tap: true });
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics' });
+let mapLayerMode = 'street';
+function toggleSatellite() {
+  const btn = document.getElementById('satelliteBtn');
+  if (mapLayerMode === 'street') {
+    map.removeLayer(streetLayer); map.addLayer(satelliteLayer);
+    mapLayerMode = 'satellite';
+    if (btn) { btn.textContent = '🗺️'; btn.title = 'Ver mapa de ruas'; }
+    document.body.classList.add('sat-mode');
+  } else {
+    map.removeLayer(satelliteLayer); map.addLayer(streetLayer);
+    mapLayerMode = 'street';
+    if (btn) { btn.textContent = '🛰️'; btn.title = 'Ver satélite'; }
+    document.body.classList.remove('sat-mode');
+  }
+}
 const territoryPoly = L.polygon(territoryCoords, { color: '#d93025', weight: 3, fillColor: '#d93025', fillOpacity: 0.07, dashArray: '10,6' }).addTo(map);
 let mapFitted = false; // evita fitBounds enquanto o #map ainda está com display:none (tamanho 0x0)
 
@@ -1337,6 +1414,25 @@ function makeDivIcon(color, letter) {
 function makeDotIcon(color) {
   return L.divIcon({ className: '', html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2.5px solid white;box-shadow:0 1px 5px rgba(0,0,0,0.4)"></div>`, iconSize:[16,16], iconAnchor:[8,8] });
 }
+
+// ── COMPARTILHAR NO WHATSAPP ──
+function shareWhatsApp(titulo, lat, lng) {
+  const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+  const texto = encodeURIComponent(`${titulo}\n${mapsUrl}`);
+  window.open(`https://wa.me/?text=${texto}`, '_blank');
+}
+
+// ── TOQUE E SEGURE NO MAPA: DESCOBRIR ENDEREÇO ──
+map.on('contextmenu', async (e) => {
+  const { lat, lng } = e.latlng;
+  const popup = L.popup().setLatLng([lat,lng]).setContent('<div class="popup-edit"><b>📍 Buscando endereço...</b></div>').openOn(map);
+  const addr = await reverseGeocode(lat, lng);
+  const div = document.createElement('div'); div.className = 'popup-edit';
+  div.innerHTML = `<b>📍 Local no mapa</b><div style="font-size:0.82rem;margin:4px 0 8px;color:var(--text2)">${addr || 'Endereço não encontrado'}</div><div class="popup-actions"><button class="btn-save">🗺️ Maps</button><button class="btn-del">📤 WhatsApp</button></div>`;
+  div.querySelector('.btn-save').onclick = () => window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
+  div.querySelector('.btn-del').onclick = () => shareWhatsApp(addr || 'Local no mapa', lat, lng);
+  popup.setContent(div);
+});
 
 // ── MINHA LOCALIZAÇÃO (tempo real) ──
 let myLocationWatchId = null;
@@ -1498,7 +1594,13 @@ function renderPublicadores() {
   items.forEach(p => {
     const cor = groupColors[p.grupo] || '#868e96';
     const marker = L.marker([p.lat,p.lng], { icon: makeDotIcon(cor), draggable: editMode });
-    marker.bindPopup(editMode ? editPublicadorPopup(marker,p) : `${p.foto?`<img src="${p.foto}" class="popup-photo">`:''}<b>${p.membros.join(', ')}</b><br>Grupo: ${p.grupo}${p.endereco?'<br><small style="color:#5f6368">'+p.endereco+'</small>':''}`);
+    marker.bindPopup(() => {
+      if (editMode) return editPublicadorPopup(marker,p);
+      const div = document.createElement('div');
+      div.innerHTML = `${p.foto?`<img src="${p.foto}" class="popup-photo">`:''}<b>${p.membros.join(', ')}</b><br>Grupo: ${p.grupo}${p.endereco?'<br><small style="color:#5f6368">'+p.endereco+'</small>':''}<div class="popup-actions" style="margin-top:8px;"><button class="btn-save btn-share-whats">📤 WhatsApp</button></div>`;
+      div.querySelector('.btn-share-whats').onclick = () => shareWhatsApp(p.membros.join(', '), p.lat, p.lng);
+      return div;
+    });
     marker.on('dragend', e => { if (!isAdmin) return; const pos=e.target.getLatLng(); p.lat=pos.lat; p.lng=pos.lng; });
     marker.addTo(layerGroups.publicadores); p._marker = marker;
   });
@@ -1530,7 +1632,9 @@ function renderQuadras() {
     const coberturaBtn = `<br><button onclick="toggleQuadraCobertura(${idx})" style="margin-top:6px;background:${qd.coberta?'#5f6368':'var(--md-success)'};color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button>`;
     const diasUltPopup = diasDesde(qd.ultimaCobertura);
     const atrasadaPopup = !qd.coberta && (diasUltPopup===null || diasUltPopup>90);
-    poly.bindPopup(`<b>Mapa ${qd.mapa}</b>${qd.nome?'<br>'+qd.nome:''}${qd.grupo?`<br>👥 Grupo responsável: <b>${qd.grupo}</b>`:''}<br><small>${qd.coords.length} pontos</small>${qd.coberta?`<br><small style="color:#1e8e3e">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</small>`:''}${atrasadaPopup?`<br><small style="color:#d97706">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</small>`:''}<br><button onclick="showQuadraCartao(${idx})" style="margin-top:6px;background:var(--md-primary);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📋 Cartão</button>`+(isAdmin?coberturaBtn:'')+(editMode?`<br><button onclick="deleteQuadra(${idx})" style="margin-top:6px;background:#d93025;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">🗑 Excluir</button>`:''));
+    const perimQd = calcPerimetroQuadra(qd);
+    const shareBtn = `<br><button onclick="(function(){const c=quadrasData[${idx}]._layer.getBounds().getCenter();shareWhatsApp('Quadra ${qd.mapa}',c.lat,c.lng);})()" style="margin-top:6px;background:#25d366;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📤 WhatsApp</button>`;
+    poly.bindPopup(`<b>Mapa ${qd.mapa}</b>${qd.nome?'<br>'+qd.nome:''}${qd.grupo?`<br>👥 Grupo responsável: <b>${qd.grupo}</b>`:''}<br><small>${qd.coords.length} pontos — 📏 ~${perimQd}m de perímetro</small>${qd.coberta?`<br><small style="color:#1e8e3e">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</small>`:''}${atrasadaPopup?`<br><small style="color:#d97706">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</small>`:''}<br><button onclick="showQuadraCartao(${idx})" style="margin-top:6px;background:var(--md-primary);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📋 Cartão</button>`+shareBtn+(isAdmin?coberturaBtn:'')+(editMode?`<br><button onclick="deleteQuadra(${idx})" style="margin-top:6px;background:#d93025;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">🗑 Excluir</button>`:''));
     poly.addTo(layerGroups.quadras);
     const center = poly.getBounds().getCenter();
     const labelBorder = isCobertura ? cor : cor;
@@ -1791,7 +1895,7 @@ function setViewMode(mode) {
   document.getElementById('homeView').classList.remove('show');
   document.getElementById('map').style.display = 'none';
   document.getElementById('legendBox').style.display = 'none';
-  document.querySelector('.locate-fab').style.display = 'none';
+  document.querySelectorAll('.locate-fab').forEach(b=>b.style.display='none');
   document.getElementById('listView').classList.remove('show');
   document.getElementById('fabBtn').style.display = 'none';
 
@@ -1821,7 +1925,7 @@ function setViewMode(mode) {
   } else if (mode==='mapa') {
     document.getElementById('map').style.display = 'block';
     document.getElementById('legendBox').style.display = 'block';
-    document.querySelector('.locate-fab').style.display = 'flex';
+    document.querySelectorAll('.locate-fab').forEach(b=>b.style.display='flex');
     if (editMode) document.getElementById('fabBtn').style.display = 'flex';
     setTimeout(()=>{
       map.invalidateSize();
@@ -2115,10 +2219,11 @@ function renderList() {
     items.forEach(p=>{
       const cor=groupColors[p.grupo]||'#868e96';
       const card=document.createElement('div'); card.className='card'; card.style.borderLeftColor=cor;
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20">${avatarHTML(p,'🏠')}</div><div><div class="card-name">${p.membros[0]||'Família'}</div><div class="card-sub">Grupo ${p.grupo} — ${p.membros.length} membro(s)</div></div></div>${photoBlockHTML(p)}<div class="card-label">Membros</div><div class="card-row"><input type="text" data-f="membros" value="${p.membros.join(', ')}"></div><div class="card-label">Grupo</div><div class="card-row"><select data-f="grupo">${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===p.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${p.endereco||''}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20">${avatarHTML(p,'🏠')}</div><div><div class="card-name">${p.membros[0]||'Família'}</div><div class="card-sub">Grupo ${p.grupo} — ${p.membros.length} membro(s)</div></div></div>${photoBlockHTML(p)}<div class="card-label">Membros</div><div class="card-row"><input type="text" data-f="membros" value="${p.membros.join(', ')}"></div><div class="card-label">Grupo</div><div class="card-row"><select data-f="grupo">${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===p.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${p.endereco||''}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button type="button" class="btn-action btn-share-familia" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button></div>`;
       wireDirty(card);
       wirePhotoBlock(card,p,renderPublicadores);
       wireStreetView(card,p);
+      card.querySelector('.btn-share-familia').onclick=()=>shareWhatsApp(p.membros.join(', '), p.lat, p.lng);
       card.querySelector('.btn-save-card').onclick=async()=>{if(!isAdmin)return; const btn=card.querySelector('.btn-save-card'); const st=card.querySelector('[data-geo-status]'); btn.disabled=true; p.membros=card.querySelector('[data-f="membros"]').value.split(',').map(s=>s.trim()).filter(Boolean); p.grupo=card.querySelector('[data-f="grupo"]').value; const ne=card.querySelector('[data-f="endereco"]').value; if(ne&&ne!==p.endereco){btn.textContent='Localizando...'; const res=await geocode(ne); if(res){p.lat=res.lat;p.lng=res.lng;st.className='geo-status ok';st.textContent='✓ Localizado';} else{st.className='geo-status fail';st.textContent='✗ Não encontrado';}} else st.textContent=''; p.endereco=ne; renderPublicadores(); finishSave(card);};
       card.querySelector('.btn-locate').onclick=()=>focusItem(p);
       card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover publicador?')) return; const idx=publicadoresData.indexOf(p); if(idx>-1){ publicadoresData.splice(idx,1); pushUndo({type:'publicador',data:p,index:idx,label:p.membros.join(', ')}); logActivity('🗑 removeu a família '+p.membros.join(', ')); } renderPublicadores(); renderList(); showSnack('🗑 Família removida', 6000, undoLast);};
@@ -2143,7 +2248,7 @@ function renderList() {
         : `<div class="cobertura-badge cobertura-pendente">○ Pendente${atrasada?` — ⚠️ ${diasUlt===null?'nunca coberta':'há '+diasUlt+' dias sem cobertura'}`:''}</div>`;
       const historicoHTML = (qd.historico&&qd.historico.length) ? `<details class="quadra-historico"><summary>📜 Histórico (${qd.historico.length})</summary>${qd.historico.slice(0,10).map(h=>`<div class="hist-item">${formatarDataBR(h.data)} — ${h.acao}${h.usuario?' — '+h.usuario:''}</div>`).join('')}</details>` : '';
       const idxQd = quadrasData.indexOf(qd);
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${qd.mapa}</div><div class="card-sub">${qd.nome||'Sem nome'} — ${qd.coords.length} pontos${qd.grupo?' — 👥 '+qd.grupo:''}</div></div></div>${coberturaBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${qd.mapa}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${qd.nome||''}"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${qd.mapa}</div><div class="card-sub">${qd.nome||'Sem nome'} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+qd.grupo:''}</div></div></div>${coberturaBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${qd.mapa}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${qd.nome||''}"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button></div>`;
       wireDirty(card);
       wireCartaoBlock(card,qd,renderQuadras);
       card.querySelector('.btn-cor-auto').onclick=()=>{if(!isAdmin)return; card.querySelector('[data-f="cor"]').value=getColorForMapa(card.querySelector('[data-f="mapa"]').value.trim()||qd.mapa); card.classList.add('dirty'); card.querySelector('.btn-save-card').disabled=false;};
@@ -2151,6 +2256,7 @@ function renderList() {
       card.querySelector('.btn-locate').onclick=()=>focusItem(qd);
       card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover quadra?')) return; const idx=quadrasData.indexOf(qd); if(idx>-1){ quadrasData.splice(idx,1); pushUndo({type:'quadra',data:qd,index:idx,label:'Quadra '+qd.mapa}); logActivity('🗑 removeu a quadra '+qd.mapa); } renderQuadras(); renderList(); renderCatbar(); updateLegend(); showSnack('🗑 Quadra removida', 6000, undoLast);};
       card.querySelector('.btn-cobertura-toggle').onclick=()=>toggleQuadraCobertura(idxQd);
+      card.querySelector('.btn-share-quadra').onclick=()=>{ const c=qd._layer?qd._layer.getBounds().getCenter():{lat:qd.coords[0][0],lng:qd.coords[0][1]}; shareWhatsApp('Quadra '+qd.mapa+(qd.nome?' — '+qd.nome:''), c.lat, c.lng); };
       box.appendChild(card);
     });
   }
