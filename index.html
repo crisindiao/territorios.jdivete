@@ -2019,7 +2019,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 12px monospace';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-i-satlabels id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  const debugTxt = `build:2026-07-25-j-satlabels-px id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
   ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
   ctx.restore();
   let y = mapY + mapH + 34;
@@ -2048,6 +2048,27 @@ function drawDottedLine(ctx, x1, y, x2, y2) {
   ctx.lineTo(x2, y2);
   ctx.stroke();
   ctx.restore();
+}
+function processLabelsCanvasToWhite(canvas) {
+  // Os tiles de labels vêm com texto escuro + halo claro sobre fundo
+  // transparente. Invertendo: texto escuro vira branco e o halo claro vira
+  // escuro — igual ao padrão usado em mapas de satélite (texto branco com
+  // contorno escuro). O ganho de contraste deixa o traço mais "cheio".
+  const ctx = canvas.getContext('2d');
+  let imgData;
+  try { imgData = ctx.getImageData(0, 0, canvas.width, canvas.height); }
+  catch (e) { console.error('Não foi possível processar labels do satélite:', e); return; }
+  const d = imgData.data;
+  const contrast = 1.7;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue; // pixel transparente, pula
+    let r = 255 - d[i], g = 255 - d[i + 1], b = 255 - d[i + 2];
+    r = Math.min(255, Math.max(0, (r - 128) * contrast + 128));
+    g = Math.min(255, Math.max(0, (g - 128) * contrast + 128));
+    b = Math.min(255, Math.max(0, (b - 128) * contrast + 128));
+    d[i] = r; d[i + 1] = g; d[i + 2] = b;
+  }
+  ctx.putImageData(imgData, 0, 0);
 }
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   const words = text.split(' ');
@@ -2165,7 +2186,32 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
 
     // Escala de captura mais alta (mínimo 3, era 2) para um PNG mais nítido.
     const captureScale = Math.max(3, window.devicePixelRatio || 1);
+
+    // No modo satélite, o filtro CSS que deixa os nomes de rua brancos
+    // (.sat-labels-layer) NÃO é respeitado pelo html2canvas — é uma
+    // limitação conhecida da biblioteca, que ignora a propriedade `filter`.
+    // Por isso capturamos a camada de labels SOZINHA (satélite escondido),
+    // processamos os pixels de verdade (inverte + aumenta contraste) e só
+    // depois desenhamos por cima do mapa já capturado.
+    const isSatMode = document.body.classList.contains('sat-mode');
+    let labelsCanvas = null;
+    if (isSatMode && map.hasLayer(satelliteLabelsLayer)) {
+      const hadSatLayer = map.hasLayer(satelliteLayer);
+      if (hadSatLayer) map.removeLayer(satelliteLayer);
+      await nextFrame();
+      labelsCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: null, scale: captureScale });
+      processLabelsCanvasToWhite(labelsCanvas);
+      if (hadSatLayer) satelliteLayer.addTo(map);
+      await nextFrame();
+      await nextFrame();
+    }
+
     const mapCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#fff', scale: captureScale });
+
+    if (labelsCanvas) {
+      mapCanvas.getContext('2d').drawImage(labelsCanvas, 0, 0, mapCanvas.width, mapCanvas.height);
+    }
+
 
     // OBS: o reforço manual que existia aqui (redesenhar o contorno direto no
     // canvas capturado, calculando os pixels via latLngToContainerPoint) foi
