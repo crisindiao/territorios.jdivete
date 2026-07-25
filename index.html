@@ -1022,60 +1022,6 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     const h = Math.floor(min / 60), m = min % 60;
     return h + 'h' + (m ? ' ' + m + 'min' : '');
   }
-  // Consulta o OpenStreetMap (via Overpass API) e conta quantas construções
-  // ("building") existem dentro do contorno da quadra. É uma estimativa:
-  // depende do quanto a região está mapeada no OpenStreetMap, e cada
-  // "construção" pode ser uma casa, um prédio inteiro, um comércio etc.
-  const OVERPASS_ENDPOINTS = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://overpass.openstreetmap.ru/api/interpreter'
-  ];
-  async function fetchComTimeout(url, options, ms) {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), ms);
-    try { return await fetch(url, { ...options, signal: ctrl.signal }); }
-    finally { clearTimeout(t); }
-  }
-  // Teste de conectividade GERAL (não do overpass) — usa o mesmo endpoint que o
-  // Android usa internamente pra checar internet. mode:'no-cors' funciona mesmo
-  // sem CORS, só serve pra saber se a rede de fato conecta em algum lugar.
-  async function temInternetGeral() {
-    try {
-      await fetchComTimeout('https://www.gstatic.com/generate_204', { mode: 'no-cors', cache: 'no-store' }, 5000);
-      return true;
-    } catch (e) { return false; }
-  }
-  async function detectarCasasQuadra(qd, onProgress) {
-    const pts = qd.coords || [];
-    if (pts.length < 3) return null;
-    const polyStr = pts.map(p => `${p[0]} ${p[1]}`).join(' ');
-    const query = `[out:json][timeout:25];(way["building"](poly:"${polyStr}");relation["building"](poly:"${polyStr}"););out count;`;
-    let lastErr = null;
-    let n = 0;
-    for (const url of OVERPASS_ENDPOINTS) {
-      n++;
-      if (onProgress) onProgress(n, OVERPASS_ENDPOINTS.length);
-      try {
-        const resp = await fetchComTimeout(url, { method: 'POST', body: 'data=' + encodeURIComponent(query) }, 25000);
-        if (!resp.ok) { lastErr = new Error('Servidor respondeu ' + resp.status); continue; }
-        const data = await resp.json();
-        const el = (data.elements || []).find(e => e.type === 'count');
-        const total = el && el.tags ? parseInt(el.tags.total, 10) : 0;
-        return isNaN(total) ? 0 : total;
-      } catch (e) {
-        lastErr = e;
-      }
-    }
-    // Nenhum dos 3 servidores respondeu — descobre se é rede geral ou só esses domínios
-    const internetOk = await temInternetGeral();
-    if (!internetOk) {
-      const err = new Error('Sua internet parece indisponível agora (mesmo com sinal cheio na tela). Verifique a conexão e tente de novo.');
-      throw err;
-    }
-    const err = new Error('Sua internet está OK, mas nenhum dos 3 servidores do OpenStreetMap respondeu (overpass-api.de e espelhos) — pode ser bloqueio dessa rede específica a esses domínios, ou os servidores gratuitos estarem sobrecarregados agora. Tente outra rede (wifi ↔ dados móveis) pra confirmar, ou tente de novo em alguns minutos.');
-    throw err;
-  }
 
   // ---------- Persistência local (salva automaticamente as edições no navegador) ----------
 
@@ -2399,26 +2345,10 @@ function renderList() {
       const idxQd = quadrasData.indexOf(qd);
       const estMin = estimativaTempoQuadra(qd);
       const estimativaHTML = estMin ? ` — ⏱ ~${formatMinutos(estMin)} (${qd.casas} casas)` : '';
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${qd.mapa}</div><div class="card-sub">${qd.nome||'Sem nome'} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+qd.grupo:''}${estimativaHTML}</div></div></div>${coberturaBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${qd.mapa}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${qd.nome||''}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"><button type="button" class="btn-cor-auto btn-detect-casas">🏠 Detectar</button></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${qd.mapa}</div><div class="card-sub">${qd.nome||'Sem nome'} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+qd.grupo:''}${estimativaHTML}</div></div></div>${coberturaBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${qd.mapa}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${qd.nome||''}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button></div>`;
       wireDirty(card);
       wireCartaoBlock(card,qd,renderQuadras);
       card.querySelector('.btn-cor-auto').onclick=()=>{if(!isAdmin)return; card.querySelector('[data-f="cor"]').value=getColorForMapa(card.querySelector('[data-f="mapa"]').value.trim()||qd.mapa); card.classList.add('dirty'); card.querySelector('.btn-save-card').disabled=false;};
-      card.querySelector('.btn-detect-casas').onclick=async()=>{
-        if(!isAdmin) return;
-        const btnD=card.querySelector('.btn-detect-casas'); const original=btnD.textContent;
-        btnD.textContent='⏳ Consultando...'; btnD.disabled=true;
-        try {
-          const total = await detectarCasasQuadra(qd, (n, of) => { btnD.textContent = `⏳ Servidor ${n}/${of}...`; });
-          if (total===null) { showSnack('⚠️ Essa quadra ainda não tem contorno desenhado'); }
-          else if (total===0) { showSnack('⚠️ Nenhuma construção encontrada no OpenStreetMap nessa área — confira o mapa ou preencha manualmente'); }
-          else {
-            card.querySelector('[data-f="casas"]').value=total;
-            card.classList.add('dirty'); card.querySelector('.btn-save-card').disabled=false;
-            showSnack(`🏠 ${total} construções encontradas via OpenStreetMap — confira o número e toque em Salvar`);
-          }
-        } catch(e) { showSnack('❌ Falha ao consultar OpenStreetMap: ' + (e && e.message ? e.message : 'erro desconhecido'), 9000); }
-        btnD.textContent=original; btnD.disabled=false;
-      };
       card.querySelector('.btn-save-card').onclick=()=>{if(!isAdmin)return; qd.mapa=card.querySelector('[data-f="mapa"]').value.trim(); qd.nome=card.querySelector('[data-f="nome"]').value; const casasVal=parseInt(card.querySelector('[data-f="casas"]').value,10); qd.casas=isNaN(casasVal)?null:Math.max(0,casasVal); qd.grupo=card.querySelector('[data-f="grupo"]').value||''; qd.cor=card.querySelector('[data-f="cor"]').value; const w=parseInt(card.querySelector('[data-f="weight"]').value,10); qd.weight=isNaN(w)?3:Math.max(1,Math.min(12,w)); renderQuadras(); renderCatbar(); updateLegend(); finishSave(card);};
       card.querySelector('.btn-locate').onclick=()=>focusItem(qd);
       card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover quadra?')) return; const idx=quadrasData.indexOf(qd); if(idx>-1){ quadrasData.splice(idx,1); pushUndo({type:'quadra',data:qd,index:idx,label:'Quadra '+qd.mapa}); logActivity('🗑 removeu a quadra '+qd.mapa); } renderQuadras(); renderList(); renderCatbar(); updateLegend(); showSnack('🗑 Quadra removida', 6000, undoLast);};
