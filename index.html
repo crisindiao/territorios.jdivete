@@ -569,7 +569,7 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
   <div class="auth-card">
     <div class="auth-logo">🗺️</div>
     <div class="auth-title">Território Jardim Ivete</div>
-    <div class="auth-sub">Faça login com sua conta Google para acessar o mapa de território.</div>
+    <div class="auth-sub">Faça login com sua conta Google autorizada para acessar o mapa de território.</div>
     <button class="btn-google" id="btnGoogleLogin">
       <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
       Entrar com Google
@@ -848,12 +848,35 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
     messagingSenderId: "240183369049",
     appId: "1:240183369049:web:4cf609e77370396db74048"
   };
-  const ADMIN_EMAIL = "crystiam.vanessa@gmail.com";
+
+  // ── CONFIGURAÇÃO DE TERRITÓRIOS ──
+  // Admin geral (Crysy): vê e edita TUDO
+  // Editor Jardim Conceição: vê e edita apenas Jardim Conceição
+  const TERRITORY_CONFIG = {
+    "crystiam.vanessa@gmail.com": {
+      role: "admin",          // admin = pode editar
+      territory: "jardim-ivete",
+      docId: "dados",         // territorio/dados (doc legado — mantém compatibilidade)
+      label: "Jardim Ivete",
+      isAdmin: true,
+      canSwitchTerritory: true
+    },
+    "jdconceicaocongregacao@gmail.com": {
+      role: "editor",         // editor = pode editar SÓ o território dele
+      territory: "jardim-conceicao",
+      docId: "dados-jd-conceicao",
+      label: "Jardim Conceição",
+      isAdmin: true,          // isAdmin=true localmente (pode editar o próprio território)
+      canSwitchTerritory: false
+    }
+  };
+
+  const ADMIN_EMAIL = "crystiam.vanessa@gmail.com"; // admin principal (compatibilidade)
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
   const provider = new GoogleAuthProvider();
-  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, ADMIN_EMAIL };
+  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, ADMIN_EMAIL, TERRITORY_CONFIG };
 </script>
 
 <script>
@@ -893,7 +916,7 @@ document.addEventListener('keydown', (e) => {
 // ── MORE MENU ──
 function showMoreMenu() {
   if (confirm('Limpar todos os dados salvos localmente e recarregar?')) {
-    localStorage.removeItem(DATA_STORAGE); location.reload();
+    localStorage.removeItem(getDataStorageKey()); location.reload();
   }
 }
 function openSideMenu() {
@@ -915,8 +938,14 @@ function updateSideMenuState() {
   const subEl = document.getElementById('sideMenuSub');
   const avatarEl = document.getElementById('sideMenuAvatar');
   if (currentUser && nameEl && subEl) {
-    nameEl.textContent = currentUser.displayName || currentUser.email || 'Território Jardim Ivete';
-    subEl.textContent = isAdmin ? '👑 Administradora' : 'Visitante';
+    nameEl.textContent = currentUser.displayName || currentUser.email || 'Gestão de Território';
+    const cfg = currentTerritoryConfig;
+    let roleLabel = 'Visitante';
+    if (cfg) {
+      if (cfg.role === 'admin') roleLabel = '👑 Administradora';
+      else if (cfg.role === 'editor') roleLabel = '✏️ Editor — ' + cfg.label;
+    }
+    subEl.textContent = roleLabel;
     if (avatarEl) avatarEl.innerHTML = currentUser.photoURL ? `<img src="${currentUser.photoURL}" alt="">` : '👤';
   }
 }
@@ -1034,14 +1063,22 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
 
   // ---------- Persistência local (salva automaticamente as edições no navegador) ----------
 
-  // ---------- ADMIN E MODO VIEWER ----------
+  // ---------- ADMIN E MODO VIEWER (multi-território) ----------
   const ADMIN_EMAIL = "crystiam.vanessa@gmail.com";
   let currentUser = null;
   let isAdmin = false;
+  let currentTerritoryConfig = null; // configuração do território ativo
+
+  function getUserTerritoryConfig(user) {
+    if (!user || !window._fb || !window._fb.TERRITORY_CONFIG) return null;
+    return window._fb.TERRITORY_CONFIG[user.email] || null;
+  }
 
   function applyUserRole(user) {
     currentUser = user;
-    isAdmin = user && user.email === ADMIN_EMAIL;
+    currentTerritoryConfig = getUserTerritoryConfig(user);
+    // isAdmin local = pode editar o território que tem permissão
+    isAdmin = !!(currentTerritoryConfig && currentTerritoryConfig.isAdmin);
     if (isAdmin) {
       document.body.classList.remove('viewer-mode');
     } else {
@@ -1059,7 +1096,14 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
   }
 
   // ---------- PERSISTÊNCIA FIREBASE (substitui localStorage) ----------
-  const DATA_STORAGE = "jardim-ivete-dados-v1"; // mantido para compatibilidade
+  // DATA_STORAGE é função pra suportar chaves diferentes por território
+  function getDataStorageKey() {
+    if (currentTerritoryConfig && currentTerritoryConfig.territory !== 'jardim-ivete') {
+      return 'territorio-' + currentTerritoryConfig.territory + '-dados-v1';
+    }
+    return "jardim-ivete-dados-v1"; // compatibilidade com dados existentes
+  }
+  const DATA_STORAGE = "jardim-ivete-dados-v1"; // mantido para compatibilidade (leitura inicial)
 
   function jsonReplacer(key, value) {
     if (key === '_marker' || key === '_layer') return undefined;
@@ -1080,10 +1124,10 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     // Também salva localmente como cache
     try {
       const payload = { saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, activityLog, savedAt: new Date().toISOString() };
-      localStorage.setItem(DATA_STORAGE, JSON.stringify(payload, jsonReplacer));
+      localStorage.setItem(getDataStorageKey(), JSON.stringify(payload, jsonReplacer));
     } catch(e) {}
 
-    // Só o admin pode escrever no Firestore — visitantes nem tentam (evita erro de permissão na tela deles)
+    // Só usuários com permissão de edição podem escrever no Firestore
     if (!currentUser || !isAdmin) return { ok: false, reason: isAdmin ? 'no-user' : 'not-admin' };
     try {
       await migrateBase64Photos();
@@ -1097,7 +1141,9 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
         return { ok: false, reason: 'too-large', sizeBytes };
       }
       const { db, doc, setDoc } = window._fb;
-      await setDoc(doc(db, "territorio", "dados"), payload);
+      // Usa o docId do território do usuário atual (compatibilidade: Jardim Ivete usa "dados")
+      const docId = currentTerritoryConfig ? currentTerritoryConfig.docId : "dados";
+      await setDoc(doc(db, "territorio", docId), payload);
       return { ok: true };
     } catch(e) {
       console.error('Falha ao salvar no Firebase:', e);
@@ -1110,7 +1156,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
   async function loadState() {
     // Tenta localStorage primeiro para UI instantânea
     try {
-      const raw = localStorage.getItem(DATA_STORAGE);
+      const raw = localStorage.getItem(getDataStorageKey());
       if (raw) {
         const saved = JSON.parse(raw);
         applyLoadedData(saved);
@@ -1121,7 +1167,8 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     if (!currentUser) return;
     try {
       const { db, doc, getDoc } = window._fb;
-      const snap = await getDoc(doc(db, "territorio", "dados"));
+      const docId = currentTerritoryConfig ? currentTerritoryConfig.docId : "dados";
+      const snap = await getDoc(doc(db, "territorio", docId));
       if (snap.exists()) {
         const saved = snap.data();
         if (Array.isArray(saved.quadrasData)) {
@@ -1129,7 +1176,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
         }
         applyLoadedData(saved);
         // Atualiza cache local
-        localStorage.setItem(DATA_STORAGE, JSON.stringify(saved));
+        localStorage.setItem(getDataStorageKey(), JSON.stringify(saved));
         // Re-renderiza
         renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras(); updateLegend(); renderList();
       }
@@ -2459,7 +2506,18 @@ function initFirebaseAuth() {
     const adminBadgeEl = document.getElementById('adminBadge');
 
     if (user) {
-      // Usuário logado
+      // Verifica se o e-mail tem acesso configurado
+      const cfg = window._fb.TERRITORY_CONFIG[user.email];
+      if (!cfg) {
+        // E-mail não autorizado
+        loading.style.display = 'none';
+        overlay.classList.remove('hidden');
+        await window._fb.signOut(auth);
+        alert('❌ Este e-mail não tem acesso ao sistema.\n\nEntre em contato com o administrador.');
+        return;
+      }
+
+      // Usuário autorizado
       overlay.classList.add('hidden');
       loading.style.display = 'none';
 
@@ -2469,21 +2527,38 @@ function initFirebaseAuth() {
       badge.style.display = 'flex';
       updateHomeGreeting(user);
 
-      // Define papel
+      // Define papel e território
       applyUserRole(user);
-      if (user.email === ADMIN_EMAIL) {
+
+      // Atualiza título do app com o território
+      const topbarTitle = document.querySelector('.topbar-title strong');
+      if (topbarTitle && cfg.label) topbarTitle.textContent = cfg.label;
+      document.title = 'Território ' + cfg.label;
+
+      // Snack de boas-vindas com papel
+      if (cfg.role === 'admin') {
         adminBadgeEl.style.display = 'inline';
         showSnack('👑 Bem-vinda, administradora!');
+      } else if (cfg.role === 'editor') {
+        adminBadgeEl.style.display = 'inline';
+        adminBadgeEl.textContent = 'EDITOR';
+        adminBadgeEl.style.background = '#4CAF50';
+        showSnack('✏️ Logado como editor — ' + cfg.label);
       } else {
         adminBadgeEl.style.display = 'none';
         showSnack('✓ Logado como visitante — somente visualização');
       }
 
-      // Carrega dados do Firebase
+      // Carrega dados do território correto no Firebase
       await loadState();
 
-      // Garante que mapa/popups reflitam o papel (admin) já definido,
-      // mesmo que o Firestore não tenha retornado dados novos
+      // Se é o admin principal do Jd. Conceição, roda busca automática Overpass (1ª vez apenas)
+      if (cfg.territory === 'jardim-conceicao') {
+        await loadTerritoryBoundary('jardim-conceicao');
+        await autoImportOverpass();
+      }
+
+      // Garante que mapa/popups reflitam o papel já definido
       renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras();
       updateLegend(); renderList(); renderHomeStats();
 
@@ -2508,6 +2583,151 @@ function initFirebaseAuth() {
       alert('Erro ao fazer login: ' + e.message);
     }
   };
+}
+
+// ── MULTI-TERRITÓRIO: POLÍGONOS ADICIONAIS ──
+const TERRITORY_BOUNDARIES = {
+  "jardim-conceicao": [[-23.58199923319114,-46.8083670914512],[-23.58194537086657,-46.80775748264599],[-23.581686292715045,-46.80606263772027],[-23.581325572641056,-46.80613610669819],[-23.581229906401827,-46.806150562071124],[-23.581218898839747,-46.80601386951179],[-23.58121553232723,-46.80592038601422],[-23.581214637256025,-46.805866602720236],[-23.58119036773528,-46.80578664925684],[-23.581179023160445,-46.80573287590415],[-23.581281955227794,-46.80569690939242],[-23.581699110437352,-46.80563351441685],[-23.58167754232448,-46.80548976450168],[-23.58163520332028,-46.80525416233918],[-23.58154524578091,-46.80467849336011],[-23.581495084547853,-46.804523302171404],[-23.581438433649474,-46.80441672975714],[-23.58141264954342,-46.804264957184756],[-23.58138375924984,-46.80412907746408],[-23.581292768967515,-46.80406408702239],[-23.581176916653906,-46.8034464012414],[-23.581213119062458,-46.80336494632656],[-23.581136799760294,-46.80310009331604],[-23.58099869080203,-46.80214627277255],[-23.580933071666507,-46.80150256221219],[-23.580899598237107,-46.801346764567924],[-23.580639723347456,-46.79993167136196],[-23.581607212947418,-46.799720543853326],[-23.581517373112987,-46.79920780162832],[-23.5804947230988,-46.7994009378186],[-23.580459663575635,-46.79940204750332],[-23.58024014532655,-46.79821027095485],[-23.579034534636868,-46.798276118047376],[-23.578467753109017,-46.798380373384816],[-23.57828170475308,-46.79833591972834],[-23.57842523759761,-46.797959975288336],[-23.578461020524188,-46.7979366649379],[-23.578408115800737,-46.79790949875328],[-23.578187954088527,-46.79787912584264],[-23.578085808809025,-46.79788587531138],[-23.577826559698433,-46.797956847569786],[-23.577759759479846,-46.79798750040304],[-23.577700694184298,-46.7980118045736],[-23.57597804793835,-46.79830142723942],[-23.57539673691226,-46.79841113533531],[-23.574897448220327,-46.79852587197168],[-23.5746389450282,-46.7989103277864],[-23.574327648410026,-46.79920271261875],[-23.573452822844267,-46.80026654221978],[-23.57318118947839,-46.80064143247876],[-23.572819555501884,-46.801007849101715],[-23.5726754205623,-46.801306547730455],[-23.572478260059416,-46.80178214522771],[-23.572267439624703,-46.80199297706806],[-23.57184251972816,-46.802454556133064],[-23.571349483078645,-46.80300326537647],[-23.571041169910885,-46.80335279829998],[-23.57099359516545,-46.803943319681515],[-23.57089532187405,-46.80430492280422],[-23.57077858218993,-46.804526294401605],[-23.570635210899983,-46.805098806185185],[-23.570689455476025,-46.80547576175549],[-23.570514172333308,-46.80690423381703],[-23.570371509927572,-46.80726359017578],[-23.570242536510257,-46.80741265989756],[-23.569933224670006,-46.8076565833852],[-23.570127651660563,-46.80789160429546],[-23.5702416446286,-46.807821315123704],[-23.573206282264856,-46.807286530373226],[-23.573476182053472,-46.80723739994603],[-23.573712577217073,-46.80719684199979],[-23.573928569143106,-46.80862152495046],[-23.573907122499936,-46.808909626721686],[-23.57377119864532,-46.80891936436669],[-23.573806060824342,-46.80937350781216],[-23.573833711300978,-46.80970777262424],[-23.573883754733167,-46.80981580316502],[-23.573930496145728,-46.81013912251343],[-23.57434259847366,-46.811146042433364],[-23.575172663357026,-46.81073964347],[-23.57807087349124,-46.80939568576531],[-23.578835694595547,-46.80909497810984],[-23.579577174703473,-46.80884601925625],[-23.580411380140998,-46.8086157905853],[-23.581287611895597,-46.80844449697698],[-23.58199923319114,-46.8083670914512]]
+};
+
+let conceicaoPoly = null;
+
+function loadTerritoryBoundary(territory) {
+  if (territory === 'jardim-conceicao' && TERRITORY_BOUNDARIES['jardim-conceicao']) {
+    // Troca o polígono do território
+    if (territoryPoly) map.removeLayer(territoryPoly);
+    const coords = TERRITORY_BOUNDARIES['jardim-conceicao'];
+    conceicaoPoly = L.polygon(coords, {
+      color: '#1971c2', weight: 3, fillColor: '#1971c2',
+      fillOpacity: 0.07, dashArray: '10,6'
+    }).addTo(map);
+    // Ajusta o fit do mapa
+    mapFitted = false;
+    setTimeout(() => {
+      map.invalidateSize();
+      map.fitBounds(conceicaoPoly.getBounds(), { padding: [20, 20] });
+      mapFitted = true;
+    }, 300);
+    // Atualiza topbar
+    document.querySelector('.topbar-title strong').textContent = 'Jardim Conceição';
+    document.getElementById('topbar-subtitle').textContent = 'Gestão de Território';
+  }
+}
+
+// ── OVERPASS: IMPORTAÇÃO AUTOMÁTICA DE COMÉRCIOS/PRÉDIOS ──
+// Roda apenas na primeira vez que o usuário do Jd. Conceição loga (sem dados ainda)
+async function autoImportOverpass() {
+  // Só roda se não há dados ainda (evita duplicar em logins seguintes)
+  if (comerciosData.length > 0 || condominiosData.length > 0) return;
+
+  showSnack('🔍 Buscando comércios e prédios no mapa... aguarde', 15000);
+
+  const coords = TERRITORY_BOUNDARIES['jardim-conceicao'];
+  // Formata polygon para Overpass: lat lng lat lng ...
+  const poly = coords.map(p => `${p[0]} ${p[1]}`).join(' ');
+
+  // Query Overpass: busca shops, amenities, buildings residenciais dentro do polígono
+  const query = `
+[out:json][timeout:30];
+(
+  node["shop"](poly:"${poly}");
+  node["amenity"~"restaurant|cafe|pharmacy|school|hospital|clinic|bank|fuel|supermarket|fast_food|bar|bakery|marketplace"](poly:"${poly}");
+  way["building"~"apartments|residential|commercial"](poly:"${poly}");
+  node["building"~"apartments|residential"](poly:"${poly}");
+);
+out center 200;
+`;
+
+  try {
+    const resp = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body: 'data=' + encodeURIComponent(query)
+    });
+    if (!resp.ok) throw new Error('Overpass indisponível');
+    const data = await resp.json();
+    const elements = data.elements || [];
+
+    const catMap = {
+      // shops
+      'supermarket':'Supermercado/Mercado','convenience':'Supermercado/Mercado',
+      'bakery':'Alimentação','butcher':'Alimentação','greengrocer':'Alimentação',
+      'restaurant':'Alimentação','cafe':'Alimentação','fast_food':'Alimentação',
+      'bar':'Alimentação','food':'Alimentação',
+      'pharmacy':'Farmácia','chemist':'Farmácia',
+      'school':'Educação','kindergarten':'Educação',
+      'hospital':'Saúde','clinic':'Saúde','dentist':'Saúde',
+      'bank':'Banco/Financeiro','atm':'Banco/Financeiro',
+      'fuel':'Automotivo','car_repair':'Automotivo',
+      'hairdresser':'Beleza','beauty':'Beleza',
+      'clothes':'Moda/Vestuário','shoes':'Moda/Vestuário',
+      'electronics':'Eletrônicos','mobile_phone':'Eletrônicos',
+      'hardware':'Materiais de Construção',
+      'sports':'Academia',
+      'church':'Igreja','place_of_worship':'Igreja',
+      'pet':'Pet Shop','veterinary':'Pet Shop',
+    };
+    const corMap = {
+      'Supermercado/Mercado':'#82c91e','Alimentação':'#e8590c','Farmácia':'#37b24d',
+      'Educação':'#1971c2','Saúde':'#2f9e44','Banco/Financeiro':'#212529',
+      'Automotivo':'#495057','Beleza':'#e64980','Moda/Vestuário':'#f06595',
+      'Eletrônicos':'#0c8599','Materiais de Construção':'#5f3dc4','Academia':'#fab005',
+      'Igreja':'#862e9c','Pet Shop':'#f76707','Outros':'#868e96'
+    };
+
+    let addedCom = 0, addedCond = 0;
+
+    elements.forEach(el => {
+      const lat = el.lat || (el.center && el.center.lat);
+      const lng = el.lon || (el.center && el.center.lon);
+      if (!lat || !lng) return;
+
+      const tags = el.tags || {};
+      const nome = tags.name || tags['addr:street'] || '';
+      if (!nome) return; // sem nome, ignora
+
+      const building = tags.building;
+      if (building === 'apartments' || building === 'residential') {
+        // É um prédio/condomínio
+        const endereco = [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(', ');
+        condominiosData.push({
+          nome: nome,
+          endereco: endereco || '',
+          categoria: 'Condomínio/Prédio',
+          cor: '#364fc7',
+          lat, lng,
+          _source: 'overpass'
+        });
+        addedCond++;
+      } else {
+        // É um comércio / estabelecimento
+        const shopType = tags.shop || tags.amenity || '';
+        const categoria = catMap[shopType] || 'Outros';
+        const cor = corMap[categoria] || '#868e96';
+        const endereco = [tags['addr:street'], tags['addr:housenumber']].filter(Boolean).join(', ');
+        comerciosData.push({
+          nome: nome,
+          endereco: endereco || '',
+          categoria,
+          cor,
+          lat, lng,
+          _source: 'overpass'
+        });
+        addedCom++;
+      }
+    });
+
+    if (addedCom + addedCond > 0) {
+      renderComercios(); renderCondominios(); renderList(); updateChipCounts(); renderHomeStats();
+      const result = await saveState();
+      showSnack(`✅ ${addedCom} comércios e ${addedCond} prédios importados do mapa OSM!`, 6000);
+      logActivity(`🗺️ Importação automática OSM: ${addedCom} comércios, ${addedCond} prédios`);
+    } else {
+      showSnack('ℹ️ Nenhum estabelecimento com nome encontrado na área pelo OSM. Adicione manualmente.', 5000);
+    }
+  } catch(e) {
+    console.error('Overpass error:', e);
+    showSnack('⚠️ Não foi possível buscar dados do mapa agora. Você pode adicionar manualmente.', 5000);
+  }
 }
 
 initFirebaseAuth();
