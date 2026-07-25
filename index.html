@@ -1994,26 +1994,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '700 20px Georgia, serif';
   ctx.fillStyle = '#1a1a1a';
   const instrucao = 'Guarde este cartão no envelope. Tome cuidado para não o manchar, marcar ou dobrar. Cada vez que o território for coberto, queira informar disso o irmão que cuida do arquivo de territórios.';
-  y = wrapText(ctx, instrucao, mapMarginX, y, mapW, 27);
-
-  // ── Dados reais da quadra (informação prática, discreta, abaixo da nota) ──
-  y += 20;
-  ctx.font = '600 22px Arial, sans-serif';
-  ctx.fillStyle = '#374151';
-  ctx.fillText(qd.grupo ? ('Grupo responsável: ' + qd.grupo) : 'Sem grupo atribuído', mapMarginX, y);
-
-  y += 32;
-  ctx.font = '400 20px Arial, sans-serif';
-  ctx.fillStyle = '#6b7280';
-  const perim = calcPerimetroQuadra(qd);
-  const casasTxt = qd.casas ? `🏠 ${qd.casas} casas estimadas` : '';
-  ctx.fillText(`📏 ~${perim}m de perímetro` + (casasTxt ? '   •   ' + casasTxt : ''), mapMarginX, y);
-
-  y += 30;
-  const statusTxt = qd.coberta ? ('✓ Coberta' + (qd.coberturaData ? ' em ' + formatarDataBR(qd.coberturaData) : '')) : '○ Pendente de cobertura';
-  ctx.fillStyle = qd.coberta ? '#16a34a' : '#d97706';
-  ctx.font = '600 20px Arial, sans-serif';
-  ctx.fillText(statusTxt, mapMarginX, y);
+  wrapText(ctx, instrucao, mapMarginX, y, mapW, 27);
 
   return canvas;
 }
@@ -2076,9 +2057,13 @@ async function baixarCartaoQuadra(idx) {
   highlightPoly.bringToFront();
 
   try {
-    map.fitBounds(highlightPoly.getBounds(), { padding: [50, 50], maxZoom: 19, animate: false });
+    map.fitBounds(highlightPoly.getBounds(), { paddingTopLeft: [40, 90], paddingBottomRight: [40, 90], maxZoom: 18, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
     await new Promise(r => setTimeout(r, 900)); // espera os tiles carregarem/renderizarem
+    // Reaplica o enquadramento (garante que nenhum tile/realinhamento tardio
+    // tenha deslocado a quadra pra fora da área visível antes da captura)
+    map.fitBounds(highlightPoly.getBounds(), { paddingTopLeft: [40, 90], paddingBottomRight: [40, 90], maxZoom: 18, animate: false });
+    await new Promise(r => setTimeout(r, 400));
     map.closePopup();
     await new Promise(r => setTimeout(r, 50));
 
