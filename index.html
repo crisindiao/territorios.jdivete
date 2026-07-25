@@ -2052,17 +2052,18 @@ async function baixarCartaoQuadra(idx) {
   if (hadBoundary) map.removeLayer(boundaryToHide);
 
   const highlightPoly = L.polygon(qd.coords, {
-    color: '#e6007a', weight: (qd.weight || 3) + 4, fillColor: '#ffd54a', fillOpacity: 0.3, opacity: 1
+    color: '#e6007a', weight: (qd.weight || 3) + 2, fillColor: '#ffd54a', fillOpacity: 0.22, opacity: 1
   }).addTo(map);
   highlightPoly.bringToFront();
 
   try {
-    map.fitBounds(highlightPoly.getBounds(), { paddingTopLeft: [40, 90], paddingBottomRight: [40, 90], maxZoom: 18, animate: false });
+    console.log('[cartaoQuadra] build v2026-07-25b — coords:', JSON.stringify(qd.coords));
+    map.fitBounds(highlightPoly.getBounds(), { paddingTopLeft: [50, 110], paddingBottomRight: [50, 110], maxZoom: 18, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
     await new Promise(r => setTimeout(r, 900)); // espera os tiles carregarem/renderizarem
     // Reaplica o enquadramento (garante que nenhum tile/realinhamento tardio
     // tenha deslocado a quadra pra fora da área visível antes da captura)
-    map.fitBounds(highlightPoly.getBounds(), { paddingTopLeft: [40, 90], paddingBottomRight: [40, 90], maxZoom: 18, animate: false });
+    map.fitBounds(highlightPoly.getBounds(), { paddingTopLeft: [50, 110], paddingBottomRight: [50, 110], maxZoom: 18, animate: false });
     await new Promise(r => setTimeout(r, 400));
     map.closePopup();
     await new Promise(r => setTimeout(r, 50));
