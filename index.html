@@ -77,11 +77,13 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .topbar-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0;}
 .menu-btn{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.9);font-size:20px;flex-shrink:0;transition:background .15s;}
 .menu-btn:active{background:rgba(255,255,255,0.15);}
+.menu-btn.menu-open{background:rgba(255,255,255,0.22);color:#fff;}
 .topbar-title{display:flex;flex-direction:column;min-width:0;}
 .topbar-title strong{font-size:1rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .topbar-title span{font-size:0.7rem;font-weight:400;color:rgba(255,255,255,0.7);margin-top:1px;}
 .topbar-actions{display:flex;align-items:center;gap:2px;flex-shrink:0;}
 .icon-btn{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:19px;color:rgba(255,255,255,0.9);transition:background .15s;}
+.icon-btn svg{flex-shrink:0;}
 .icon-btn:active{background:rgba(255,255,255,0.15);}
 .icon-btn.active-edit{background:#fce8e6;color:var(--error);}
 
@@ -101,6 +103,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
   transition:color .15s;
 }
 .nav-icon{width:36px;height:28px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:19px;transition:background .15s;}
+.nav-icon svg{width:20px;height:20px;flex-shrink:0;}
 .nav-item.active{color:#fff;}
 .nav-item.active .nav-icon{background:rgba(255,255,255,0.18);}
 
@@ -262,7 +265,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .home-section-link{font-size:0.8rem;font-weight:600;color:var(--purple);}
 
 /* resumo grid */
-.resumo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 16px;}
+.resumo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px;margin:0 16px;}
 .resumo-card{
   background:var(--surface);border-radius:var(--r);
   border:1.5px solid var(--border);
@@ -579,21 +582,20 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
 <!-- TOP BAR -->
 <div class="topbar">
   <div class="topbar-left">
-    <button class="menu-btn" onclick="openSideMenu()" title="Menu">☰</button>
+    <button class="menu-btn" id="menuBtn" onclick="openSideMenu()" title="Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
     <div class="topbar-title">
       <strong>Jardim Ivete</strong>
       <span id="topbar-subtitle">Gestão de Território</span>
     </div>
   </div>
   <div class="topbar-actions">
-    <button class="icon-btn" onclick="openGlobalSearch()" title="Buscar">🔍</button>
-    <button class="icon-btn" id="editToggleBtn" onclick="toggleEditMode()" title="Modo edição">✏️</button>
+    <button class="icon-btn" onclick="openGlobalSearch()" title="Buscar"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
+    <button class="icon-btn" id="editToggleBtn" onclick="toggleEditMode()" title="Modo edição"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
     <div id="userBadge" onclick="handleSignOut()" title="Sair">
       <img id="userPhoto" src="" alt="">
       <span id="userName"></span>
       <span id="adminBadge">ADMIN</span>
     </div>
-    <button class="icon-btn" onclick="showMoreMenu()" title="Mais">⋮</button>
   </div>
 </div>
 
@@ -804,22 +806,22 @@ body.viewer-mode .btn-cor-auto{display:none!important;}
 <!-- BOTTOM NAV -->
 <div class="bottom-nav">
   <button class="nav-item active" id="nav-inicio" onclick="setViewMode('home')">
-    <div class="nav-icon">🏠</div>
+    <div class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg></div>
     Início
   </button>
   <button class="nav-item" id="nav-mapa" onclick="setViewMode('mapa')">
-    <div class="nav-icon">🗺️</div>
+    <div class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18 3 21V6l6-3 6 3 6-3v15l-6 3-6-3Z"/><path d="M9 3v15"/><path d="M15 6v15"/></svg></div>
     Mapa
   </button>
   <div class="nav-fab-wrap">
     <button class="nav-fab" onclick="handleNavFab()">＋</button>
   </div>
   <button class="nav-item" id="nav-lista" onclick="setViewMode('lista')">
-    <div class="nav-icon">📋</div>
+    <div class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
     Lista
   </button>
   <button class="nav-item" id="nav-mais" onclick="openSideMenu()">
-    <div class="nav-icon">···</div>
+    <div class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></div>
     Mais
   </button>
 </div>
@@ -892,11 +894,13 @@ function showMoreMenu() {
 function openSideMenu() {
   document.getElementById('sideMenu').classList.add('show');
   document.getElementById('sideMenuBackdrop').classList.add('show');
+  document.getElementById('menuBtn').classList.add('menu-open');
   updateSideMenuState();
 }
 function closeSideMenu() {
   document.getElementById('sideMenu').classList.remove('show');
   document.getElementById('sideMenuBackdrop').classList.remove('show');
+  document.getElementById('menuBtn').classList.remove('menu-open');
 }
 function updateSideMenuState() {
   const dark = document.body.classList.contains('dark-mode');
