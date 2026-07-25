@@ -2015,14 +2015,6 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 20px Arial, sans-serif';
   ctx.fillText(statusTxt, mapMarginX, y);
 
-  // ── Rodapé estilo modelo (S-12-T ... / Impresso no Brasil) ──
-  ctx.font = '400 16px Arial, sans-serif';
-  ctx.fillStyle = '#4b4b4b';
-  ctx.fillText('S-12-T   Gerado em ' + new Date().toLocaleDateString('pt-BR'), mapMarginX, h - 25);
-  ctx.textAlign = 'right';
-  ctx.fillText('Impresso no Brasil', w - 40, h - 25);
-  ctx.textAlign = 'left';
-
   return canvas;
 }
 function drawDottedLine(ctx, x1, y, x2, y2) {
@@ -2066,21 +2058,24 @@ async function baixarCartaoQuadra(idx) {
 
   const prevCenter = map.getCenter();
   const prevZoom = map.getZoom();
-  const originalStyle = { color: qd._layer.options.color, weight: qd._layer.options.weight, fillOpacity: qd._layer.options.fillOpacity };
 
-  // Esconde o contorno vermelho do território inteiro e as demais quadras,
-  // deixando visível apenas a quadra que está sendo capturada (visão limpa).
-  const hadTerritoryPoly = territoryPoly && map.hasLayer(territoryPoly);
-  if (hadTerritoryPoly) map.removeLayer(territoryPoly);
-  const otherQuadrasHidden = [];
-  quadrasData.forEach((q, i) => {
-    if (i !== idx && q._layer && map.hasLayer(q._layer)) { map.removeLayer(q._layer); otherQuadrasHidden.push(q._layer); }
-  });
+  // Esconde TUDO que não seja a quadra selecionada: o grupo inteiro de quadras
+  // (polígonos + etiquetas numeradas de todas as quadras) e o contorno do
+  // território ativo no momento (territoryPoly ou conceicaoPoly, o que estiver
+  // em uso). Depois desenhamos só a quadra escolhida, isolada, direto no mapa.
+  const hadQuadrasGroup = map.hasLayer(layerGroups.quadras);
+  if (hadQuadrasGroup) map.removeLayer(layerGroups.quadras);
+  const boundaryToHide = (typeof currentBoundaryPoly !== 'undefined') ? currentBoundaryPoly : null;
+  const hadBoundary = boundaryToHide && map.hasLayer(boundaryToHide);
+  if (hadBoundary) map.removeLayer(boundaryToHide);
+
+  const highlightPoly = L.polygon(qd.coords, {
+    color: '#e6007a', weight: (qd.weight || 3) + 4, fillColor: '#ffd54a', fillOpacity: 0.3, opacity: 1
+  }).addTo(map);
+  highlightPoly.bringToFront();
 
   try {
-    qd._layer.setStyle({ color: '#1967d2', weight: (qd.weight || 3) + 3, fillColor: '#ffd54a', fillOpacity: 0.28 });
-    qd._layer.bringToFront();
-    map.fitBounds(qd._layer.getBounds(), { padding: [50, 50], maxZoom: 19, animate: false });
+    map.fitBounds(highlightPoly.getBounds(), { padding: [50, 50], maxZoom: 19, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
     await new Promise(r => setTimeout(r, 900)); // espera os tiles carregarem/renderizarem
 
@@ -2095,9 +2090,9 @@ async function baixarCartaoQuadra(idx) {
     console.error('Erro ao gerar cartão de território:', e);
     showSnack('⚠️ Não foi possível capturar o mapa (restrição do provedor de imagens). Tente novamente em alguns instantes.', 7000);
   } finally {
-    qd._layer.setStyle(originalStyle);
-    if (hadTerritoryPoly) territoryPoly.addTo(map);
-    otherQuadrasHidden.forEach(l => l.addTo(map));
+    map.removeLayer(highlightPoly);
+    if (hadBoundary) boundaryToHide.addTo(map);
+    if (hadQuadrasGroup) layerGroups.quadras.addTo(map);
     map.setView(prevCenter, prevZoom, { animate: false });
   }
 }
