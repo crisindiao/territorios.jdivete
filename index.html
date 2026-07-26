@@ -2075,7 +2075,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 12px monospace';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-q-3layers id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  const debugTxt = `build:2026-07-25-r-sharper id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
   ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
   ctx.restore();
   let y = mapY + mapH + 34;
@@ -2194,7 +2194,7 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
     // tile), então no satélite aproveitamos o zoom máximo (19) pra ficar
     // mais nítido.
     const isSatMode = document.body.classList.contains('sat-mode');
-    const fitMaxZoom = isSatMode ? 19 : 18;
+    const fitMaxZoom = (mapLayerMode === 'google') ? 20 : (isSatMode ? 19 : 18);
     const fitPadding = [18, 18];
     map.fitBounds(quadraBounds, { paddingTopLeft: fitPadding, paddingBottomRight: fitPadding, maxZoom: fitMaxZoom, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
@@ -2227,7 +2227,7 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
     await nextFrame();
 
     // Escala de captura mais alta (mínimo 3, era 2) para um PNG mais nítido.
-    const captureScale = Math.max(3, window.devicePixelRatio || 1);
+    const captureScale = Math.max(4, window.devicePixelRatio || 1);
 
     // Captura simples, igual ao modo ruas — sem nenhum processamento
     // especial pro satélite. As tentativas anteriores de "embranquecer" o
