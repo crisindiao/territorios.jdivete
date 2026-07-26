@@ -441,6 +441,8 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .search-overlay-input input:focus{outline:none;}
 .search-overlay-input .s-icon{font-size:17px;color:var(--text2);}
 .search-overlay-results{flex:1;overflow-y:auto;padding:8px 12px;}
+#micSearchBtn.listening{color:var(--error)!important;animation:mic-pulse 1s ease-in-out infinite;}
+@keyframes mic-pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.55;transform:scale(1.15);}}
 .search-result{background:var(--surface);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;box-shadow:var(--sh1);cursor:pointer;border:1.5px solid var(--border);}
 .activity-item{background:var(--surface);border-radius:var(--r);padding:10px 14px;margin-bottom:6px;box-shadow:var(--sh1);border:1.5px solid var(--border);}
 .activity-acao{font-size:0.86rem;color:var(--text);font-weight:500;}
@@ -834,8 +836,9 @@ body.no-anim .leaflet-zoom-animated{
     <button class="icon-btn" onclick="closeGlobalSearch()" style="color:var(--text);">←</button>
     <div class="search-overlay-input">
       <span class="s-icon">🔍</span>
-      <input type="text" id="globalSearchInput" placeholder="Buscar em todos os dados..." oninput="renderGlobalSearch()" autofocus>
+      <input type="text" id="globalSearchInput" placeholder="Buscar ou perguntar: 'onde fica a Rua Piauiense'" oninput="renderGlobalSearch()" onkeydown="if(event.key==='Enter'){event.preventDefault();smartSearch(this.value);}" autofocus>
     </div>
+    <button class="icon-btn" id="micSearchBtn" onclick="startVoiceSearch()" style="color:var(--text);" title="Buscar por voz">🎤</button>
   </div>
   <div class="search-overlay-results" id="globalSearchResults"></div>
 </div>
@@ -847,6 +850,24 @@ body.no-anim .leaflet-zoom-animated{
     <div style="font-weight:700;font-size:0.95rem;">📜 Atividade recente</div>
   </div>
   <div class="search-overlay-results" id="activityList"></div>
+</div>
+
+<!-- DISTRIBUIÇÃO DE QUADRAS POR GRUPO (sugestão por proximidade) -->
+<div class="search-overlay" id="distribOverlay">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="closeDistribOverlay()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;">🧭 Distribuir quadras por grupo</div>
+  </div>
+  <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--border);flex-shrink:0;">
+    <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text2);">
+      <input type="checkbox" id="distribTodasChk" onchange="renderDistribSugestoes()"> Recalcular também quadras que já têm grupo
+    </label>
+    <div style="font-size:0.78rem;color:var(--text2)">Sugestão baseada na distância entre o centro de cada quadra e a saída (casa) de cada grupo.</div>
+  </div>
+  <div class="search-overlay-results" id="distribResults"></div>
+  <div style="padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;">
+    <button class="btn-action" style="width:100%;background:var(--md-primary);color:#fff;border-radius:10px;padding:12px;font-weight:700;" onclick="aplicarDistribSugestoes()">✓ Aplicar sugestões selecionadas</button>
+  </div>
 </div>
 
 <!-- SIDE MENU -->
@@ -864,6 +885,7 @@ body.no-anim .leaflet-zoom-animated{
     <button class="side-menu-item" onclick="closeSideMenu();openGlobalSearch()"><span class="smi-icon">🔍</span> Buscar</button>
     <button class="side-menu-item" onclick="closeSideMenu();showActivityLog()"><span class="smi-icon">📜</span> Atividade recente</button>
     <button class="side-menu-item" id="sideMenuSwitchTerritory" style="display:none" onclick="switchTerritoryPrompt()"><span class="smi-icon">🔁</span> Trocar território</button>
+    <button class="side-menu-item" id="sideMenuDistribuir" style="display:none" onclick="closeSideMenu();openDistribOverlay()"><span class="smi-icon">🧭</span> Distribuir quadras por grupo</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
     <button class="side-menu-item" onclick="closeSideMenu();document.getElementById('importFile').click()"><span class="smi-icon">📥</span> Importar dados</button>
@@ -1053,6 +1075,89 @@ document.addEventListener('DOMContentLoaded', () => {
   if (navigator.onLine && syncPendingCount > 0) flushPendingSync();
 });
 
+// ── DISTRIBUIÇÃO INTELIGENTE DE QUADRAS POR GRUPO ──
+// Sugere, pra cada quadra, o grupo cuja saída (casa de reunião do grupo) fica mais perto
+// do centro geométrico da quadra — útil pra organizar designações de território de forma justa.
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function centroideQuadra(qd) {
+  const pts = qd.coords || [];
+  if (!pts.length) return null;
+  let lat = 0, lng = 0;
+  pts.forEach(p => { lat += p[0]; lng += p[1]; });
+  return [lat / pts.length, lng / pts.length];
+}
+function calcularSugestoesDistribuicao(incluirComGrupo) {
+  // Uma saída por grupo (a mais recente cadastrada, se houver mais de uma com offset)
+  const saidasPorGrupo = {};
+  saidasData.forEach(s => { if (s.grupo) saidasPorGrupo[s.grupo] = s; });
+  const grupos = Object.keys(saidasPorGrupo);
+  if (!grupos.length) return [];
+  const alvo = quadrasData.filter(qd => incluirComGrupo || !qd.grupo);
+  return alvo.map(qd => {
+    const c = centroideQuadra(qd);
+    if (!c) return null;
+    let melhor = null, melhorDist = Infinity;
+    grupos.forEach(g => {
+      const s = saidasPorGrupo[g];
+      const d = haversineMeters(c[0], c[1], s.lat, s.lng);
+      if (d < melhorDist) { melhorDist = d; melhor = g; }
+    });
+    return { qd, grupoAtual: qd.grupo || '', grupoSugerido: melhor, distancia: melhorDist };
+  }).filter(Boolean).sort((a, b) => {
+    const na = parseFloat(a.qd.mapa), nb = parseFloat(b.qd.mapa);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return String(a.qd.mapa).localeCompare(String(b.qd.mapa));
+  });
+}
+let _distribSugestoes = [];
+function openDistribOverlay() {
+  if (!isAdmin) return;
+  document.getElementById('distribOverlay').classList.add('show');
+  renderDistribSugestoes();
+}
+function closeDistribOverlay() { document.getElementById('distribOverlay').classList.remove('show'); }
+function renderDistribSugestoes() {
+  const incluirComGrupo = document.getElementById('distribTodasChk').checked;
+  _distribSugestoes = calcularSugestoesDistribuicao(incluirComGrupo);
+  const box = document.getElementById('distribResults');
+  if (!saidasData.some(s => s.grupo)) { box.innerHTML = '<div class="empty-msg"><strong>😕</strong>Cadastre as saídas dos grupos primeiro</div>'; return; }
+  if (!_distribSugestoes.length) { box.innerHTML = '<div class="empty-msg"><strong>✓</strong>Nenhuma quadra pendente — todas já têm grupo</div>'; return; }
+  box.innerHTML = _distribSugestoes.map((s, i) => {
+    const mudou = s.grupoAtual !== s.grupoSugerido;
+    const distTxt = s.distancia >= 1000 ? (s.distancia/1000).toFixed(1)+'km' : Math.round(s.distancia)+'m';
+    const cor = groupColors[s.grupoSugerido] || '#5b2c83';
+    return `<div class="search-result" style="align-items:center;">
+      <span class="search-badge" style="background:${cor}20;color:${cor}">🧩</span>
+      <div class="search-info" style="flex:1">
+        <b>Mapa ${escapeHtml(s.qd.mapa)}${s.qd.nome?' — '+escapeHtml(s.qd.nome):''}</b>
+        <span>${s.grupoAtual ? 'Atual: '+escapeHtml(s.grupoAtual)+' → ' : ''}Sugestão: <b style="color:${cor}">${escapeHtml(s.grupoSugerido)}</b> (${distTxt})</span>
+      </div>
+      <input type="checkbox" data-idx="${i}" class="distrib-chk" ${mudou ? 'checked' : ''} style="width:20px;height:20px;flex-shrink:0;">
+    </div>`;
+  }).join('');
+}
+async function aplicarDistribSugestoes() {
+  if (!isAdmin) return;
+  const checks = document.querySelectorAll('.distrib-chk:checked');
+  if (!checks.length) { showSnack('Nenhuma sugestão selecionada'); return; }
+  let count = 0;
+  checks.forEach(chk => {
+    const s = _distribSugestoes[parseInt(chk.dataset.idx, 10)];
+    if (s) { s.qd.grupo = s.grupoSugerido; count++; }
+  });
+  logActivity(`🧭 distribuiu ${count} quadra(s) por grupo automaticamente`);
+  await saveState();
+  renderQuadras(); renderCatbar(); updateLegend(); if (viewMode==='lista') renderList();
+  closeDistribOverlay();
+  showSnack(`✓ ${count} quadra(s) atualizada(s)`);
+}
+
 function pushUndo(entry) { undoStack.push(entry); if (undoStack.length > 15) undoStack.shift(); }
 function undoLast() {
   const entry = undoStack.pop();
@@ -1107,6 +1212,8 @@ function updateSideMenuState() {
   }
   const switchBtn = document.getElementById('sideMenuSwitchTerritory');
   if (switchBtn) switchBtn.style.display = (currentTerritoryConfig && currentTerritoryConfig.canSwitchTerritory) ? 'flex' : 'none';
+  const distribBtn = document.getElementById('sideMenuDistribuir');
+  if (distribBtn) distribBtn.style.display = isAdmin ? 'flex' : 'none';
 }
 function switchTerritoryPrompt() {
   if (!currentTerritoryConfig || !currentTerritoryConfig.canSwitchTerritory) return;
@@ -2832,20 +2939,35 @@ function renderCatbar() {
 // ── GLOBAL SEARCH ──
 function openGlobalSearch() { document.getElementById('searchOverlay').classList.add('show'); const inp=document.getElementById('globalSearchInput'); inp.value=''; renderGlobalSearch(); setTimeout(()=>inp.focus(),50); }
 function closeGlobalSearch() { document.getElementById('searchOverlay').classList.remove('show'); }
+function normalizeText(str) {
+  return (str || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+// Remove frases de pergunta livre ("onde fica", "cadê" etc.) pra sobrar só o termo/endereço
+function stripQueryPrefixes(str) {
+  return normalizeText(str).replace(/^(onde\s+(fica|e|esta|fica a|fica o)|cade|localizar|localiza|buscar|busca|ache|encontre|encontrar|me\s+mostra|mostra(r)?|ir\s+(para|ate))\s+/i, '').replace(/^(a|o|as|os|da|do|na|no)\s+/i, '').trim();
+}
+function buildSearchResults(qRaw) {
+  const q = normalizeText(qRaw);
+  const words = q.split(/\s+/).filter(Boolean);
+  const matches = (text) => { const t = normalizeText(text); return !words.length || words.every(w => t.includes(w)); };
+  let results = [];
+  saidasData.forEach(s => { if (matches(s.grupo+' '+s.nome+' '+(s.endereco||''))) results.push({badge:'📍',title:'Grupo '+s.grupo+' — '+s.nome,sub:s.endereco||'',tab:'grupos',item:s}); });
+  comerciosData.forEach(c => { if (matches(c.nome+' '+c.categoria+' '+c.endereco)) results.push({badge:'🏪',title:c.nome,sub:c.categoria+' — '+c.endereco,tab:'comercios',item:c}); });
+  condominiosData.forEach(c => { if (matches(c.nome+' '+c.endereco)) results.push({badge:'🏢',title:c.nome,sub:c.endereco,tab:'condominios',item:c}); });
+  publicadoresData.forEach(p => { if (matches(p.membros.join(' ')+' '+p.grupo+' '+(p.endereco||''))) results.push({badge:'🏠',title:p.membros.join(', '),sub:'Grupo '+p.grupo+(p.endereco?' — '+p.endereco:''),tab:'publicadores',item:p}); });
+  quadrasData.forEach(qd => { if (matches('mapa '+qd.mapa+' '+(qd.nome||'')+' '+(qd.grupo||''))) results.push({badge:'🧩',title:'Mapa '+qd.mapa+(qd.nome?' — '+qd.nome:''),sub:qd.coords.length+' pontos'+(qd.grupo?' — Grupo '+qd.grupo:''),tab:'quadras',item:qd}); });
+  return results;
+}
 function renderGlobalSearch() {
   const box=document.getElementById('globalSearchResults');
-  const q=(document.getElementById('globalSearchInput').value||'').trim().toLowerCase();
-  let results=[];
-  saidasData.forEach(s=>{const text=(s.grupo+' '+s.nome+' '+(s.endereco||'')).toLowerCase(); if(!q||text.includes(q)) results.push({badge:'📍',title:'Grupo '+s.grupo+' — '+s.nome,sub:s.endereco||'',tab:'grupos',item:s});});
-  comerciosData.forEach(c=>{const text=(c.nome+' '+c.categoria+' '+c.endereco).toLowerCase(); if(!q||text.includes(q)) results.push({badge:'🏪',title:c.nome,sub:c.categoria+' — '+c.endereco,tab:'comercios',item:c});});
-  condominiosData.forEach(c=>{const text=(c.nome+' '+c.endereco).toLowerCase(); if(!q||text.includes(q)) results.push({badge:'🏢',title:c.nome,sub:c.endereco,tab:'condominios',item:c});});
-  publicadoresData.forEach(p=>{const text=(p.membros.join(' ')+' '+p.grupo+' '+(p.endereco||'')).toLowerCase(); if(!q||text.includes(q)) results.push({badge:'🏠',title:p.membros.join(', '),sub:'Grupo '+p.grupo+(p.endereco?' — '+p.endereco:''),tab:'publicadores',item:p});});
-  quadrasData.forEach(qd=>{const text=('mapa '+qd.mapa+' '+(qd.nome||'')+' '+(qd.grupo||'')).toLowerCase(); if(!q||text.includes(q)) results.push({badge:'🧩',title:'Mapa '+qd.mapa+(qd.nome?' — '+qd.nome:''),sub:qd.coords.length+' pontos'+(qd.grupo?' — Grupo '+qd.grupo:''),tab:'quadras',item:qd});});
+  const qRaw=document.getElementById('globalSearchInput').value||'';
+  const q=qRaw.trim();
+  const results = buildSearchResults(q);
   box.innerHTML='';
   if (q.length>=4) {
     const addrDiv=document.createElement('div'); addrDiv.className='search-result';
     addrDiv.innerHTML=`<span class="search-badge">🌍</span><div class="search-info"><b>Buscar endereço no mapa</b><span>"${escapeHtml(q)}" — ir até o local</span></div>`;
-    addrDiv.onclick=()=>buscarEnderecoNoMapa(q);
+    addrDiv.onclick=()=>buscarEnderecoNoMapa(stripQueryPrefixes(q));
     box.appendChild(addrDiv);
   }
   if (!results.length) {
@@ -2858,6 +2980,52 @@ function renderGlobalSearch() {
     div.onclick=()=>{ closeGlobalSearch(); activeCategoryFilter=null; activeGroupFilter=null; activeSaidaGrupoFilter=null; activeMapaFilter=null; activeQuadraGrupoFilter=null; switchTab(r.tab); setTimeout(()=>focusItem(r.item),60); };
     box.appendChild(div);
   });
+}
+// Busca "inteligente": entende frases livres (digitadas ou faladas) tipo
+// "onde fica a Rua Piauiense" e já abre o mapa direto no resultado, sem precisar tocar em nada.
+function smartSearch(rawText) {
+  const raw = (rawText || '').trim();
+  if (!raw) return;
+  const cleaned = stripQueryPrefixes(raw);
+  const results = buildSearchResults(cleaned);
+  if (results.length === 1) {
+    const r = results[0];
+    closeGlobalSearch();
+    activeCategoryFilter=null; activeGroupFilter=null; activeSaidaGrupoFilter=null; activeMapaFilter=null; activeQuadraGrupoFilter=null;
+    switchTab(r.tab); setTimeout(()=>focusItem(r.item),60);
+    return;
+  }
+  if (results.length > 1) {
+    // Mais de um resultado: mostra a lista pra usuário escolher em vez de adivinhar
+    document.getElementById('globalSearchInput').value = raw;
+    renderGlobalSearch();
+    return;
+  }
+  // Nada cadastrado bate com o texto: tenta como endereço e já leva pro mapa
+  buscarEnderecoNoMapa(cleaned || raw);
+}
+// ── BUSCA POR VOZ ──
+let _voiceRecognition = null;
+function startVoiceSearch() {
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) { showSnack('🎤 Busca por voz não é suportada neste navegador'); return; }
+  const btn = document.getElementById('micSearchBtn');
+  if (_voiceRecognition) { try { _voiceRecognition.stop(); } catch(e){} return; }
+  const rec = new SpeechRec();
+  _voiceRecognition = rec;
+  rec.lang = 'pt-BR';
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  btn.classList.add('listening');
+  showSnack('🎤 Pode falar...', 4000);
+  rec.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    document.getElementById('globalSearchInput').value = transcript;
+    smartSearch(transcript);
+  };
+  rec.onerror = () => { showSnack('🎤 Não entendi, tenta de novo'); };
+  rec.onend = () => { btn.classList.remove('listening'); _voiceRecognition = null; };
+  try { rec.start(); } catch(e) { btn.classList.remove('listening'); _voiceRecognition = null; }
 }
 let _searchMarker = null;
 async function buscarEnderecoNoMapa(query) {
