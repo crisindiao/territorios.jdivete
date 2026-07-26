@@ -70,13 +70,13 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 
 /* ── SYNC BADGE (offline / fila de edições / sincronizando) ── */
 .sync-badge{
-  position:fixed;right:14px;bottom:calc(var(--nav-h) + 14px);z-index:600;
+  position:fixed;right:10px;top:calc(var(--top-h) + 108px);z-index:600;
   display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:999px;
   font-size:0.78rem;font-weight:600;color:#fff;box-shadow:var(--sh2);
   transition:opacity .25s ease, transform .25s ease;
   transform:translateY(0);opacity:1;pointer-events:none;
 }
-.sync-badge.hidden{opacity:0;transform:translateY(10px) scale(.9);}
+.sync-badge.hidden{opacity:0;transform:translateY(-10px) scale(.9);}
 .sync-badge.offline{background:#6b7280;}
 .sync-badge.pending{background:var(--warning);}
 .sync-badge.syncing{background:var(--purple);}
