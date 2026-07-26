@@ -443,6 +443,26 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .search-overlay-results{flex:1;overflow-y:auto;padding:8px 12px;}
 #micSearchBtn.listening{color:var(--error)!important;animation:mic-pulse 1s ease-in-out infinite;}
 @keyframes mic-pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.55;transform:scale(1.15);}}
+
+/* ── RELATÓRIO / MÉTRICAS ── */
+.report-hero{background:var(--grad);border-radius:var(--r);padding:20px;color:#fff;margin-bottom:14px;text-align:center;}
+.report-hero .pct{font-size:2.6rem;font-weight:800;line-height:1;}
+.report-hero .lbl{font-size:0.8rem;opacity:0.85;margin-top:4px;}
+.report-hero-track{background:rgba(255,255,255,0.25);border-radius:99px;height:8px;margin-top:14px;overflow:hidden;}
+.report-hero-fill{background:#fff;height:100%;border-radius:99px;transition:width .4s ease;}
+.report-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.report-stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;box-shadow:var(--sh1);}
+.report-stat-card .num{font-size:1.4rem;font-weight:800;color:var(--text);}
+.report-stat-card .lbl{font-size:0.72rem;color:var(--text2);margin-top:2px;}
+.report-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:var(--sh1);}
+.report-section-title{font-size:0.85rem;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.report-bar-row{margin-bottom:10px;}
+.report-bar-row:last-child{margin-bottom:0;}
+.report-bar-head{display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text);margin-bottom:4px;}
+.report-bar-track{background:var(--md-surface-variant);border-radius:99px;height:9px;overflow:hidden;}
+.report-bar-fill{height:100%;border-radius:99px;transition:width .4s ease;}
+.report-alert-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.82rem;}
+.report-alert-item:last-child{border-bottom:none;}
 .search-result{background:var(--surface);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;box-shadow:var(--sh1);cursor:pointer;border:1.5px solid var(--border);}
 .activity-item{background:var(--surface);border-radius:var(--r);padding:10px 14px;margin-bottom:6px;box-shadow:var(--sh1);border:1.5px solid var(--border);}
 .activity-acao{font-size:0.86rem;color:var(--text);font-weight:500;}
@@ -870,6 +890,16 @@ body.no-anim .leaflet-zoom-animated{
   </div>
 </div>
 
+<!-- RELATÓRIO / MÉTRICAS DO TERRITÓRIO -->
+<div class="search-overlay" id="reportOverlay">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="closeReportOverlay()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;flex:1;">📊 Relatório do território</div>
+    <button class="icon-btn" onclick="baixarRelatorioImagem()" title="Baixar como imagem" style="color:var(--text);">⬇️</button>
+  </div>
+  <div class="search-overlay-results" id="reportResults" style="background:var(--bg)"></div>
+</div>
+
 <!-- SIDE MENU -->
 <div class="side-menu-backdrop" id="sideMenuBackdrop" onclick="closeSideMenu()"></div>
 <div class="side-menu" id="sideMenu">
@@ -886,6 +916,7 @@ body.no-anim .leaflet-zoom-animated{
     <button class="side-menu-item" onclick="closeSideMenu();showActivityLog()"><span class="smi-icon">📜</span> Atividade recente</button>
     <button class="side-menu-item" id="sideMenuSwitchTerritory" style="display:none" onclick="switchTerritoryPrompt()"><span class="smi-icon">🔁</span> Trocar território</button>
     <button class="side-menu-item" id="sideMenuDistribuir" style="display:none" onclick="closeSideMenu();openDistribOverlay()"><span class="smi-icon">🧭</span> Distribuir quadras por grupo</button>
+    <button class="side-menu-item" onclick="closeSideMenu();openReportOverlay()"><span class="smi-icon">📊</span> Relatório e métricas</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
     <button class="side-menu-item" onclick="closeSideMenu();document.getElementById('importFile').click()"><span class="smi-icon">📥</span> Importar dados</button>
@@ -1156,6 +1187,119 @@ async function aplicarDistribSugestoes() {
   renderQuadras(); renderCatbar(); updateLegend(); if (viewMode==='lista') renderList();
   closeDistribOverlay();
   showSnack(`✓ ${count} quadra(s) atualizada(s)`);
+}
+
+// ── RELATÓRIO E MÉTRICAS DO TERRITÓRIO ──
+function computeReportData() {
+  const total = quadrasData.length;
+  const cobertas = quadrasData.filter(q => q.coberta).length;
+  const pendentes = total - cobertas;
+  const pct = total ? Math.round(cobertas / total * 100) : 0;
+  const semGrupo = quadrasData.filter(q => !q.grupo).length;
+
+  const grupos = Object.keys(groupColors);
+  const porGrupo = grupos.map(g => {
+    const qs = quadrasData.filter(q => q.grupo === g);
+    const cob = qs.filter(q => q.coberta).length;
+    return { grupo: g, cor: groupColors[g], total: qs.length, cobertas: cob, publicadores: publicadoresData.filter(p => p.grupo === g).length };
+  }).filter(x => x.total > 0 || x.publicadores > 0);
+
+  // Ritmo: eventos de "marcada como coberta" no histórico de cada quadra
+  const eventos = [];
+  quadrasData.forEach(q => (q.historico || []).forEach(h => { if (h.acao === 'Marcada como coberta' && h.data) eventos.push(h.data); }));
+  const agora = Date.now();
+  const dias = iso => Math.floor((agora - new Date(iso).getTime()) / 86400000);
+  const ult30 = eventos.filter(e => dias(e) <= 30).length;
+  const ult90 = eventos.filter(e => dias(e) <= 90).length;
+  const ritmoMensal = ult90 > 0 ? ult90 / 3 : ult30;
+
+  let previsaoTxt = 'Sem dados suficientes ainda pra estimar';
+  if (ritmoMensal > 0 && pendentes > 0) {
+    const meses = Math.ceil(pendentes / ritmoMensal);
+    const dataPrev = new Date(); dataPrev.setMonth(dataPrev.getMonth() + meses);
+    previsaoTxt = `~${meses} ${meses===1?'mês':'meses'} (por volta de ${dataPrev.toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}), no ritmo atual de ${ritmoMensal.toFixed(1)} quadras/mês`;
+  } else if (pendentes === 0 && total > 0) {
+    previsaoTxt = '🎉 Ciclo completo — todas as quadras cobertas!';
+  }
+
+  const atrasadas = quadrasData.filter(q => !q.coberta && (diasDesde(q.ultimaCobertura) === null || diasDesde(q.ultimaCobertura) > 90))
+    .map(q => ({ qd: q, dias: diasDesde(q.ultimaCobertura) }))
+    .sort((a, b) => (b.dias ?? 99999) - (a.dias ?? 99999));
+
+  return { total, cobertas, pendentes, pct, semGrupo, porGrupo, ult30, ult90, ritmoMensal, previsaoTxt, atrasadas,
+    comercios: comerciosData.length, condominios: condominiosData.length, publicadores: publicadoresData.length, grupos: saidasData.filter(s=>s.grupo).length };
+}
+function openReportOverlay() {
+  document.getElementById('reportOverlay').classList.add('show');
+  renderReport();
+}
+function closeReportOverlay() { document.getElementById('reportOverlay').classList.remove('show'); }
+function renderReport() {
+  const d = computeReportData();
+  const box = document.getElementById('reportResults');
+  const barraGrupos = d.porGrupo.length ? d.porGrupo.map(g => {
+    const pctG = g.total ? Math.round(g.cobertas / g.total * 100) : 0;
+    return `<div class="report-bar-row">
+      <div class="report-bar-head"><span>${escapeHtml(g.grupo)} <span style="color:var(--text2)">— ${g.publicadores} publicador(es)</span></span><span><b>${g.cobertas}/${g.total}</b> (${pctG}%)</span></div>
+      <div class="report-bar-track"><div class="report-bar-fill" style="width:${pctG}%;background:${g.cor}"></div></div>
+    </div>`;
+  }).join('') : '<div style="font-size:0.82rem;color:var(--text2)">Nenhuma quadra atribuída a grupos ainda.</div>';
+
+  const listaAtrasadas = d.atrasadas.length ? d.atrasadas.slice(0, 15).map(a => `
+    <div class="report-alert-item">
+      <span>🧩 Mapa ${escapeHtml(a.qd.mapa)}${a.qd.nome ? ' — ' + escapeHtml(a.qd.nome) : ''}${a.qd.grupo ? ' <span style="color:var(--text2)">(' + escapeHtml(a.qd.grupo) + ')</span>' : ''}</span>
+      <span style="color:var(--warning);font-weight:700;">${a.dias === null ? 'Nunca coberta' : a.dias + 'd'}</span>
+    </div>`).join('') : '<div style="font-size:0.82rem;color:var(--text2)">Nenhuma quadra atrasada — bom trabalho! 🎉</div>';
+
+  box.innerHTML = `
+    <div class="report-hero">
+      <div class="pct">${d.pct}%</div>
+      <div class="lbl">do território coberto neste ciclo (${d.cobertas} de ${d.total} quadras)</div>
+      <div class="report-hero-track"><div class="report-hero-fill" style="width:${d.pct}%"></div></div>
+    </div>
+    <div class="report-stat-grid">
+      <div class="report-stat-card"><div class="num">${d.pendentes}</div><div class="lbl">Quadras pendentes</div></div>
+      <div class="report-stat-card"><div class="num">${d.atrasadas.length}</div><div class="lbl">Atrasadas (+90 dias)</div></div>
+      <div class="report-stat-card"><div class="num">${d.ult30}</div><div class="lbl">Cobertas nos últimos 30 dias</div></div>
+      <div class="report-stat-card"><div class="num">${d.semGrupo}</div><div class="lbl">Sem grupo atribuído</div></div>
+    </div>
+    <div class="report-section">
+      <div class="report-section-title">📅 Previsão de conclusão do ciclo</div>
+      <div style="font-size:0.85rem;color:var(--text)">${d.previsaoTxt}</div>
+    </div>
+    <div class="report-section">
+      <div class="report-section-title">👥 Progresso por grupo</div>
+      ${barraGrupos}
+    </div>
+    <div class="report-section">
+      <div class="report-section-title">⚠️ Quadras que precisam de atenção</div>
+      ${listaAtrasadas}
+    </div>
+    <div class="report-section">
+      <div class="report-section-title">📋 Resumo geral</div>
+      <div class="report-bar-row"><div class="report-bar-head"><span>Grupos ativos</span><span><b>${d.grupos}</b></span></div></div>
+      <div class="report-bar-row"><div class="report-bar-head"><span>Publicadores cadastrados</span><span><b>${d.publicadores}</b></span></div></div>
+      <div class="report-bar-row"><div class="report-bar-head"><span>Comércios</span><span><b>${d.comercios}</b></span></div></div>
+      <div class="report-bar-row"><div class="report-bar-head"><span>Condomínios/prédios</span><span><b>${d.condominios}</b></span></div></div>
+    </div>
+    <div style="font-size:0.7rem;color:var(--text2);text-align:center;margin-top:4px;">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
+  `;
+}
+async function baixarRelatorioImagem() {
+  if (typeof html2canvas === 'undefined') { showSnack('❌ Recurso de captura não carregado. Verifique sua internet.'); return; }
+  const el = document.getElementById('reportResults');
+  showSnack('📊 Gerando imagem do relatório...', 6000);
+  try {
+    const canvas = await html2canvas(el, { backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg') || '#f5f5f7', useCORS: true, scale: 2 });
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl; a.download = `relatorio-territorio-${new Date().toISOString().slice(0,10)}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    showSnack('✓ Relatório baixado');
+  } catch (e) {
+    console.error(e);
+    showSnack('❌ Não foi possível gerar a imagem do relatório');
+  }
 }
 
 function pushUndo(entry) { undoStack.push(entry); if (undoStack.length > 15) undoStack.shift(); }
