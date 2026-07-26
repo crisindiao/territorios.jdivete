@@ -859,6 +859,7 @@ body.no-anim .leaflet-zoom-animated{
   <button data-layer="street" class="active" onclick="setMapLayer('street')">🗺️ Ruas (OpenStreetMap)</button>
   <button data-layer="esri" onclick="setMapLayer('esri')">🛰️ Satélite (Esri)</button>
   <button data-layer="google" onclick="setMapLayer('google')">🛰️ Satélite (Google)</button>
+  <button data-layer="bing" onclick="setMapLayer('bing')">🛰️ Satélite (Bing)</button>
 </div>
 
 <!-- LIST VIEW -->
@@ -2124,9 +2125,32 @@ const satelliteLabelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rast
 // certinho no html2canvas — inclusive pro cartão baixado. Risco: é uma URL
 // não documentada pelo Google, pode parar de funcionar sem aviso.
 const googleSatLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3'], attribution: 'Google', crossOrigin: true });
-let mapLayerMode = 'street'; // 'street' | 'esri' | 'google'
+// Satélite do Bing/Here. Ao contrário do Esri/Google, o Bing usa um esquema de
+// "quadkey" em vez de x/y/z direto na URL, então precisamos de uma camada
+// customizada que converte as coordenadas do tile pra quadkey antes de montar
+// a URL. "a" no início do path = imagem aérea (satélite), "g=1" = versão da API.
+const BingLayer = L.TileLayer.extend({
+  getTileUrl: function(coords) {
+    const quadkey = this._toQuadKey(coords.x, coords.y, coords.z);
+    const sub = ['t0','t1','t2','t3'][(coords.x + coords.y) % 4];
+    return `https://ecn.${sub}.tiles.virtualearth.net/tiles/a${quadkey}.jpeg?g=1&n=z`;
+  },
+  _toQuadKey: function(x, y, z) {
+    let quadkey = '';
+    for (let i = z; i > 0; i--) {
+      let digit = 0;
+      const mask = 1 << (i - 1);
+      if ((x & mask) !== 0) digit += 1;
+      if ((y & mask) !== 0) digit += 2;
+      quadkey += digit;
+    }
+    return quadkey;
+  }
+});
+const bingSatLayer = new BingLayer('', { maxZoom: 19, attribution: 'Bing / HERE / Microsoft', crossOrigin: true });
+let mapLayerMode = 'street'; // 'street' | 'esri' | 'google' | 'bing'
 
-function allBaseLayers() { return [streetLayer, satelliteLayer, satelliteLabelsLayer, googleSatLayer]; }
+function allBaseLayers() { return [streetLayer, satelliteLayer, satelliteLabelsLayer, googleSatLayer, bingSatLayer]; }
 
 function setMapLayer(mode) {
   const btn = document.getElementById('satelliteBtn');
@@ -2140,6 +2164,10 @@ function setMapLayer(mode) {
     map.addLayer(googleSatLayer);
     document.body.classList.add('sat-mode');
     if (btn) btn.title = 'Camada do mapa: Satélite (Google)';
+  } else if (mode === 'bing') {
+    map.addLayer(bingSatLayer);
+    document.body.classList.add('sat-mode');
+    if (btn) btn.title = 'Camada do mapa: Satélite (Bing)';
   } else {
     mode = 'street';
     map.addLayer(streetLayer);
