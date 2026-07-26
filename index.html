@@ -1598,10 +1598,12 @@ function wireCartasBlock(card, c, rerenderFn) {
 const map = L.map('map', { zoomControl: true, tap: true });
 const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', crossOrigin: true }).addTo(map);
 const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics', crossOrigin: true });
-// Labels feitas especificamente pra sobrepor imagem de satélite (texto branco
-// com contorno escuro já vem pronto no tile, sem precisar processar nada) —
-// mesmo serviço Esri que já fornece as fotos de satélite acima.
-const satelliteLabelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, crossOrigin: true });
+// Nomes de rua sobre o satélite: "World_Boundaries_and_Places" (usado antes)
+// só tem nomes de cidade/bairro, não de rua — por isso sumiu o nome das
+// ruas. "World_Transportation" é o serviço Esri certo pra isso: linhas e
+// nomes das ruas, feito pra sobrepor a imagem de satélite (texto branco
+// com contorno escuro já vem pronto no tile).
+const satelliteLabelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, crossOrigin: true });
 let mapLayerMode = 'street';
 function toggleSatellite() {
   const btn = document.getElementById('satelliteBtn');
@@ -2016,7 +2018,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 12px monospace';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-n-cormaxzoom id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  const debugTxt = `build:2026-07-25-o-transportlabels id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
   ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
   ctx.restore();
   let y = mapY + mapH + 34;
