@@ -479,6 +479,21 @@ body.presentation-mode .presentation-exit-btn{display:flex;}
 .locate-fab:active{box-shadow:var(--sh1);}
 .locate-fab.active-loc{background:#1a73e8;color:#fff;}
 
+/* ── Menu de camada do mapa (ruas / satélite Esri / satélite Google) ── */
+.map-layer-menu{
+  display:none;flex-direction:column;position:fixed;
+  bottom:calc(var(--nav-h) + 64px);right:calc(52px + 20px + 52px);
+  z-index:202;background:var(--surface);border-radius:12px;box-shadow:var(--sh2);
+  overflow:hidden;min-width:200px;
+}
+.map-layer-menu button{
+  display:block;width:100%;text-align:left;padding:12px 16px;border:none;background:none;
+  color:var(--text);font-size:14px;border-bottom:1px solid var(--border);
+}
+.map-layer-menu button:last-child{border-bottom:none;}
+.map-layer-menu button.active{background:var(--purple);color:#fff;font-weight:600;}
+.map-layer-menu button:active{opacity:0.8;}
+
 /* ── DRAW ── */
 .draw-toolbar{position:fixed;bottom:calc(var(--nav-h) + 80px);left:50%;transform:translateX(-50%);z-index:205;display:none;gap:8px;flex-wrap:wrap;justify-content:center;max-width:94vw;}
 .draw-toolbar.show{display:flex;}
@@ -774,7 +789,12 @@ body.no-anim .leaflet-zoom-animated{
 </div>
 <button class="fab" id="fabBtn" onclick="startAddMode()">＋</button>
 <button class="locate-fab" id="myLocationBtn" onclick="toggleMyLocation()" title="Minha localização em tempo real" style="display:none;">📍</button>
-<button class="locate-fab" id="satelliteBtn" onclick="toggleSatellite()" title="Ver satélite" style="display:none;right:calc(52px + 20px + 52px);">🛰️</button>
+<button class="locate-fab" id="satelliteBtn" onclick="toggleMapLayerMenu()" title="Camada do mapa" style="display:none;right:calc(52px + 20px + 52px);">🛰️</button>
+<div class="map-layer-menu" id="mapLayerMenu">
+  <button data-layer="street" class="active" onclick="setMapLayer('street')">🗺️ Ruas (OpenStreetMap)</button>
+  <button data-layer="esri" onclick="setMapLayer('esri')">🛰️ Satélite (Esri)</button>
+  <button data-layer="google" onclick="setMapLayer('google')">🛰️ Satélite (Google)</button>
+</div>
 
 <!-- LIST VIEW -->
 <div class="list-view" id="listView">
@@ -1604,21 +1624,58 @@ const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/
 // bairro, só ficou rodovia/avenida grande). O texto sai numa cor cinza/
 // escura (não branco puro), mas pelo menos sai correto e completo.
 const satelliteLabelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', crossOrigin: true });
-let mapLayerMode = 'street';
-function toggleSatellite() {
+// Satélite do Google via URL de tiles não-oficial (mesmo esquema usado por
+// muitos apps pessoais). "lyrs=y" é o modo híbrido: já vem com nomes de rua
+// desenhados no próprio tile (não precisa de uma camada de labels separada
+// como no Esri). Como é uma imagem comum (igual às outras camadas), captura
+// certinho no html2canvas — inclusive pro cartão baixado. Risco: é uma URL
+// não documentada pelo Google, pode parar de funcionar sem aviso.
+const googleSatLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3'], attribution: 'Google', crossOrigin: true });
+let mapLayerMode = 'street'; // 'street' | 'esri' | 'google'
+
+function allBaseLayers() { return [streetLayer, satelliteLayer, satelliteLabelsLayer, googleSatLayer]; }
+
+function setMapLayer(mode) {
   const btn = document.getElementById('satelliteBtn');
-  if (mapLayerMode === 'street') {
-    map.removeLayer(streetLayer); map.addLayer(satelliteLayer); map.addLayer(satelliteLabelsLayer);
-    mapLayerMode = 'satellite';
-    if (btn) { btn.textContent = '🗺️'; btn.title = 'Ver mapa de ruas'; }
+  allBaseLayers().forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
+  document.body.classList.remove('sat-mode');
+  if (mode === 'esri') {
+    map.addLayer(satelliteLayer); map.addLayer(satelliteLabelsLayer);
     document.body.classList.add('sat-mode');
+    if (btn) btn.title = 'Camada do mapa: Satélite (Esri)';
+  } else if (mode === 'google') {
+    map.addLayer(googleSatLayer);
+    document.body.classList.add('sat-mode');
+    if (btn) btn.title = 'Camada do mapa: Satélite (Google)';
   } else {
-    map.removeLayer(satelliteLayer); map.removeLayer(satelliteLabelsLayer); map.addLayer(streetLayer);
-    mapLayerMode = 'street';
-    if (btn) { btn.textContent = '🛰️'; btn.title = 'Ver satélite'; }
-    document.body.classList.remove('sat-mode');
+    mode = 'street';
+    map.addLayer(streetLayer);
+    if (btn) btn.title = 'Camada do mapa: Ruas';
   }
+  mapLayerMode = mode;
+  document.querySelectorAll('#mapLayerMenu button').forEach(b => b.classList.toggle('active', b.dataset.layer === mode));
+  closeMapLayerMenu();
 }
+function toggleMapLayerMenu() {
+  const menu = document.getElementById('mapLayerMenu');
+  if (!menu) return;
+  menu.style.display = (menu.style.display === 'flex') ? 'none' : 'flex';
+}
+function closeMapLayerMenu() {
+  const menu = document.getElementById('mapLayerMenu');
+  if (menu) menu.style.display = 'none';
+}
+// Mantida por compatibilidade (nada mais chama isso, mas evita quebrar se
+// algo antigo ainda referenciar).
+function toggleSatellite() { toggleMapLayerMenu(); }
+document.addEventListener('click', function(e) {
+  const menu = document.getElementById('mapLayerMenu');
+  const btn = document.getElementById('satelliteBtn');
+  if (!menu || menu.style.display !== 'flex') return;
+  if (menu.contains(e.target) || (btn && btn.contains(e.target))) return;
+  closeMapLayerMenu();
+}, true);
+
 const territoryPoly = L.polygon(territoryCoords, { color: '#d93025', weight: 3, fillColor: '#d93025', fillOpacity: 0.07, dashArray: '10,6' }).addTo(map);
 let mapFitted = false; // evita fitBounds enquanto o #map ainda está com display:none (tamanho 0x0)
 let currentBoundaryPoly = territoryPoly; // contorno do território ativo no momento (usado pelo fitBounds)
@@ -2018,7 +2075,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 12px monospace';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-p-voyagerback id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  const debugTxt = `build:2026-07-25-q-3layers id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
   ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
   ctx.restore();
   let y = mapY + mapH + 34;
@@ -2098,7 +2155,7 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
   const prevZoom = map.getZoom();
 
   function waitTilesLoaded() {
-    const layers = [streetLayer, satelliteLayer].filter(l => map.hasLayer(l));
+    const layers = [streetLayer, satelliteLayer, googleSatLayer].filter(l => map.hasLayer(l));
     return Promise.all(layers.map(l => new Promise(resolve => {
       if (!l.isLoading || !l.isLoading()) { resolve(); return; }
       l.once('load', resolve);
