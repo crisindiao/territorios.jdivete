@@ -2019,7 +2019,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 12px monospace';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-j-satlabels-px id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  const debugTxt = `build:2026-07-25-k-satlabels-alpha id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
   ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
   ctx.restore();
   let y = mapY + mapH + 34;
@@ -2048,6 +2048,41 @@ function drawDottedLine(ctx, x1, y, x2, y2) {
   ctx.lineTo(x2, y2);
   ctx.stroke();
   ctx.restore();
+}
+function extractAlphaFromDoubleCapture(onBlack, onWhite) {
+  // Técnica padrão pra recuperar transparência de algo que só foi renderizado
+  // sobre fundo opaco: capturando a mesma cena sobre preto e sobre branco,
+  // dá pra calcular, pixel a pixel, o alfa real e a cor original.
+  // Fórmulas (canal a canal, 0-255):
+  //   resultadoNoPreto = cor*alfa
+  //   resultadoNoBranco = cor*alfa + 255*(1-alfa)
+  //   => alfa = 255 - (resultadoNoBranco - resultadoNoPreto)
+  //   => cor  = resultadoNoPreto * 255 / alfa   (se alfa > 0)
+  const w = onBlack.width, h = onBlack.height;
+  const bd = onBlack.getContext('2d').getImageData(0, 0, w, h).data;
+  const wd = onWhite.getContext('2d').getImageData(0, 0, w, h).data;
+
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const octx = out.getContext('2d');
+  const oimg = octx.createImageData(w, h);
+  const od = oimg.data;
+
+  for (let i = 0; i < bd.length; i += 4) {
+    const aR = 255 - (wd[i] - bd[i]);
+    const aG = 255 - (wd[i + 1] - bd[i + 1]);
+    const aB = 255 - (wd[i + 2] - bd[i + 2]);
+    let alpha = Math.max(0, Math.min(255, (aR + aG + aB) / 3));
+    let r = 0, g = 0, b = 0;
+    if (alpha > 2) {
+      r = Math.max(0, Math.min(255, bd[i] * 255 / alpha));
+      g = Math.max(0, Math.min(255, bd[i + 1] * 255 / alpha));
+      b = Math.max(0, Math.min(255, bd[i + 2] * 255 / alpha));
+    }
+    od[i] = r; od[i + 1] = g; od[i + 2] = b; od[i + 3] = alpha;
+  }
+  octx.putImageData(oimg, 0, 0);
+  return out;
 }
 function processLabelsCanvasToWhite(canvas) {
   // Os tiles de labels vêm com texto escuro + halo claro sobre fundo
@@ -2190,20 +2225,30 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
     // No modo satélite, o filtro CSS que deixa os nomes de rua brancos
     // (.sat-labels-layer) NÃO é respeitado pelo html2canvas — é uma
     // limitação conhecida da biblioteca, que ignora a propriedade `filter`.
-    // Por isso capturamos a camada de labels SOZINHA (satélite escondido),
-    // processamos os pixels de verdade (inverte + aumenta contraste) e só
-    // depois desenhamos por cima do mapa já capturado.
+    // Por isso capturamos a camada de labels separadamente e processamos os
+    // pixels de verdade (inverte + aumenta contraste) antes de desenhar por
+    // cima do mapa já capturado.
+    //
+    // IMPORTANTE: `backgroundColor: null` do html2canvas NÃO produz um fundo
+    // realmente transparente em todos os navegadores — em alguns casos vira
+    // preto opaco, o que apagava o mapa inteiro por baixo do texto. Por isso
+    // capturamos a MESMA cena duas vezes (uma com fundo preto, outra com
+    // fundo branco) e calculamos o canal alfa de verdade pela diferença
+    // entre as duas — técnica padrão pra "extrair" transparência de uma
+    // biblioteca que só sabe desenhar sobre fundo opaco.
     const isSatMode = document.body.classList.contains('sat-mode');
     let labelsCanvas = null;
     if (isSatMode && map.hasLayer(satelliteLabelsLayer)) {
       const hadSatLayer = map.hasLayer(satelliteLayer);
       if (hadSatLayer) map.removeLayer(satelliteLayer);
       await nextFrame();
-      labelsCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: null, scale: captureScale });
-      processLabelsCanvasToWhite(labelsCanvas);
+      const onBlack = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#000000', scale: captureScale });
+      const onWhite = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#ffffff', scale: captureScale });
       if (hadSatLayer) satelliteLayer.addTo(map);
       await nextFrame();
       await nextFrame();
+      labelsCanvas = extractAlphaFromDoubleCapture(onBlack, onWhite);
+      processLabelsCanvasToWhite(labelsCanvas);
     }
 
     const mapCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#fff', scale: captureScale });
