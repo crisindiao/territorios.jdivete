@@ -1598,7 +1598,10 @@ function wireCartasBlock(card, c, rerenderFn) {
 const map = L.map('map', { zoomControl: true, tap: true });
 const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', crossOrigin: true }).addTo(map);
 const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics', crossOrigin: true });
-const satelliteLabelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', crossOrigin: true });
+// Labels feitas especificamente pra sobrepor imagem de satélite (texto branco
+// com contorno escuro já vem pronto no tile, sem precisar processar nada) —
+// mesmo serviço Esri que já fornece as fotos de satélite acima.
+const satelliteLabelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, crossOrigin: true });
 let mapLayerMode = 'street';
 function toggleSatellite() {
   const btn = document.getElementById('satelliteBtn');
@@ -2013,7 +2016,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 12px monospace';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-m-simple id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  const debugTxt = `build:2026-07-25-n-cormaxzoom id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
   ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
   ctx.restore();
   let y = mapY + mapH + 34;
@@ -2124,25 +2127,33 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
   let highlightPoly = null;
 
   try {
-    // Padding reduzido (era [50,110]). maxZoom voltou pra 18 (era 19): no
-    // zoom 19 o próprio texto das ruas desenhado dentro dos tiles do
+    // Padding reduzido (era [50,110]). maxZoom: no modo ruas fica em 18
+    // porque no 19 o próprio texto das ruas desenhado dentro dos tiles do
     // OpenStreetMap fica desproporcionalmente grande em quadras estreitas
-    // (é assim que o provedor de tiles desenha nesse nível de zoom), então
-    // 18 é o ponto de equilíbrio entre "bem próximo" e texto de tamanho normal.
+    // (é assim que o provedor de tiles desenha nesse nível de zoom). O
+    // satélite não tem esse problema (é foto, não tem texto desenhado no
+    // tile), então no satélite aproveitamos o zoom máximo (19) pra ficar
+    // mais nítido.
+    const isSatMode = document.body.classList.contains('sat-mode');
+    const fitMaxZoom = isSatMode ? 19 : 18;
     const fitPadding = [18, 18];
-    map.fitBounds(quadraBounds, { paddingTopLeft: fitPadding, paddingBottomRight: fitPadding, maxZoom: 18, animate: false });
+    map.fitBounds(quadraBounds, { paddingTopLeft: fitPadding, paddingBottomRight: fitPadding, maxZoom: fitMaxZoom, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
     await waitTilesLoaded();
     await nextFrame();
     // Reaplica o enquadramento (garante que nenhum tile/realinhamento tardio
     // tenha deslocado a área visível antes da captura)
-    map.fitBounds(quadraBounds, { paddingTopLeft: fitPadding, paddingBottomRight: fitPadding, maxZoom: 18, animate: false });
+    map.fitBounds(quadraBounds, { paddingTopLeft: fitPadding, paddingBottomRight: fitPadding, maxZoom: fitMaxZoom, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
     await waitTilesLoaded();
     await nextFrame();
     map.closePopup();
 
     // SÓ AGORA, com o mapa já parado no lugar certo, adicionamos o contorno.
+    // Usa a cor e a espessura já configuradas para esta quadra (a mesma que
+    // aparece na aba Mapa), em vez de um rosa/amarelo fixo.
+    const corQuadra = qd.cor || getColorForMapa(qd.mapa);
+    const pesoQuadra = Math.min(qd.weight || 3, 3); // limitado a 3 pra não apagar o nome da rua
     highlightPoly = L.polygon(qd.coords, {
       // Renderer Canvas (em vez do SVG padrão do Leaflet): o html2canvas
       // captura elementos <canvas> lendo os pixels diretamente, enquanto a
@@ -2150,9 +2161,7 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
       // sair deslocada/duplicada no cartão exportado. Isso resolve a causa
       // raiz do deslocamento, além do reforço manual desenhado mais abaixo.
       renderer: L.canvas({ padding: 0.5 }),
-      // Linha fina (era peso+2) e preenchimento quase transparente (10%),
-      // para marcar a quadra sem apagar o nome das ruas por baixo.
-      color: '#e6007a', weight: 2, fillColor: '#ffd54a', fillOpacity: 0.10, opacity: 1
+      color: corQuadra, weight: pesoQuadra, fillColor: corQuadra, fillOpacity: 0.10, opacity: 1
     }).addTo(map);
     highlightPoly.bringToFront();
     await nextFrame();
