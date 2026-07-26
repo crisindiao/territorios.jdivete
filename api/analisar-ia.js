@@ -43,7 +43,7 @@ module.exports = async function handler(req, res) {
       `Aponte quais quadras merecem atenção primeiro e por quê, alertas relevantes (quadras sem grupo, atrasadas), e um resumo geral do progresso do ciclo. ` +
       `Não invente números que não foram fornecidos — use só os dados abaixo.\n\nDADOS DO TERRITÓRIO:\n${resumo}`;
 
-    const model = 'gemini-2.0-flash';
+    const model = 'gemini-1.5-flash';
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
