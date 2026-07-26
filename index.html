@@ -2019,7 +2019,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 12px monospace';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-k-satlabels-alpha id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  const debugTxt = `build:2026-07-25-l-satlabels-fix2 id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
   ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
   ctx.restore();
   let y = mapY + mapH + 34;
@@ -2241,10 +2241,28 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
     if (isSatMode && map.hasLayer(satelliteLabelsLayer)) {
       const hadSatLayer = map.hasLayer(satelliteLayer);
       if (hadSatLayer) map.removeLayer(satelliteLayer);
+      // O contorno da quadra também precisa sumir aqui: se ficasse visível,
+      // seria capturado junto com o texto e sairia com a cor invertida
+      // (rosa virando verde) quando colado de volta por cima do mapa certo.
+      const hadHighlight = map.hasLayer(highlightPoly);
+      if (hadHighlight) map.removeLayer(highlightPoly);
+      // O próprio elemento #map tem CSS "background: var(--bg)" (escuro no
+      // modo escuro) — isso é diferente do parâmetro `backgroundColor` do
+      // html2canvas, que só preenche o que sobra, sem sobrescrever o fundo
+      // do elemento em si. Por isso forçamos aqui, via style inline (que
+      // tem prioridade sobre a variável CSS), o fundo real do elemento para
+      // preto e depois para branco entre as duas capturas.
+      const mapEl = document.getElementById('map');
+      const prevInlineBg = mapEl.style.backgroundColor;
+      mapEl.style.backgroundColor = '#000000';
       await nextFrame();
-      const onBlack = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#000000', scale: captureScale });
-      const onWhite = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#ffffff', scale: captureScale });
+      const onBlack = await html2canvas(mapEl, { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#000000', scale: captureScale });
+      mapEl.style.backgroundColor = '#ffffff';
+      await nextFrame();
+      const onWhite = await html2canvas(mapEl, { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#ffffff', scale: captureScale });
+      mapEl.style.backgroundColor = prevInlineBg;
       if (hadSatLayer) satelliteLayer.addTo(map);
+      if (hadHighlight) highlightPoly.addTo(map);
       await nextFrame();
       await nextFrame();
       labelsCanvas = extractAlphaFromDoubleCapture(onBlack, onWhite);
