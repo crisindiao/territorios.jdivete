@@ -68,6 +68,26 @@ body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-conten
 html,body{height:100%;width:100%;overflow:hidden;font-family:var(--font);color:var(--text);background:var(--bg);-webkit-tap-highlight-color:transparent;}
 button{font-family:inherit;cursor:pointer;border:none;background:none;}
 
+/* ── SYNC BADGE (offline / fila de edições / sincronizando) ── */
+.sync-badge{
+  position:fixed;right:14px;bottom:calc(var(--nav-h) + 14px);z-index:600;
+  display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:999px;
+  font-size:0.78rem;font-weight:600;color:#fff;box-shadow:var(--sh2);
+  transition:opacity .25s ease, transform .25s ease;
+  transform:translateY(0);opacity:1;pointer-events:none;
+}
+.sync-badge.hidden{opacity:0;transform:translateY(10px) scale(.9);}
+.sync-badge.offline{background:#6b7280;}
+.sync-badge.pending{background:var(--warning);}
+.sync-badge.syncing{background:var(--purple);}
+.sync-badge.synced{background:var(--success);}
+.sync-spinner{
+  width:12px;height:12px;border-radius:50%;
+  border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;
+  animation:sync-spin .7s linear infinite;flex-shrink:0;
+}
+@keyframes sync-spin{to{transform:rotate(360deg);}}
+
 /* ── TOP BAR ── */
 .topbar{
   position:fixed;top:0;left:0;right:0;height:var(--top-h);
@@ -879,6 +899,7 @@ body.no-anim .leaflet-zoom-animated{
 
 <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(event)">
 <div class="snackbar" id="snackbar"></div>
+<div class="sync-badge hidden" id="syncBadge"></div>
 <button class="presentation-exit-btn" onclick="togglePresentationMode()" title="Sair do modo apresentação">✕</button>
 
 <!-- FIREBASE -->
@@ -961,6 +982,77 @@ function showSnack(msg, dur=2500, undoFn=null) {
 
 // ── DESFAZER (undo) ──
 let undoStack = [];
+// ── INDICADOR DE SINCRONIZAÇÃO OFFLINE ──
+// Mostra um badge no canto da tela sempre que houver edições feitas offline
+// aguardando envio, e sincroniza sozinho assim que a internet voltar.
+const SYNC_QUEUE_KEY = 'jardim-ivete-sync-pending-v1';
+let syncPendingCount = parseInt(localStorage.getItem(SYNC_QUEUE_KEY) || '0', 10) || 0;
+let syncStatus = navigator.onLine ? 'idle' : 'offline'; // idle | offline | syncing | synced
+let syncBadgeHideTimer = null;
+
+function persistSyncPending() {
+  try { localStorage.setItem(SYNC_QUEUE_KEY, String(syncPendingCount)); } catch(e) {}
+}
+
+function renderSyncBadge() {
+  const el = document.getElementById('syncBadge');
+  if (!el) return;
+  clearTimeout(syncBadgeHideTimer);
+  el.classList.remove('offline', 'pending', 'syncing', 'synced', 'hidden');
+
+  if (syncStatus === 'syncing') {
+    el.classList.add('syncing');
+    el.innerHTML = '<span class="sync-spinner"></span> Sincronizando…';
+  } else if (syncStatus === 'offline') {
+    if (syncPendingCount > 0) {
+      el.classList.add('pending');
+      el.innerHTML = '📴 Offline · ' + syncPendingCount + (syncPendingCount > 1 ? ' edições pendentes' : ' edição pendente');
+    } else {
+      el.classList.add('offline');
+      el.innerHTML = '📴 Você está offline';
+    }
+  } else if (syncStatus === 'synced') {
+    el.classList.add('synced');
+    el.innerHTML = '✓ Sincronizado';
+    syncBadgeHideTimer = setTimeout(() => { syncStatus = 'idle'; renderSyncBadge(); }, 2200);
+  } else {
+    el.classList.add('hidden');
+    return;
+  }
+  el.classList.remove('hidden');
+}
+
+// Tenta enviar o que está pendente assim que a internet volta (ou ao carregar já online com fila pendente)
+async function flushPendingSync() {
+  if (!navigator.onLine) return;
+  if (typeof currentUser === 'undefined' || !currentUser || typeof isAdmin === 'undefined' || !isAdmin) {
+    // Sem permissão de escrita: não há o que sincronizar no servidor, só limpa o estado visual
+    if (syncStatus === 'offline' && syncPendingCount === 0) { syncStatus = 'idle'; renderSyncBadge(); }
+    return;
+  }
+  if (syncPendingCount <= 0 && syncStatus !== 'offline') return;
+  syncStatus = 'syncing';
+  renderSyncBadge();
+  const result = await saveState();
+  if (result && result.ok) {
+    syncPendingCount = 0;
+    persistSyncPending();
+    syncStatus = 'synced';
+  } else {
+    // Ainda não deu: mantém a fila e volta a mostrar como offline/pendente
+    syncStatus = 'offline';
+  }
+  renderSyncBadge();
+}
+
+window.addEventListener('online', () => { flushPendingSync(); });
+window.addEventListener('offline', () => { syncStatus = 'offline'; renderSyncBadge(); });
+document.addEventListener('DOMContentLoaded', () => {
+  if (!navigator.onLine) syncStatus = 'offline';
+  renderSyncBadge();
+  if (navigator.onLine && syncPendingCount > 0) flushPendingSync();
+});
+
 function pushUndo(entry) { undoStack.push(entry); if (undoStack.length > 15) undoStack.shift(); }
 function undoLast() {
   const entry = undoStack.pop();
@@ -1234,6 +1326,16 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
       localStorage.setItem(getDataStorageKey(), JSON.stringify(payload, jsonReplacer));
     } catch(e) {}
 
+    // Sem internet: guarda a edição na fila pendente e mostra o indicador offline.
+    // A sincronização automática dispara sozinha assim que a conexão voltar (ver flushPendingSync).
+    if (!navigator.onLine) {
+      syncPendingCount++;
+      persistSyncPending();
+      syncStatus = 'offline';
+      renderSyncBadge();
+      return { ok: false, reason: 'offline' };
+    }
+
     // Só usuários com permissão de edição podem escrever no Firestore
     if (!currentUser || !isAdmin) return { ok: false, reason: isAdmin ? 'no-user' : 'not-admin' };
     try {
@@ -1267,9 +1369,21 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
 
       await setDoc(doc(db, "territorio", docId), payload);
       lastKnownSavedAt = payload.savedAt;
+      // Se havia fila pendente (ou estávamos marcados como offline), mostra a confirmação de sincronização
+      if (syncPendingCount > 0 || syncStatus === 'offline' || syncStatus === 'syncing') {
+        syncPendingCount = 0;
+        persistSyncPending();
+        syncStatus = 'synced';
+        renderSyncBadge();
+      }
       return { ok: true };
     } catch(e) {
       console.error('Falha ao salvar no Firebase:', e);
+      // Erro de rede (ex.: internet caiu no meio do envio): trata como offline e mantém na fila
+      syncPendingCount++;
+      persistSyncPending();
+      syncStatus = 'offline';
+      renderSyncBadge();
       showSnack('❌ Falha ao sincronizar com o servidor: ' + (e.message || 'erro desconhecido'));
       return { ok: false, reason: 'error', error: e };
     }
