@@ -67,6 +67,8 @@ body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-conten
 .popup-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px;}
 .popup-act-btn{display:flex;align-items:center;justify-content:center;gap:5px;border:none;border-radius:9px;padding:9px 4px;color:#fff;font-size:0.74rem;font-weight:700;cursor:pointer;white-space:nowrap;}
 .popup-act-btn.full{grid-column:1 / -1;}
+.card-highlight{animation:card-flash 1.8s ease;}
+@keyframes card-flash{0%,100%{box-shadow:var(--sh1);}25%,75%{box-shadow:0 0 0 3px var(--purple);}}
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;width:100%;overflow:hidden;font-family:var(--font);color:var(--text);background:var(--bg);-webkit-tap-highlight-color:transparent;}
 button{font-family:inherit;cursor:pointer;border:none;background:none;}
@@ -2445,7 +2447,8 @@ function renderQuadras() {
     const estimativaPopupHTML = estMinPopup ? `<br><small>⏱ ~${formatMinutos(estMinPopup)} estimado (${qd.casas} casas × ${MINUTOS_POR_CASA}min)</small>` : '';
     const shareBtn = `<button onclick="(function(){const c=quadrasData[${idx}]._layer.getBounds().getCenter();shareWhatsApp('Quadra ${qd.mapa}',c.lat,c.lng);})()" class="popup-act-btn" style="background:#25d366">📤<span>WhatsApp</span></button>`;
     const baixarCartaoBtn = `<button class="popup-act-btn btn-baixar-cartao-popup" style="background:#1967d2">⬇️<span>Cartão</span></button>`;
-    poly.bindPopup(`<div style="min-width:190px"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b style="font-size:0.95rem">Mapa ${qd.mapa}</b>${prioBadgeHTML(qd)}</div>${qd.nome?`<div style="font-size:0.78rem;color:var(--text2);margin-top:2px">${qd.nome}</div>`:''}${qd.grupo?`<div style="font-size:0.78rem;margin-top:2px">👥 <b>${qd.grupo}</b></div>`:''}<div style="font-size:0.72rem;color:var(--text2);margin-top:4px">${qd.coords.length} pontos — 📏 ~${perimQd}m${estimativaPopupHTML}</div>${qd.coberta?`<div style="font-size:0.72rem;color:#1e8e3e;margin-top:2px">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</div>`:''}${atrasadaPopup?`<div style="font-size:0.72rem;color:#d97706;margin-top:2px">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</div>`:''}<div class="popup-actions"><button onclick="showQuadraCartao(${idx})" class="popup-act-btn" style="background:var(--md-primary)">📋<span>Cartão</span></button>${baixarCartaoBtn}${shareBtn}${isAdmin?coberturaBtn:''}${editMode?`<button onclick="deleteQuadra(${idx})" class="popup-act-btn full" style="background:#d93025">🗑<span>Excluir</span></button>`:''}</div></div>`);
+    const editarBtn = `<button onclick="abrirEdicaoDetalhada(${idx})" class="popup-act-btn full" style="background:#5b2c83">✏️<span>Editar detalhes</span></button>`;
+    poly.bindPopup(`<div style="min-width:190px"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b style="font-size:0.95rem">Mapa ${qd.mapa}</b>${prioBadgeHTML(qd)}</div>${qd.nome?`<div style="font-size:0.78rem;color:var(--text2);margin-top:2px">${qd.nome}</div>`:''}${qd.grupo?`<div style="font-size:0.78rem;margin-top:2px">👥 <b>${qd.grupo}</b></div>`:''}<div style="font-size:0.72rem;color:var(--text2);margin-top:4px">${qd.coords.length} pontos — 📏 ~${perimQd}m${estimativaPopupHTML}</div>${qd.coberta?`<div style="font-size:0.72rem;color:#1e8e3e;margin-top:2px">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</div>`:''}${atrasadaPopup?`<div style="font-size:0.72rem;color:#d97706;margin-top:2px">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</div>`:''}<div class="popup-actions"><button onclick="showQuadraCartao(${idx})" class="popup-act-btn" style="background:var(--md-primary)">📋<span>Cartão</span></button>${baixarCartaoBtn}${shareBtn}${isAdmin?coberturaBtn:''}${editarBtn}${editMode?`<button onclick="deleteQuadra(${idx})" class="popup-act-btn full" style="background:#d93025">🗑<span>Excluir</span></button>`:''}</div></div>`);
     // Referência direta ao objeto `qd` (fechamento/closure), sem depender de
     // índice ou id que possam ficar desatualizados após uma sincronização.
     poly.on('popupopen', (e) => {
@@ -3302,6 +3305,23 @@ function focusItem(item) {
   setViewMode('mapa');
   if (item._marker) { map.setView(item._marker.getLatLng(), 18); item._marker.openPopup(); }
   else if (item._layer) { map.fitBounds(item._layer.getBounds(),{padding:[30,30]}); item._layer.openPopup(); }
+}
+// Vai do popup do mapa direto pro card de edição completa da quadra na Lista
+function abrirEdicaoDetalhada(idx) {
+  const qd = quadrasData[idx]; if (!qd) return;
+  _atencaoFiltroAtivo = null; activeMapaFilter = null; activeQuadraGrupoFilter = null; activeCoberturaFilter = null;
+  switchTab('quadras'); setViewMode('lista');
+  setTimeout(() => {
+    const box = document.getElementById('listCards');
+    if (!box) return;
+    let target = null;
+    box.querySelectorAll('.card').forEach(c => { const inp = c.querySelector('[data-f="mapa"]'); if (inp && inp.value === qd.mapa) target = c; });
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('card-highlight');
+      setTimeout(() => target.classList.remove('card-highlight'), 1800);
+    }
+  }, 150);
 }
 
 // ── LIST VIEW ──
