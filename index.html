@@ -919,7 +919,24 @@ body.no-anim .leaflet-zoom-animated{
   </div>
 </div>
 
-<!-- RELATÓRIO / MÉTRICAS DO TERRITÓRIO -->
+<!-- ANÁLISE DE TERRITÓRIO (regras automáticas + IA de verdade via API) -->
+<div class="search-overlay" id="iaOverlay">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="closeIaOverlay()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;">🤖 Analisar território</div>
+  </div>
+  <div class="search-overlay-results" id="iaResults" style="background:var(--bg)"></div>
+</div>
+
+<!-- Análise rápida de uma quadra específica (regras automáticas, sem custo, instantâneo) -->
+<div class="search-overlay" id="analiseQuadraOverlay">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="closeAnaliseQuadraOverlay()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;" id="analiseQuadraTitulo">🔍 Análise da quadra</div>
+  </div>
+  <div class="search-overlay-results" id="analiseQuadraResults" style="background:var(--bg)"></div>
+</div>
+
 <div class="search-overlay" id="reportOverlay">
   <div class="search-overlay-header">
     <button class="icon-btn" onclick="closeReportOverlay()" style="color:var(--text);">←</button>
@@ -946,6 +963,7 @@ body.no-anim .leaflet-zoom-animated{
     <button class="side-menu-item" id="sideMenuSwitchTerritory" style="display:none" onclick="switchTerritoryPrompt()"><span class="smi-icon">🔁</span> Trocar território</button>
     <button class="side-menu-item" id="sideMenuDistribuir" style="display:none" onclick="closeSideMenu();openDistribOverlay()"><span class="smi-icon">🧭</span> Distribuir quadras por grupo</button>
     <button class="side-menu-item" onclick="closeSideMenu();openReportOverlay()"><span class="smi-icon">📊</span> Relatório e métricas</button>
+    <button class="side-menu-item" onclick="closeSideMenu();openIaOverlay()"><span class="smi-icon">🤖</span> Analisar território com IA</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
     <button class="side-menu-item" onclick="closeSideMenu();document.getElementById('importFile').click()"><span class="smi-icon">📥</span> Importar dados</button>
@@ -1384,6 +1402,99 @@ function irParaQuadrasFiltradas(lista) {
   _switchingForAtencaoFilter = true;
   activeMapaFilter=null; activeQuadraGrupoFilter=null; activeCoberturaFilter=null;
   switchTab('quadras'); setViewMode('lista'); renderList();
+}
+
+// ── ANÁLISE RÁPIDA DE QUADRA (regras automáticas, sem custo, instantâneo) ──
+function analisarQuadraTexto(qd) {
+  const linhas = [];
+  const p = prioridadeQuadra(qd);
+  linhas.push(`${p.tag} Prioridade: <b>${p.label}</b>`);
+  if (!qd.grupo) {
+    linhas.push('⚠️ Esta quadra ainda não tem grupo designado — atribua um grupo antes de mandar alguém trabalhar nela.');
+  } else {
+    linhas.push(`👥 Grupo responsável: <b>${qd.grupo}</b>`);
+  }
+  if (qd.coberta) {
+    linhas.push(`✓ Já foi coberta${qd.coberturaData ? ' em ' + formatarDataBR(qd.coberturaData) : ''} neste ciclo.`);
+  } else {
+    const d = diasDesde(qd.ultimaCobertura);
+    linhas.push(d === null ? '🕐 Nunca foi registrada como coberta nesta ferramenta.' : `🕐 Há ${d} dias sem cobertura.`);
+  }
+  const perim = calcPerimetroQuadra(qd);
+  linhas.push(`📏 Perímetro aproximado: ~${perim}m, com ${qd.coords.length} pontos no polígono.`);
+  if (qd.casas) {
+    const min = estimativaTempoQuadra(qd);
+    linhas.push(`🏠 ${qd.casas} casas estimadas — cerca de ${formatMinutos(min)} de trabalho (5 min/casa).`);
+  } else {
+    linhas.push('ℹ️ Sem número de casas cadastrado — cadastre pra ter estimativa de tempo de trabalho.');
+  }
+  // Comparação com o restante do território
+  const total = quadrasData.length;
+  const cobertas = quadrasData.filter(q => q.coberta).length;
+  if (total) linhas.push(`📊 Contexto do ciclo: ${cobertas} de ${total} quadras já cobertas (${Math.round(cobertas/total*100)}%).`);
+  return linhas;
+}
+function analisarQuadra(idx) {
+  const qd = quadrasData[idx]; if (!qd) return;
+  document.getElementById('analiseQuadraTitulo').textContent = `🔍 Análise — Mapa ${qd.mapa}`;
+  document.getElementById('analiseQuadraResults').innerHTML = analisarQuadraTexto(qd).map(l => `<div class="report-alert-item" style="border:none;padding:9px 0">${l}</div>`).join('');
+  document.getElementById('analiseQuadraOverlay').classList.add('show');
+}
+function closeAnaliseQuadraOverlay() { document.getElementById('analiseQuadraOverlay').classList.remove('show'); }
+
+// ── ANÁLISE DO TERRITÓRIO COM IA DE VERDADE (via função serverless + API da Anthropic) ──
+// Chama /api/analisar-ia (arquivo separado no projeto, com a chave da Anthropic guardada
+// como variável de ambiente no Vercel — nunca exposta aqui no front-end).
+function buildResumoTerritorioParaIA() {
+  const d = computeReportData();
+  let txt = `Território "Jardim Ivete". ${d.total} quadras no total, ${d.cobertas} cobertas (${d.pct}%), ${d.pendentes} pendentes, ${d.semGrupo} sem grupo designado.\n`;
+  txt += `Ritmo recente: ${d.ult30} quadras cobertas nos últimos 30 dias.\n`;
+  if (d.porGrupo.length) txt += `Por grupo: ` + d.porGrupo.map(g => `${g.grupo} (${g.cobertas}/${g.total} cobertas, ${g.publicadores} publicadores)`).join('; ') + '.\n';
+  if (d.atrasadas.length) txt += `Quadras atrasadas (+90 dias ou nunca cobertas): ` + d.atrasadas.slice(0,25).map(a => `Mapa ${a.qd.mapa}${a.qd.grupo?' (grupo '+a.qd.grupo+')':' (sem grupo)'}${a.dias!==null?' — '+a.dias+' dias':' — nunca coberta'}`).join('; ') + '.\n';
+  const semGrupoList = quadrasData.filter(q => !q.grupo);
+  if (semGrupoList.length) txt += `Quadras sem grupo: ` + semGrupoList.slice(0,25).map(q => 'Mapa '+q.mapa).join(', ') + '.\n';
+  txt += `Comércios: ${d.comercios}, Condomínios: ${d.condominios}, Publicadores: ${d.publicadores}.`;
+  return txt;
+}
+function openIaOverlay() {
+  document.getElementById('iaOverlay').classList.add('show');
+  const box = document.getElementById('iaResults');
+  box.innerHTML = `
+    <div class="report-section">
+      <div class="report-section-title">🤖 Peça uma análise inteligente</div>
+      <div style="font-size:0.82rem;color:var(--text2);margin-bottom:10px">A IA vai olhar os números do território (cobertura, grupos, atrasos) e te dar recomendações práticas em português — por exemplo, quais quadras priorizar primeiro.</div>
+      <button class="btn-action" style="width:100%;background:var(--md-primary);color:#fff;border-radius:10px;padding:12px;font-weight:700;" onclick="rodarAnaliseIA()">✨ Analisar agora</button>
+    </div>`;
+}
+function closeIaOverlay() { document.getElementById('iaOverlay').classList.remove('show'); }
+async function rodarAnaliseIA() {
+  const box = document.getElementById('iaResults');
+  box.innerHTML = `<div class="report-section" style="text-align:center;padding:30px 14px;"><div style="font-size:2rem;margin-bottom:8px;">🤖</div><div style="font-size:0.85rem;color:var(--text2)">Analisando o território...</div></div>`;
+  try {
+    const resumo = buildResumoTerritorioParaIA();
+    const resp = await fetch('/api/analisar-ia', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resumo })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Erro desconhecido');
+    const textoFormatado = escapeHtml(data.text || '').replace(/\n/g, '<br>');
+    box.innerHTML = `
+      <div class="report-section">
+        <div class="report-section-title">✨ Recomendações da IA</div>
+        <div style="font-size:0.85rem;color:var(--text);line-height:1.6">${textoFormatado}</div>
+      </div>
+      <button class="btn-action" style="width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:11px;font-weight:700;" onclick="rodarAnaliseIA()">🔄 Analisar de novo</button>`;
+  } catch (e) {
+    box.innerHTML = `
+      <div class="report-section">
+        <div class="report-section-title">❌ Não foi possível analisar</div>
+        <div style="font-size:0.82rem;color:var(--text2)">${escapeHtml(e.message || 'Erro de conexão')}</div>
+        <div style="font-size:0.76rem;color:var(--text2);margin-top:8px">Se essa é a primeira vez, confirme com quem configurou o app se a função /api/analisar-ia e a chave grátis do Gemini (GEMINI_API_KEY) já foram publicadas no Vercel.</div>
+      </div>
+      <button class="btn-action" style="width:100%;background:var(--md-primary);color:#fff;border-radius:10px;padding:11px;font-weight:700;margin-top:8px" onclick="rodarAnaliseIA()">Tentar de novo</button>`;
+  }
 }
 
 function pushUndo(entry) { undoStack.push(entry); if (undoStack.length > 15) undoStack.shift(); }
@@ -2447,8 +2558,9 @@ function renderQuadras() {
     const estimativaPopupHTML = estMinPopup ? `<br><small>⏱ ~${formatMinutos(estMinPopup)} estimado (${qd.casas} casas × ${MINUTOS_POR_CASA}min)</small>` : '';
     const shareBtn = `<button onclick="(function(){const c=quadrasData[${idx}]._layer.getBounds().getCenter();shareWhatsApp('Quadra ${qd.mapa}',c.lat,c.lng);})()" class="popup-act-btn" style="background:#25d366">📤<span>WhatsApp</span></button>`;
     const baixarCartaoBtn = `<button class="popup-act-btn btn-baixar-cartao-popup" style="background:#1967d2">⬇️<span>Cartão</span></button>`;
+    const analisarBtn = `<button onclick="analisarQuadra(${idx})" class="popup-act-btn" style="background:#00897b">🔍<span>Analisar</span></button>`;
     const editarBtn = `<button onclick="abrirEdicaoDetalhada(${idx})" class="popup-act-btn full" style="background:#5b2c83">✏️<span>Editar detalhes</span></button>`;
-    poly.bindPopup(`<div style="min-width:190px"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b style="font-size:0.95rem">Mapa ${qd.mapa}</b>${prioBadgeHTML(qd)}</div>${qd.nome?`<div style="font-size:0.78rem;color:var(--text2);margin-top:2px">${qd.nome}</div>`:''}${qd.grupo?`<div style="font-size:0.78rem;margin-top:2px">👥 <b>${qd.grupo}</b></div>`:''}<div style="font-size:0.72rem;color:var(--text2);margin-top:4px">${qd.coords.length} pontos — 📏 ~${perimQd}m${estimativaPopupHTML}</div>${qd.coberta?`<div style="font-size:0.72rem;color:#1e8e3e;margin-top:2px">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</div>`:''}${atrasadaPopup?`<div style="font-size:0.72rem;color:#d97706;margin-top:2px">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</div>`:''}<div class="popup-actions"><button onclick="showQuadraCartao(${idx})" class="popup-act-btn" style="background:var(--md-primary)">📋<span>Cartão</span></button>${baixarCartaoBtn}${shareBtn}${isAdmin?coberturaBtn:''}${editarBtn}${editMode?`<button onclick="deleteQuadra(${idx})" class="popup-act-btn full" style="background:#d93025">🗑<span>Excluir</span></button>`:''}</div></div>`);
+    poly.bindPopup(`<div style="min-width:190px"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b style="font-size:0.95rem">Mapa ${qd.mapa}</b>${prioBadgeHTML(qd)}</div>${qd.nome?`<div style="font-size:0.78rem;color:var(--text2);margin-top:2px">${qd.nome}</div>`:''}${qd.grupo?`<div style="font-size:0.78rem;margin-top:2px">👥 <b>${qd.grupo}</b></div>`:''}<div style="font-size:0.72rem;color:var(--text2);margin-top:4px">${qd.coords.length} pontos — 📏 ~${perimQd}m${estimativaPopupHTML}</div>${qd.coberta?`<div style="font-size:0.72rem;color:#1e8e3e;margin-top:2px">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</div>`:''}${atrasadaPopup?`<div style="font-size:0.72rem;color:#d97706;margin-top:2px">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</div>`:''}<div class="popup-actions"><button onclick="showQuadraCartao(${idx})" class="popup-act-btn" style="background:var(--md-primary)">📋<span>Cartão</span></button>${baixarCartaoBtn}${shareBtn}${analisarBtn}${isAdmin?coberturaBtn:''}${editarBtn}${editMode?`<button onclick="deleteQuadra(${idx})" class="popup-act-btn full" style="background:#d93025">🗑<span>Excluir</span></button>`:''}</div></div>`);
     // Referência direta ao objeto `qd` (fechamento/closure), sem depender de
     // índice ou id que possam ficar desatualizados após uma sincronização.
     poly.on('popupopen', (e) => {
@@ -3443,7 +3555,7 @@ function renderList() {
       const historicoHTML = historicoBaixa.length ? `<details class="quadra-historico"><summary>📜 Linha do tempo (${historicoBaixa.length})</summary>${historicoBaixa.slice(0,10).map(h=>`<div class="hist-item">${formatarDataBR(h.data)} — ${h.acao}${h.usuario?' — '+h.usuario:''}</div>`).join('')}<button type="button" class="btn-limpar-historico" data-idx="${idxQd}" style="margin-top:6px;background:none;border:none;color:var(--error);font-size:0.72rem;font-weight:700;cursor:pointer;padding:2px 0">🗑 Limpar histórico</button></details>` : '';
       const estMin = estimativaTempoQuadra(qd);
       const estimativaHTML = estMin ? ` — ⏱ ~${formatMinutos(estMin)} (${qd.casas} casas)` : '';
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${escapeHtml(qd.mapa)}</div><div class="card-sub">${escapeHtml(qd.nome||'Sem nome')} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+escapeHtml(qd.grupo):''}${estimativaHTML}</div></div></div>${coberturaBadge}${prioBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${escapeHtml(qd.mapa)}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${escapeHtml(qd.nome||'')}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button><button class="btn-action btn-baixar-cartao" style="background:#e8f0fe;color:#1967d2">⬇️ Baixar cartão</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${escapeHtml(qd.mapa)}</div><div class="card-sub">${escapeHtml(qd.nome||'Sem nome')} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+escapeHtml(qd.grupo):''}${estimativaHTML}</div></div></div>${coberturaBadge}${prioBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${escapeHtml(qd.mapa)}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${escapeHtml(qd.nome||'')}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button><button class="btn-action btn-baixar-cartao" style="background:#e8f0fe;color:#1967d2">⬇️ Baixar cartão</button></div><div class="card-actions"><button class="btn-action btn-analisar-quadra" style="background:#e0f2f1;color:#00695c">🔍 Analisar quadra</button></div>`;
       wireDirty(card);
       wireCartaoBlock(card,qd,renderQuadras);
       card.querySelector('.btn-baixar-cartao').onclick=()=>baixarCartaoQuadra(qd);
@@ -3453,6 +3565,7 @@ function renderList() {
       card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover quadra?')) return; const idx=quadrasData.indexOf(qd); if(idx>-1){ quadrasData.splice(idx,1); pushUndo({type:'quadra',data:qd,index:idx,label:'Quadra '+qd.mapa}); logActivity('🗑 removeu a quadra '+qd.mapa); } renderQuadras(); renderList(); renderCatbar(); updateLegend(); showSnack('🗑 Quadra removida', 6000, undoLast);};
       card.querySelector('.btn-cobertura-toggle').onclick=()=>toggleQuadraCobertura(idxQd);
       card.querySelector('.btn-share-quadra').onclick=()=>{ const c=qd._layer?qd._layer.getBounds().getCenter():{lat:qd.coords[0][0],lng:qd.coords[0][1]}; shareWhatsApp('Quadra '+qd.mapa+(qd.nome?' — '+qd.nome:''), c.lat, c.lng); };
+      card.querySelector('.btn-analisar-quadra').onclick=()=>analisarQuadra(idxQd);
       const btnLimparHist = card.querySelector('.btn-limpar-historico');
       if (btnLimparHist) btnLimparHist.onclick=(e)=>{ e.preventDefault(); if(!isAdmin){showSnack('❌ Apenas o administrador pode limpar o histórico');return;} if(!confirm('Limpar toda a linha do tempo desta quadra? Essa ação não pode ser desfeita.')) return; qd.historico=[]; logActivity('🗑 limpou a linha do tempo da quadra '+qd.mapa); renderList(); showSnack('🗑 Linha do tempo limpa'); };
       box.appendChild(card);
