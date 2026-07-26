@@ -2481,7 +2481,10 @@ function toggleQuadraCobertura(idx) {
     qd.ultimaCobertura = qd.coberturaData;
     qd.historico.unshift({ data: qd.coberturaData, usuario: nomeUsuarioAtual(), acao: 'Marcada como coberta' });
   } else {
-    qd.historico.unshift({ data: new Date().toISOString(), usuario: nomeUsuarioAtual(), acao: 'Baixa desfeita' });
+    // Desfazer baixa não vira um evento novo na linha do tempo — só remove a última "baixa" registrada,
+    // como se ela nunca tivesse acontecido (a linha do tempo só guarda baixas que realmente ficaram valendo).
+    const ultimoIdx = qd.historico.findIndex(h => h.acao === 'Marcada como coberta');
+    if (ultimoIdx > -1) qd.historico.splice(ultimoIdx, 1);
   }
   if (qd.historico.length > 30) qd.historico.length = 30;
   logActivity(`${qd.coberta?'✓ deu baixa':'↺ desfez baixa'} na quadra ${qd.mapa}${qd.nome?' ('+qd.nome+')':''}`);
@@ -3436,7 +3439,7 @@ function renderList() {
         : `<div class="cobertura-badge cobertura-pendente">○ Pendente${atrasada?` — ⚠️ ${diasUlt===null?'nunca coberta':'há '+diasUlt+' dias sem cobertura'}`:''}</div>`;
       const prioBadge = `<div style="margin-bottom:6px">${prioBadgeHTML(qd)}</div>`;
       const idxQd = quadrasData.indexOf(qd);
-      const historicoBaixa = (qd.historico||[]).filter(h => h.acao==='Marcada como coberta' || h.acao==='Baixa desfeita');
+      const historicoBaixa = (qd.historico||[]).filter(h => h.acao==='Marcada como coberta');
       const historicoHTML = historicoBaixa.length ? `<details class="quadra-historico"><summary>📜 Linha do tempo (${historicoBaixa.length})</summary>${historicoBaixa.slice(0,10).map(h=>`<div class="hist-item">${formatarDataBR(h.data)} — ${h.acao}${h.usuario?' — '+h.usuario:''}</div>`).join('')}<button type="button" class="btn-limpar-historico" data-idx="${idxQd}" style="margin-top:6px;background:none;border:none;color:var(--error);font-size:0.72rem;font-weight:700;cursor:pointer;padding:2px 0">🗑 Limpar histórico</button></details>` : '';
       const estMin = estimativaTempoQuadra(qd);
       const estimativaHTML = estMin ? ` — ⏱ ~${formatMinutos(estMin)} (${qd.casas} casas)` : '';
