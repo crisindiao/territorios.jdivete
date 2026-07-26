@@ -934,6 +934,17 @@ body.no-anim .leaflet-zoom-animated{
 </script>
 
 <script>
+// ── SEGURANÇA: escape de HTML (evita XSS ao renderizar dados digitados por usuários) ──
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ── SNACKBAR ──
 function showSnack(msg, dur=2500, undoFn=null) {
   const el = document.getElementById('snackbar');
@@ -1000,7 +1011,7 @@ function updateSideMenuState() {
       else if (cfg.role === 'editor') roleLabel = '✏️ Editor — ' + cfg.label;
     }
     subEl.textContent = roleLabel;
-    if (avatarEl) avatarEl.innerHTML = currentUser.photoURL ? `<img src="${currentUser.photoURL}" alt="">` : '👤';
+    if (avatarEl) avatarEl.innerHTML = currentUser.photoURL ? `<img src="${escapeHtml(currentUser.photoURL)}" alt="">` : '👤';
   }
   const switchBtn = document.getElementById('sideMenuSwitchTerritory');
   if (switchBtn) switchBtn.style.display = (currentTerritoryConfig && currentTerritoryConfig.canSwitchTerritory) ? 'flex' : 'none';
@@ -1023,7 +1034,7 @@ function showActivityLog() {
   box.innerHTML = activityLog.slice(0,80).map(a => {
     const d = new Date(a.ts);
     const dataStr = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    return `<div class="activity-item"><div class="activity-acao">${a.acao}</div><div class="activity-meta">${a.usuario} — ${dataStr}</div></div>`;
+    return `<div class="activity-item"><div class="activity-acao">${escapeHtml(a.acao)}</div><div class="activity-meta">${escapeHtml(a.usuario)} — ${dataStr}</div></div>`;
   }).join('');
   overlay.classList.add('show');
 }
@@ -1176,6 +1187,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
 
   function handleSignOut() {
     if (!confirm('Sair da conta?')) return;
+    if (firestoreUnsubscribe) { firestoreUnsubscribe(); firestoreUnsubscribe = null; }
     window._fb.signOut(window._fb.auth).then(() => {
       document.getElementById('authOverlay').classList.remove('hidden');
       document.getElementById('userBadge').style.display = 'none';
@@ -1206,8 +1218,16 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     return (coords || []).map(p => Array.isArray(p) ? p : [p.lat, p.lng]);
   }
 
+  // Guarda para evitar loop: enquanto estamos aplicando uma atualização vinda do
+  // próprio Firestore (via onSnapshot), não queremos disparar um novo saveState.
+  let applyingRemoteUpdate = false;
+  // Timestamp (savedAt) da última versão que carregamos/vimos do servidor.
+  // Usado para detectar se alguém salvou por cima entre nossa última leitura e nossa escrita.
+  let lastKnownSavedAt = null;
+
   // Salva no Firestore
   async function saveState() {
+    if (applyingRemoteUpdate) return { ok: false, reason: 'applying-remote' };
     // Também salva localmente como cache
     try {
       const payload = { saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, activityLog, savedAt: new Date().toISOString() };
@@ -1227,10 +1247,26 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
         showSnack('❌ Não sincronizado: dados muito grandes (fotos em base64). Reduza fotos ou remova algumas.');
         return { ok: false, reason: 'too-large', sizeBytes };
       }
-      const { db, doc, setDoc } = window._fb;
+      const { db, doc, setDoc, getDoc } = window._fb;
       // Usa o docId do território do usuário atual (compatibilidade: Jardim Ivete usa "dados")
       const docId = currentTerritoryConfig ? currentTerritoryConfig.docId : "dados";
+
+      // Checagem de conflito: se alguém salvou por cima desde a última vez que
+      // recebemos dados do servidor (via load inicial ou onSnapshot), avisamos
+      // em vez de sobrescrever silenciosamente o trabalho da outra pessoa.
+      try {
+        const currentSnap = await getDoc(doc(db, "territorio", docId));
+        if (currentSnap.exists()) {
+          const serverSavedAt = currentSnap.data().savedAt;
+          if (lastKnownSavedAt && serverSavedAt && serverSavedAt !== lastKnownSavedAt) {
+            showSnack('⚠️ Outra pessoa salvou alterações. Recarregue antes de continuar editando, para não perder dados.', 8000);
+            return { ok: false, reason: 'conflict' };
+          }
+        }
+      } catch(e) { /* se a checagem falhar, seguimos com o save normalmente */ }
+
       await setDoc(doc(db, "territorio", docId), payload);
+      lastKnownSavedAt = payload.savedAt;
       return { ok: true };
     } catch(e) {
       console.error('Falha ao salvar no Firebase:', e);
@@ -1239,7 +1275,10 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     }
   }
 
-  // Carrega do Firestore (com fallback para localStorage)
+  // Handle do listener em tempo real ativo (para poder desligar ao trocar de território/usuário)
+  let firestoreUnsubscribe = null;
+
+  // Carrega do Firestore e mantém sincronizado em tempo real (com fallback para localStorage)
   async function loadState() {
     // Tenta localStorage primeiro para UI instantânea
     try {
@@ -1250,24 +1289,35 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
       }
     } catch(e) {}
 
-    // Depois busca do Firestore
+    // Encerra qualquer listener anterior (ex.: ao trocar de território)
+    if (firestoreUnsubscribe) { firestoreUnsubscribe(); firestoreUnsubscribe = null; }
+
+    // Depois conecta ao Firestore em tempo real
     if (!currentUser) return;
     try {
-      const { db, doc, getDoc } = window._fb;
+      const { db, doc, onSnapshot } = window._fb;
       const docId = currentTerritoryConfig ? currentTerritoryConfig.docId : "dados";
-      const snap = await getDoc(doc(db, "territorio", docId));
-      if (snap.exists()) {
+      firestoreUnsubscribe = onSnapshot(doc(db, "territorio", docId), (snap) => {
+        // Ignora o "eco" da nossa própria escrita otimista local (evita piscar/loop)
+        if (snap.metadata && snap.metadata.hasPendingWrites) return;
+        if (!snap.exists()) return;
         const saved = snap.data();
         if (Array.isArray(saved.quadrasData)) {
           saved.quadrasData = saved.quadrasData.map(qd => ({ ...qd, coords: coordsFromFirestore(qd.coords) }));
         }
-        applyLoadedData(saved);
-        // Atualiza cache local
-        localStorage.setItem(getDataStorageKey(), JSON.stringify(saved));
-        // Re-renderiza
-        renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras(); updateLegend(); renderList();
-      }
-    } catch(e) { console.error('Falha ao carregar do Firebase:', e); }
+        applyingRemoteUpdate = true;
+        try {
+          applyLoadedData(saved);
+          lastKnownSavedAt = saved.savedAt || null;
+          // Atualiza cache local
+          localStorage.setItem(getDataStorageKey(), JSON.stringify(saved));
+          // Re-renderiza (não dispara saveState pois applyingRemoteUpdate está true)
+          renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras(); renderCatbar(); updateLegend(); renderList(); renderHomeAtividades();
+        } finally {
+          applyingRemoteUpdate = false;
+        }
+      }, (err) => { console.error('Falha na sincronização em tempo real:', err); });
+    } catch(e) { console.error('Falha ao conectar ao Firebase:', e); }
   }
 
   function applyLoadedData(saved) {
@@ -1376,7 +1426,7 @@ function compressImage(file, maxDim = 640, quality = 0.7) {
   });
 }
 function photoBlockHTML(item) {
-  return `<div class="card-label">Foto da frente</div><div class="photo-row">${item.foto ? `<img src="${item.foto}" class="photo-thumb">` : `<div class="photo-placeholder">📷</div>`}<div class="photo-actions"><label class="btn-action btn-photo">📷 ${item.foto ? 'Trocar foto' : 'Tirar foto'}<input type="file" accept="image/*" capture="environment" class="photo-input" hidden></label>${item.foto ? '<button type="button" class="btn-action btn-photo-remove">🗑 Remover foto</button>' : ''}${(item.lat&&item.lng)?'<button type="button" class="btn-action btn-streetview">🌐 Ver rua (Street View)</button>':''}</div></div><div class="streetview-box" hidden></div>`;
+  return `<div class="card-label">Foto da frente</div><div class="photo-row">${item.foto ? `<img src="${escapeHtml(item.foto)}" class="photo-thumb">` : `<div class="photo-placeholder">📷</div>`}<div class="photo-actions"><label class="btn-action btn-photo">📷 ${item.foto ? 'Trocar foto' : 'Tirar foto'}<input type="file" accept="image/*" capture="environment" class="photo-input" hidden></label>${item.foto ? '<button type="button" class="btn-action btn-photo-remove">🗑 Remover foto</button>' : ''}${(item.lat&&item.lng)?'<button type="button" class="btn-action btn-streetview">🌐 Ver rua (Street View)</button>':''}</div></div><div class="streetview-box" hidden></div>`;
 }
 function wireStreetView(card, item) {
   const btn = card.querySelector('.btn-streetview');
@@ -1409,7 +1459,7 @@ function wirePhotoBlock(card, item, rerenderFn) {
   if (rm) rm.onclick = () => { if (!isAdmin) return; delete item.foto; saveState(); rerenderFn(); renderList(); showSnack('🗑 Foto removida'); };
 }
 function avatarHTML(item, emoji, bg) {
-  return item.foto ? `<img src="${item.foto}">` : `<span style="font-size:18px">${emoji}</span>`;
+  return item.foto ? `<img src="${escapeHtml(item.foto)}">` : `<span style="font-size:18px">${emoji}</span>`;
 }
 
 // ── LIGHTBOX (visualizar imagem em tela cheia) ──
@@ -1538,7 +1588,7 @@ document.getElementById('imgLightbox').onclick = (e) => { if (e.target.id === 'i
 // ── CARTÃO DE TERRITÓRIO (quadras) ──
 function cartaoBlockHTML(qd) {
   const url = qd.cartaoUrl;
-  return `<div class="card-label">📋 Cartão de território</div><div class="cartao-row">${url ? `<img src="${url}" class="cartao-thumb" data-cartao-view>` : `<div class="cartao-placeholder">📋</div>`}<div class="cartao-actions">${url ? '<button type="button" class="btn-action" data-cartao-view>👁️ Ver cartão</button>' : ''}<label class="btn-action btn-cartao-upload">📋 ${url ? 'Trocar cartão' : 'Enviar cartão'}<input type="file" accept="image/*" class="cartao-input" hidden></label>${url ? '<button type="button" class="btn-action btn-cartao-remove">🗑 Remover cartão</button>' : ''}</div></div>`;
+  return `<div class="card-label">📋 Cartão de território</div><div class="cartao-row">${url ? `<img src="${escapeHtml(url)}" class="cartao-thumb" data-cartao-view>` : `<div class="cartao-placeholder">📋</div>`}<div class="cartao-actions">${url ? '<button type="button" class="btn-action" data-cartao-view>👁️ Ver cartão</button>' : ''}<label class="btn-action btn-cartao-upload">📋 ${url ? 'Trocar cartão' : 'Enviar cartão'}<input type="file" accept="image/*" class="cartao-input" hidden></label>${url ? '<button type="button" class="btn-action btn-cartao-remove">🗑 Remover cartão</button>' : ''}</div></div>`;
 }
 function wireCartaoBlock(card, qd, rerenderFn) {
   const input = card.querySelector('.cartao-input');
@@ -1708,7 +1758,7 @@ map.on('contextmenu', async (e) => {
   const popup = L.popup().setLatLng([lat,lng]).setContent('<div class="popup-edit"><b>📍 Buscando endereço...</b></div>').openOn(map);
   const addr = await reverseGeocode(lat, lng);
   const div = document.createElement('div'); div.className = 'popup-edit';
-  div.innerHTML = `<b>📍 Local no mapa</b><div style="font-size:0.82rem;margin:4px 0 8px;color:var(--text2)">${addr || 'Endereço não encontrado'}</div><div class="popup-actions"><button class="btn-save">🗺️ Maps</button><button class="btn-del">📤 WhatsApp</button></div>`;
+  div.innerHTML = `<b>📍 Local no mapa</b><div style="font-size:0.82rem;margin:4px 0 8px;color:var(--text2)">${escapeHtml(addr) || 'Endereço não encontrado'}</div><div class="popup-actions"><button class="btn-save">🗺️ Maps</button><button class="btn-del">📤 WhatsApp</button></div>`;
   div.querySelector('.btn-save').onclick = () => window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
   div.querySelector('.btn-del').onclick = () => shareWhatsApp(addr || 'Local no mapa', lat, lng);
   popup.setContent(div);
@@ -1780,7 +1830,7 @@ map.on('dragstart', () => { myLocationFollowing = false; });
 function editSaidaPopup(marker, s) {
   if (!isAdmin) return `<b>Grupo ${s.grupo}</b><br>Saída: ${s.nome}${s.endereco?'<br><small style="color:#5f6368">'+s.endereco+'</small>':''}`;
   const div = document.createElement('div'); div.className = 'popup-edit';
-  div.innerHTML = `<b>Editar saída</b><input type="text" value="${s.grupo}" data-f="grupo" placeholder="Grupo"><input type="text" value="${s.nome}" data-f="nome" placeholder="Referência"><input type="text" value="${s.endereco||''}" data-f="endereco" placeholder="Endereço"><div class="popup-actions"><button class="btn-save">Salvar</button><button class="btn-del">Excluir</button></div>`;
+  div.innerHTML = `<b>Editar saída</b><input type="text" value="${escapeHtml(s.grupo)}" data-f="grupo" placeholder="Grupo"><input type="text" value="${escapeHtml(s.nome)}" data-f="nome" placeholder="Referência"><input type="text" value="${escapeHtml(s.endereco||'')}" data-f="endereco" placeholder="Endereço"><div class="popup-actions"><button class="btn-save">Salvar</button><button class="btn-del">Excluir</button></div>`;
   div.querySelector('.btn-save').onclick = async () => {
     const btn = div.querySelector('.btn-save');
     s.grupo = div.querySelector('[data-f="grupo"]').value; s.nome = div.querySelector('[data-f="nome"]').value;
@@ -1794,7 +1844,7 @@ function editSaidaPopup(marker, s) {
 function editComercioPopup(marker, c) {
   if (!isAdmin) return `<b>${c.nome}</b><br>${c.categoria}<br><small style="color:#5f6368">${c.endereco}</small>`;
   const div = document.createElement('div'); div.className = 'popup-edit';
-  div.innerHTML = `<b>Editar comércio</b><input type="text" value="${c.nome}" data-f="nome" placeholder="Nome"><input type="text" value="${c.endereco}" data-f="endereco" placeholder="Endereço"><input type="text" value="${c.categoria}" data-f="categoria" placeholder="Categoria"><div class="popup-actions"><button class="btn-save">Salvar</button><button class="btn-del">Excluir</button></div>`;
+  div.innerHTML = `<b>Editar comércio</b><input type="text" value="${escapeHtml(c.nome)}" data-f="nome" placeholder="Nome"><input type="text" value="${escapeHtml(c.endereco)}" data-f="endereco" placeholder="Endereço"><input type="text" value="${escapeHtml(c.categoria)}" data-f="categoria" placeholder="Categoria"><div class="popup-actions"><button class="btn-save">Salvar</button><button class="btn-del">Excluir</button></div>`;
   div.querySelector('.btn-save').onclick = async () => {
     const btn = div.querySelector('.btn-save'); c.nome = div.querySelector('[data-f="nome"]').value;
     const novoEndereco = div.querySelector('[data-f="endereco"]').value; c.categoria = div.querySelector('[data-f="categoria"]').value;
@@ -1807,7 +1857,7 @@ function editComercioPopup(marker, c) {
 function editCondominioPopup(marker, c) {
   if (!isAdmin) return `<b>${c.nome}</b><br>Condomínio/Prédio<br><small style="color:#5f6368">${c.endereco}</small>`;
   const div = document.createElement('div'); div.className = 'popup-edit';
-  div.innerHTML = `<b>Editar condomínio</b><input type="text" value="${c.nome}" data-f="nome" placeholder="Nome"><input type="text" value="${c.endereco}" data-f="endereco" placeholder="Endereço"><div class="popup-actions"><button class="btn-save">Salvar</button><button class="btn-del">Excluir</button></div>`;
+  div.innerHTML = `<b>Editar condomínio</b><input type="text" value="${escapeHtml(c.nome)}" data-f="nome" placeholder="Nome"><input type="text" value="${escapeHtml(c.endereco)}" data-f="endereco" placeholder="Endereço"><div class="popup-actions"><button class="btn-save">Salvar</button><button class="btn-del">Excluir</button></div>`;
   div.querySelector('.btn-save').onclick = async () => {
     const btn = div.querySelector('.btn-save'); c.nome = div.querySelector('[data-f="nome"]').value;
     const novoEndereco = div.querySelector('[data-f="endereco"]').value;
@@ -1820,7 +1870,7 @@ function editCondominioPopup(marker, c) {
 function editPublicadorPopup(marker, p) {
   if (!isAdmin) return `<b>${p.membros.join(', ')}</b><br>Grupo: ${p.grupo}${p.endereco?'<br><small style="color:#5f6368">'+p.endereco+'</small>':''}`;
   const div = document.createElement('div'); div.className = 'popup-edit';
-  div.innerHTML = `<b>Editar família</b><input type="text" value="${p.membros.join(', ')}" data-f="membros" placeholder="Nomes"><input type="text" value="${p.endereco||''}" data-f="endereco" placeholder="Endereço"><select data-f="grupo">${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===p.grupo?'selected':''}>${g}</option>`).join('')}</select><div class="popup-actions"><button class="btn-save">Salvar</button><button class="btn-del">Excluir</button></div>`;
+  div.innerHTML = `<b>Editar família</b><input type="text" value="${escapeHtml(p.membros.join(', '))}" data-f="membros" placeholder="Nomes"><input type="text" value="${escapeHtml(p.endereco||'')}" data-f="endereco" placeholder="Endereço"><select data-f="grupo">${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===p.grupo?'selected':''}>${g}</option>`).join('')}</select><div class="popup-actions"><button class="btn-save">Salvar</button><button class="btn-del">Excluir</button></div>`;
   div.querySelector('.btn-save').onclick = async () => {
     const btn = div.querySelector('.btn-save'); p.membros = div.querySelector('[data-f="membros"]').value.split(',').map(s=>s.trim()).filter(Boolean);
     const novoEndereco = div.querySelector('[data-f="endereco"]').value; p.grupo = div.querySelector('[data-f="grupo"]').value;
@@ -1838,7 +1888,7 @@ function renderGrupos() {
   items.forEach(s => {
     let lat = s.lat, lng = s.lng; if (s.offset) { lat += s.offset[0]; lng += s.offset[1]; }
     const marker = L.marker([lat,lng], { icon: makeDivIcon(s.cor, s.grupo[0]), draggable: editMode });
-    marker.bindPopup(editMode ? editSaidaPopup(marker,s) : `${s.foto?`<img src="${s.foto}" class="popup-photo">`:''}<b>Grupo ${s.grupo}</b><br>Saída: ${s.nome}${s.endereco?'<br><small style="color:#5f6368">'+s.endereco+'</small>':''}`);
+    marker.bindPopup(editMode ? editSaidaPopup(marker,s) : `${s.foto?`<img src="${escapeHtml(s.foto)}" class="popup-photo">`:''}<b>Grupo ${escapeHtml(s.grupo)}</b><br>Saída: ${escapeHtml(s.nome)}${s.endereco?'<br><small style="color:#5f6368">'+escapeHtml(s.endereco)+'</small>':''}`);
     marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); s.lat=p.lat; s.lng=p.lng; delete s.offset; });
     marker.addTo(layerGroups.grupos); s._marker = marker;
   });
@@ -1850,7 +1900,7 @@ function renderComercios() {
   const items = activeCategoryFilter ? comerciosData.filter(c=>c.categoria===activeCategoryFilter) : comerciosData;
   items.forEach(c => {
     const marker = L.marker([c.lat,c.lng], { icon: makeDotIcon(c.cor||'#868e96'), draggable: editMode });
-    marker.bindPopup(editMode ? editComercioPopup(marker,c) : `${c.foto?`<img src="${c.foto}" class="popup-photo">`:''}<b>${c.nome}</b><br>${c.categoria}<br><small style="color:#5f6368">${c.endereco}</small>`);
+    marker.bindPopup(editMode ? editComercioPopup(marker,c) : `${c.foto?`<img src="${escapeHtml(c.foto)}" class="popup-photo">`:''}<b>${escapeHtml(c.nome)}</b><br>${escapeHtml(c.categoria)}<br><small style="color:#5f6368">${escapeHtml(c.endereco)}</small>`);
     marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); c.lat=p.lat; c.lng=p.lng; });
     marker.addTo(layerGroups.comercios); c._marker = marker;
   });
@@ -1861,7 +1911,7 @@ function renderCondominios() {
   layerGroups.condominios.clearLayers();
   condominiosData.forEach(c => {
     const marker = L.marker([c.lat,c.lng], { icon: makeDotIcon(c.cor||'#364fc7'), draggable: editMode });
-    marker.bindPopup(editMode ? editCondominioPopup(marker,c) : `${c.foto?`<img src="${c.foto}" class="popup-photo">`:''}<b>${c.nome}</b><br>Condomínio/Prédio<br><small style="color:#5f6368">${c.endereco}</small>`);
+    marker.bindPopup(editMode ? editCondominioPopup(marker,c) : `${c.foto?`<img src="${escapeHtml(c.foto)}" class="popup-photo">`:''}<b>${escapeHtml(c.nome)}</b><br>Condomínio/Prédio<br><small style="color:#5f6368">${escapeHtml(c.endereco)}</small>`);
     marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); c.lat=p.lat; c.lng=p.lng; });
     marker.addTo(layerGroups.condominios); c._marker = marker;
   });
@@ -1877,7 +1927,7 @@ function renderPublicadores() {
     marker.bindPopup(() => {
       if (editMode) return editPublicadorPopup(marker,p);
       const div = document.createElement('div');
-      div.innerHTML = `${p.foto?`<img src="${p.foto}" class="popup-photo">`:''}<b>${p.membros.join(', ')}</b><br>Grupo: ${p.grupo}${p.endereco?'<br><small style="color:#5f6368">'+p.endereco+'</small>':''}<div class="popup-actions" style="margin-top:8px;"><button class="btn-save btn-share-whats">📤 WhatsApp</button></div>`;
+      div.innerHTML = `${p.foto?`<img src="${escapeHtml(p.foto)}" class="popup-photo">`:''}<b>${escapeHtml(p.membros.join(', '))}</b><br>Grupo: ${escapeHtml(p.grupo)}${p.endereco?'<br><small style="color:#5f6368">'+escapeHtml(p.endereco)+'</small>':''}<div class="popup-actions" style="margin-top:8px;"><button class="btn-save btn-share-whats">📤 WhatsApp</button></div>`;
       div.querySelector('.btn-share-whats').onclick = () => shareWhatsApp(p.membros.join(', '), p.lat, p.lng);
       return div;
     });
@@ -2349,7 +2399,7 @@ function updateLegend() {
   const box = document.getElementById('legendBox'); let html='';
   const toggleAttr = `onclick="toggleLegendCollapse()"`;
   const arrow = `<span class="legend-toggle">▾</span>`;
-  if (activeTab==='grupos') { html=`<span class="legend-title" ${toggleAttr}>Saídas de campo${arrow}</span>`; saidasData.forEach(s=>html+=`<div style="${activeSaidaGrupoFilter&&activeSaidaGrupoFilter!==s.grupo?'opacity:0.3':''}"><span class="dot" style="background:${s.cor}"></span>${s.grupo} — ${s.nome}</div>`); if (activeSaidaGrupoFilter) html+=`<div style="margin-top:4px;font-size:0.68rem;color:#5f6368">Filtro: ${activeSaidaGrupoFilter}</div>`; }
+  if (activeTab==='grupos') { html=`<span class="legend-title" ${toggleAttr}>Saídas de campo${arrow}</span>`; saidasData.forEach(s=>html+=`<div style="${activeSaidaGrupoFilter&&activeSaidaGrupoFilter!==s.grupo?'opacity:0.3':''}"><span class="dot" style="background:${s.cor}"></span>${escapeHtml(s.grupo)} — ${escapeHtml(s.nome)}</div>`); if (activeSaidaGrupoFilter) html+=`<div style="margin-top:4px;font-size:0.68rem;color:#5f6368">Filtro: ${escapeHtml(activeSaidaGrupoFilter)}</div>`; }
   if (activeTab==='publicadores') { html=`<span class="legend-title" ${toggleAttr}>Grupos${arrow}</span>`; Object.entries(groupColors).forEach(([g,c])=>html+=`<div style="${activeGroupFilter&&activeGroupFilter!==g?'opacity:0.3':''}"><span class="dot" style="background:${c}"></span>${g}</div>`); if (activeGroupFilter) html+=`<div style="margin-top:4px;font-size:0.68rem;color:#5f6368">Filtro: ${activeGroupFilter}</div>`; }
   if (activeTab==='comercios') { html=`<span class="legend-title" ${toggleAttr}>Comércios${arrow}</span><div style="font-size:0.7rem;color:#5f6368">Toque num ponto</div>`; }
   if (activeTab==='condominios') { html=`<span class="legend-title" ${toggleAttr}>Condomínios${arrow}</span><div style="font-size:0.7rem;color:#5f6368">Toque num ponto</div>`; }
@@ -2377,8 +2427,8 @@ function updateLegend() {
       html=`<span class="legend-title" ${toggleAttr}>Quadras por mapa${arrow}</span>`;
       const nums={}; quadrasData.forEach(qd=>{if(!nums[qd.mapa]) nums[qd.mapa]=qd.cor||getColorForMapa(qd.mapa);});
       if (!Object.keys(nums).length) html+='<div style="font-size:0.7rem;color:#9aa0a6;margin-top:4px">Nenhuma quadra ainda</div>';
-      else Object.entries(nums).forEach(([n,c])=>html+=`<div style="${activeMapaFilter&&activeMapaFilter!==n?'opacity:0.3':''}"><span class="dot" style="background:${c}"></span>Mapa ${n}</div>`);
-      if (activeMapaFilter) html+=`<div style="margin-top:4px;font-size:0.68rem;color:#5f6368">Filtro: Mapa ${activeMapaFilter}</div>`;
+      else Object.entries(nums).forEach(([n,c])=>html+=`<div style="${activeMapaFilter&&activeMapaFilter!==n?'opacity:0.3':''}"><span class="dot" style="background:${c}"></span>Mapa ${escapeHtml(n)}</div>`);
+      if (activeMapaFilter) html+=`<div style="margin-top:4px;font-size:0.68rem;color:#5f6368">Filtro: Mapa ${escapeHtml(activeMapaFilter)}</div>`;
     }
   }
   box.innerHTML = html || '<span style="color:#9aa0a6">Nenhuma camada ativa</span>';
@@ -2582,8 +2632,8 @@ function renderHomeAtividades() {
     <div class="atividade-item" onclick="goFocusHome('${it.tab}')">
       <div class="atividade-icon" style="background:${it.bg}">${it.icon}</div>
       <div class="atividade-info">
-        <div class="atividade-title">${it.title}</div>
-        <div class="atividade-sub">${it.sub}</div>
+        <div class="atividade-title">${escapeHtml(it.title)}</div>
+        <div class="atividade-sub">${escapeHtml(it.sub)}</div>
       </div>
       <div class="atividade-time">›</div>
     </div>
@@ -2631,7 +2681,7 @@ function renderCatbar() {
       const nums={}; quadrasData.forEach(qd=>{if(!nums[qd.mapa]) nums[qd.mapa]=qd.cor||getColorForMapa(qd.mapa);});
       const sorted=Object.keys(nums).sort((a,b)=>{const na=parseInt(a,10),nb=parseInt(b,10); if(!isNaN(na)&&!isNaN(nb)&&na!==nb) return na-nb; return a.localeCompare(b,'pt-BR');});
       html += `<button class="cat-chip${activeMapaFilter?'':' active'}" data-mapa="">Todos <span class="count">${quadrasData.length}</span></button>`;
-      sorted.forEach(n=>{const count=quadrasData.filter(qd=>qd.mapa===n).length; html+=`<button class="cat-chip${activeMapaFilter===n?' active':''}" data-mapa="${n}"><span class="dot" style="background:${nums[n]};width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px"></span>Mapa ${n} <span class="count">${count}</span></button>`;});
+      sorted.forEach(n=>{const count=quadrasData.filter(qd=>qd.mapa===n).length; html+=`<button class="cat-chip${activeMapaFilter===n?' active':''}" data-mapa="${escapeHtml(n)}"><span class="dot" style="background:${nums[n]};width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px"></span>Mapa ${escapeHtml(n)} <span class="count">${count}</span></button>`;});
     }
     box.innerHTML=html;
     box.querySelectorAll('.mode-chip').forEach(btn=>{btn.onclick=()=>{quadraCatMode=btn.dataset.mode; activeMapaFilter=null; activeQuadraGrupoFilter=null; activeCoberturaFilter=null; renderCatbar(); renderQuadras(); updateLegend(); if(viewMode==='lista') renderList();};});
@@ -2651,7 +2701,7 @@ function renderCatbar() {
   const cats={}; comerciosData.forEach(c=>{if(!cats[c.categoria]) cats[c.categoria]=c.cor||'#868e96';});
   const catNames=Object.keys(cats).sort((a,b)=>a.localeCompare(b,'pt-BR'));
   let html=`<button class="cat-chip${activeCategoryFilter?'':' active'}" data-cat="">Todos <span class="count">${comerciosData.length}</span></button>`;
-  catNames.forEach(cat=>{const count=comerciosData.filter(c=>c.categoria===cat).length; html+=`<button class="cat-chip${activeCategoryFilter===cat?' active':''}" data-cat="${cat}"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${cats[cat]};margin-right:4px"></span>${cat} <span class="count">${count}</span></button>`;});
+  catNames.forEach(cat=>{const count=comerciosData.filter(c=>c.categoria===cat).length; html+=`<button class="cat-chip${activeCategoryFilter===cat?' active':''}" data-cat="${escapeHtml(cat)}"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${cats[cat]};margin-right:4px"></span>${escapeHtml(cat)} <span class="count">${count}</span></button>`;});
   box.innerHTML=html;
   box.querySelectorAll('.cat-chip').forEach(btn=>{btn.onclick=()=>{
     activeCategoryFilter=btn.dataset.cat||null;
@@ -2680,7 +2730,7 @@ function renderGlobalSearch() {
   box.innerHTML='';
   if (q.length>=4) {
     const addrDiv=document.createElement('div'); addrDiv.className='search-result';
-    addrDiv.innerHTML=`<span class="search-badge">🌍</span><div class="search-info"><b>Buscar endereço no mapa</b><span>"${q}" — ir até o local</span></div>`;
+    addrDiv.innerHTML=`<span class="search-badge">🌍</span><div class="search-info"><b>Buscar endereço no mapa</b><span>"${escapeHtml(q)}" — ir até o local</span></div>`;
     addrDiv.onclick=()=>buscarEnderecoNoMapa(q);
     box.appendChild(addrDiv);
   }
@@ -2690,7 +2740,7 @@ function renderGlobalSearch() {
   }
   results.slice(0,200).forEach(r=>{
     const div=document.createElement('div'); div.className='search-result';
-    div.innerHTML=`<span class="search-badge">${r.badge}</span><div class="search-info"><b>${r.title}</b><span>${r.sub}</span></div>`;
+    div.innerHTML=`<span class="search-badge">${r.badge}</span><div class="search-info"><b>${escapeHtml(r.title)}</b><span>${escapeHtml(r.sub)}</span></div>`;
     div.onclick=()=>{ closeGlobalSearch(); activeCategoryFilter=null; activeGroupFilter=null; activeSaidaGrupoFilter=null; activeMapaFilter=null; activeQuadraGrupoFilter=null; switchTab(r.tab); setTimeout(()=>focusItem(r.item),60); };
     box.appendChild(div);
   });
@@ -2734,7 +2784,7 @@ function renderList() {
     if (!items.length) { box.innerHTML='<div class="empty-msg"><strong>📭</strong>Nenhum grupo encontrado</div>'; return; }
     items.forEach(s=>{
       const card=document.createElement('div'); card.className='card'; card.style.borderLeftColor=s.cor||'#dadce0';
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${s.cor}20">${avatarHTML(s,'📍')}</div><div><div class="card-name">Grupo ${s.grupo}</div><div class="card-sub">${s.nome||'Sem referência'}</div></div></div>${photoBlockHTML(s)}<div class="card-label">Nome do grupo</div><div class="card-row"><input type="text" data-f="grupo" value="${s.grupo}"></div><div class="card-label">Referência da casa</div><div class="card-row"><input type="text" data-f="nome" value="${s.nome}"></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${s.endereco||''}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-ver-quadras" style="background:var(--md-primary-light);color:var(--md-primary-dark)">🧩 Ver quadras deste grupo</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${s.cor}20">${avatarHTML(s,'📍')}</div><div><div class="card-name">Grupo ${escapeHtml(s.grupo)}</div><div class="card-sub">${escapeHtml(s.nome||'Sem referência')}</div></div></div>${photoBlockHTML(s)}<div class="card-label">Nome do grupo</div><div class="card-row"><input type="text" data-f="grupo" value="${escapeHtml(s.grupo)}"></div><div class="card-label">Referência da casa</div><div class="card-row"><input type="text" data-f="nome" value="${escapeHtml(s.nome)}"></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${escapeHtml(s.endereco||'')}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-ver-quadras" style="background:var(--md-primary-light);color:var(--md-primary-dark)">🧩 Ver quadras deste grupo</button></div>`;
       wireDirty(card);
       wirePhotoBlock(card,s,renderGrupos);
       wireStreetView(card,s);
@@ -2758,7 +2808,7 @@ function renderList() {
     if (!items.length) { box.innerHTML='<div class="empty-msg"><strong>🏪</strong>Nenhum comércio encontrado</div>'; return; }
     items.forEach(c=>{
       const card=document.createElement('div'); card.className='card'; card.style.borderLeftColor=c.cor||'#dadce0';
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${c.cor||'#868e96'}20">${avatarHTML(c,'🏪')}</div><div><div class="card-name">${c.nome}</div><div class="card-sub">${c.categoria}</div></div></div>${photoBlockHTML(c)}<div class="card-label">Nome</div><div class="card-row"><input type="text" data-f="nome" value="${c.nome}"></div><div class="card-label">Categoria</div><div class="card-row"><input type="text" data-f="categoria" value="${c.categoria}"></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${c.endereco}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${c.cor||'#868e96'}20">${avatarHTML(c,'🏪')}</div><div><div class="card-name">${escapeHtml(c.nome)}</div><div class="card-sub">${escapeHtml(c.categoria)}</div></div></div>${photoBlockHTML(c)}<div class="card-label">Nome</div><div class="card-row"><input type="text" data-f="nome" value="${escapeHtml(c.nome)}"></div><div class="card-label">Categoria</div><div class="card-row"><input type="text" data-f="categoria" value="${escapeHtml(c.categoria)}"></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${escapeHtml(c.endereco)}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div>`;
       wireDirty(card);
       wirePhotoBlock(card,c,renderComercios);
       wireStreetView(card,c);
@@ -2775,11 +2825,11 @@ function renderList() {
     const totalGeral = totalCartasGeral();
     const comCartas = condominiosData.map(c=>({c,total:totalCartasCondo(c)})).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
     const resumo=document.createElement('div'); resumo.className='card'; resumo.style.borderLeftColor='var(--purple)';
-    resumo.innerHTML = `<div class="card-header"><div class="card-avatar" style="background:#5b2c8320"><span style="font-size:18px">📇</span></div><div><div class="card-name">Cartas — Resumo geral</div><div class="card-sub">${totalGeral} carta${totalGeral==1?'':'s'} no total, em ${comCartas.length} condomínio${comCartas.length==1?'':'s'}</div></div></div>${comCartas.length?`<div class="cartas-list">${comCartas.map(x=>`<div class="cartas-item"><div class="cartas-item-info"><span>🏢 ${x.c.nome}</span></div><span class="cartas-item-qtd">${x.total}</span></div>`).join('')}</div>`:'<div class="cartas-empty">Nenhuma carta registrada ainda</div>'}`;
+    resumo.innerHTML = `<div class="card-header"><div class="card-avatar" style="background:#5b2c8320"><span style="font-size:18px">📇</span></div><div><div class="card-name">Cartas — Resumo geral</div><div class="card-sub">${totalGeral} carta${totalGeral==1?'':'s'} no total, em ${comCartas.length} condomínio${comCartas.length==1?'':'s'}</div></div></div>${comCartas.length?`<div class="cartas-list">${comCartas.map(x=>`<div class="cartas-item"><div class="cartas-item-info"><span>🏢 ${escapeHtml(x.c.nome)}</span></div><span class="cartas-item-qtd">${x.total}</span></div>`).join('')}</div>`:'<div class="cartas-empty">Nenhuma carta registrada ainda</div>'}`;
     box.appendChild(resumo);
     items.forEach(c=>{
       const card=document.createElement('div'); card.className='card'; card.style.borderLeftColor=c.cor||'#364fc7';
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:#364fc720">${avatarHTML(c,'🏢')}</div><div><div class="card-name">${c.nome}</div><div class="card-sub">${c.endereco}</div></div></div>${photoBlockHTML(c)}<div class="card-label">Nome</div><div class="card-row"><input type="text" data-f="nome" value="${c.nome}"></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${c.endereco}"></div><div class="geo-status" data-geo-status></div>${cartasBlockHTML(c)}<div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:#364fc720">${avatarHTML(c,'🏢')}</div><div><div class="card-name">${escapeHtml(c.nome)}</div><div class="card-sub">${escapeHtml(c.endereco)}</div></div></div>${photoBlockHTML(c)}<div class="card-label">Nome</div><div class="card-row"><input type="text" data-f="nome" value="${escapeHtml(c.nome)}"></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${escapeHtml(c.endereco)}"></div><div class="geo-status" data-geo-status></div>${cartasBlockHTML(c)}<div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div>`;
       wireDirty(card);
       wirePhotoBlock(card,c,renderCondominios);
       wireStreetView(card,c);
@@ -2798,7 +2848,7 @@ function renderList() {
     items.forEach(p=>{
       const cor=groupColors[p.grupo]||'#868e96';
       const card=document.createElement('div'); card.className='card'; card.style.borderLeftColor=cor;
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20">${avatarHTML(p,'🏠')}</div><div><div class="card-name">${p.membros[0]||'Família'}</div><div class="card-sub">Grupo ${p.grupo} — ${p.membros.length} membro(s)</div></div></div>${photoBlockHTML(p)}<div class="card-label">Membros</div><div class="card-row"><input type="text" data-f="membros" value="${p.membros.join(', ')}"></div><div class="card-label">Grupo</div><div class="card-row"><select data-f="grupo">${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===p.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${p.endereco||''}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button type="button" class="btn-action btn-share-familia" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20">${avatarHTML(p,'🏠')}</div><div><div class="card-name">${escapeHtml(p.membros[0]||'Família')}</div><div class="card-sub">Grupo ${escapeHtml(p.grupo)} — ${p.membros.length} membro(s)</div></div></div>${photoBlockHTML(p)}<div class="card-label">Membros</div><div class="card-row"><input type="text" data-f="membros" value="${escapeHtml(p.membros.join(', '))}"></div><div class="card-label">Grupo</div><div class="card-row"><select data-f="grupo">${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===p.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${escapeHtml(p.endereco||'')}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button type="button" class="btn-action btn-share-familia" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button></div>`;
       wireDirty(card);
       wirePhotoBlock(card,p,renderPublicadores);
       wireStreetView(card,p);
@@ -2829,7 +2879,7 @@ function renderList() {
       const idxQd = quadrasData.indexOf(qd);
       const estMin = estimativaTempoQuadra(qd);
       const estimativaHTML = estMin ? ` — ⏱ ~${formatMinutos(estMin)} (${qd.casas} casas)` : '';
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${qd.mapa}</div><div class="card-sub">${qd.nome||'Sem nome'} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+qd.grupo:''}${estimativaHTML}</div></div></div>${coberturaBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${qd.mapa}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${qd.nome||''}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button><button class="btn-action btn-baixar-cartao" style="background:#e8f0fe;color:#1967d2">⬇️ Baixar cartão</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${escapeHtml(qd.mapa)}</div><div class="card-sub">${escapeHtml(qd.nome||'Sem nome')} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+escapeHtml(qd.grupo):''}${estimativaHTML}</div></div></div>${coberturaBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${escapeHtml(qd.mapa)}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${escapeHtml(qd.nome||'')}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button><button class="btn-action btn-baixar-cartao" style="background:#e8f0fe;color:#1967d2">⬇️ Baixar cartão</button></div>`;
       wireDirty(card);
       wireCartaoBlock(card,qd,renderQuadras);
       card.querySelector('.btn-baixar-cartao').onclick=()=>baixarCartaoQuadra(qd);
@@ -2899,7 +2949,7 @@ function updateHomeGreeting(user) {
   const name = user ? (user.displayName ? user.displayName.split(' ')[0] : 'por aqui') : '';
   document.getElementById('homeGreeting').textContent = greet + (name ? ', '+name+'! 👋' : '! 👋');
   if (user && user.photoURL) {
-    document.getElementById('homeAvatar').innerHTML = `<img src="${user.photoURL}" alt="">`;
+    document.getElementById('homeAvatar').innerHTML = `<img src="${escapeHtml(user.photoURL)}" alt="">`;
   }
 }
 
