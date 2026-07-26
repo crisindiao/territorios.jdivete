@@ -574,12 +574,6 @@ body.no-anim .leaflet-zoom-animated{
   transition:none!important;
   animation:none!important;
 }
-/* Nomes de rua brancos e com mais contraste sobre o satélite — inverte as
-   cores do mesmo tile de labels de sempre (texto escuro com halo claro vira
-   texto claro com halo escuro) em vez de trocar a fonte dos tiles. */
-.sat-labels-layer{
-  filter: invert(1) brightness(1.7) contrast(1.5);
-}
 </style>
 </head>
 <body>
@@ -1604,7 +1598,7 @@ function wireCartasBlock(card, c, rerenderFn) {
 const map = L.map('map', { zoomControl: true, tap: true });
 const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', crossOrigin: true }).addTo(map);
 const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics', crossOrigin: true });
-const satelliteLabelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', crossOrigin: true, className: 'sat-labels-layer' });
+const satelliteLabelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', crossOrigin: true });
 let mapLayerMode = 'street';
 function toggleSatellite() {
   const btn = document.getElementById('satelliteBtn');
@@ -2019,7 +2013,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 12px monospace';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-l-satlabels-fix2 id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  const debugTxt = `build:2026-07-25-m-simple id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
   ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
   ctx.restore();
   let y = mapY + mapH + 34;
@@ -2048,62 +2042,6 @@ function drawDottedLine(ctx, x1, y, x2, y2) {
   ctx.lineTo(x2, y2);
   ctx.stroke();
   ctx.restore();
-}
-function extractAlphaFromDoubleCapture(onBlack, onWhite) {
-  // Técnica padrão pra recuperar transparência de algo que só foi renderizado
-  // sobre fundo opaco: capturando a mesma cena sobre preto e sobre branco,
-  // dá pra calcular, pixel a pixel, o alfa real e a cor original.
-  // Fórmulas (canal a canal, 0-255):
-  //   resultadoNoPreto = cor*alfa
-  //   resultadoNoBranco = cor*alfa + 255*(1-alfa)
-  //   => alfa = 255 - (resultadoNoBranco - resultadoNoPreto)
-  //   => cor  = resultadoNoPreto * 255 / alfa   (se alfa > 0)
-  const w = onBlack.width, h = onBlack.height;
-  const bd = onBlack.getContext('2d').getImageData(0, 0, w, h).data;
-  const wd = onWhite.getContext('2d').getImageData(0, 0, w, h).data;
-
-  const out = document.createElement('canvas');
-  out.width = w; out.height = h;
-  const octx = out.getContext('2d');
-  const oimg = octx.createImageData(w, h);
-  const od = oimg.data;
-
-  for (let i = 0; i < bd.length; i += 4) {
-    const aR = 255 - (wd[i] - bd[i]);
-    const aG = 255 - (wd[i + 1] - bd[i + 1]);
-    const aB = 255 - (wd[i + 2] - bd[i + 2]);
-    let alpha = Math.max(0, Math.min(255, (aR + aG + aB) / 3));
-    let r = 0, g = 0, b = 0;
-    if (alpha > 2) {
-      r = Math.max(0, Math.min(255, bd[i] * 255 / alpha));
-      g = Math.max(0, Math.min(255, bd[i + 1] * 255 / alpha));
-      b = Math.max(0, Math.min(255, bd[i + 2] * 255 / alpha));
-    }
-    od[i] = r; od[i + 1] = g; od[i + 2] = b; od[i + 3] = alpha;
-  }
-  octx.putImageData(oimg, 0, 0);
-  return out;
-}
-function processLabelsCanvasToWhite(canvas) {
-  // Os tiles de labels vêm com texto escuro + halo claro sobre fundo
-  // transparente. Invertendo: texto escuro vira branco e o halo claro vira
-  // escuro — igual ao padrão usado em mapas de satélite (texto branco com
-  // contorno escuro). O ganho de contraste deixa o traço mais "cheio".
-  const ctx = canvas.getContext('2d');
-  let imgData;
-  try { imgData = ctx.getImageData(0, 0, canvas.width, canvas.height); }
-  catch (e) { console.error('Não foi possível processar labels do satélite:', e); return; }
-  const d = imgData.data;
-  const contrast = 1.7;
-  for (let i = 0; i < d.length; i += 4) {
-    if (d[i + 3] === 0) continue; // pixel transparente, pula
-    let r = 255 - d[i], g = 255 - d[i + 1], b = 255 - d[i + 2];
-    r = Math.min(255, Math.max(0, (r - 128) * contrast + 128));
-    g = Math.min(255, Math.max(0, (g - 128) * contrast + 128));
-    b = Math.min(255, Math.max(0, (b - 128) * contrast + 128));
-    d[i] = r; d[i + 1] = g; d[i + 2] = b;
-  }
-  ctx.putImageData(imgData, 0, 0);
 }
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   const words = text.split(' ');
@@ -2186,18 +2124,19 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
   let highlightPoly = null;
 
   try {
-    // Padding reduzido (era [50,110]) e maxZoom igual ao máximo nativo dos
-    // tiles (19) — assim o mapa se aproxima o máximo possível da quadra sem
-    // cortá-la, usando tiles na resolução mais nítida disponível em vez de
-    // tiles de um zoom menor ampliados (que saem borradas).
+    // Padding reduzido (era [50,110]). maxZoom voltou pra 18 (era 19): no
+    // zoom 19 o próprio texto das ruas desenhado dentro dos tiles do
+    // OpenStreetMap fica desproporcionalmente grande em quadras estreitas
+    // (é assim que o provedor de tiles desenha nesse nível de zoom), então
+    // 18 é o ponto de equilíbrio entre "bem próximo" e texto de tamanho normal.
     const fitPadding = [18, 18];
-    map.fitBounds(quadraBounds, { paddingTopLeft: fitPadding, paddingBottomRight: fitPadding, maxZoom: 19, animate: false });
+    map.fitBounds(quadraBounds, { paddingTopLeft: fitPadding, paddingBottomRight: fitPadding, maxZoom: 18, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
     await waitTilesLoaded();
     await nextFrame();
     // Reaplica o enquadramento (garante que nenhum tile/realinhamento tardio
     // tenha deslocado a área visível antes da captura)
-    map.fitBounds(quadraBounds, { paddingTopLeft: fitPadding, paddingBottomRight: fitPadding, maxZoom: 19, animate: false });
+    map.fitBounds(quadraBounds, { paddingTopLeft: fitPadding, paddingBottomRight: fitPadding, maxZoom: 18, animate: false });
     await new Promise(resolve => { map.once('moveend', resolve); setTimeout(resolve, 400); });
     await waitTilesLoaded();
     await nextFrame();
@@ -2222,58 +2161,13 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
     // Escala de captura mais alta (mínimo 3, era 2) para um PNG mais nítido.
     const captureScale = Math.max(3, window.devicePixelRatio || 1);
 
-    // No modo satélite, o filtro CSS que deixa os nomes de rua brancos
-    // (.sat-labels-layer) NÃO é respeitado pelo html2canvas — é uma
-    // limitação conhecida da biblioteca, que ignora a propriedade `filter`.
-    // Por isso capturamos a camada de labels separadamente e processamos os
-    // pixels de verdade (inverte + aumenta contraste) antes de desenhar por
-    // cima do mapa já capturado.
-    //
-    // IMPORTANTE: `backgroundColor: null` do html2canvas NÃO produz um fundo
-    // realmente transparente em todos os navegadores — em alguns casos vira
-    // preto opaco, o que apagava o mapa inteiro por baixo do texto. Por isso
-    // capturamos a MESMA cena duas vezes (uma com fundo preto, outra com
-    // fundo branco) e calculamos o canal alfa de verdade pela diferença
-    // entre as duas — técnica padrão pra "extrair" transparência de uma
-    // biblioteca que só sabe desenhar sobre fundo opaco.
-    const isSatMode = document.body.classList.contains('sat-mode');
-    let labelsCanvas = null;
-    if (isSatMode && map.hasLayer(satelliteLabelsLayer)) {
-      const hadSatLayer = map.hasLayer(satelliteLayer);
-      if (hadSatLayer) map.removeLayer(satelliteLayer);
-      // O contorno da quadra também precisa sumir aqui: se ficasse visível,
-      // seria capturado junto com o texto e sairia com a cor invertida
-      // (rosa virando verde) quando colado de volta por cima do mapa certo.
-      const hadHighlight = map.hasLayer(highlightPoly);
-      if (hadHighlight) map.removeLayer(highlightPoly);
-      // O próprio elemento #map tem CSS "background: var(--bg)" (escuro no
-      // modo escuro) — isso é diferente do parâmetro `backgroundColor` do
-      // html2canvas, que só preenche o que sobra, sem sobrescrever o fundo
-      // do elemento em si. Por isso forçamos aqui, via style inline (que
-      // tem prioridade sobre a variável CSS), o fundo real do elemento para
-      // preto e depois para branco entre as duas capturas.
-      const mapEl = document.getElementById('map');
-      const prevInlineBg = mapEl.style.backgroundColor;
-      mapEl.style.backgroundColor = '#000000';
-      await nextFrame();
-      const onBlack = await html2canvas(mapEl, { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#000000', scale: captureScale });
-      mapEl.style.backgroundColor = '#ffffff';
-      await nextFrame();
-      const onWhite = await html2canvas(mapEl, { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#ffffff', scale: captureScale });
-      mapEl.style.backgroundColor = prevInlineBg;
-      if (hadSatLayer) satelliteLayer.addTo(map);
-      if (hadHighlight) highlightPoly.addTo(map);
-      await nextFrame();
-      await nextFrame();
-      labelsCanvas = extractAlphaFromDoubleCapture(onBlack, onWhite);
-      processLabelsCanvasToWhite(labelsCanvas);
-    }
-
+    // Captura simples, igual ao modo ruas — sem nenhum processamento
+    // especial pro satélite. As tentativas anteriores de "embranquecer" o
+    // texto das ruas no satélite (filtro CSS, depois reprocessamento de
+    // pixels com dupla captura) causaram mais bugs do que resolveram, então
+    // voltamos ao caminho simples: os nomes de rua saem com a cor original
+    // do tile (igual sempre funcionou no modo ruas).
     const mapCanvas = await html2canvas(document.getElementById('map'), { useCORS: true, allowTaint: false, logging: false, backgroundColor: '#fff', scale: captureScale });
-
-    if (labelsCanvas) {
-      mapCanvas.getContext('2d').drawImage(labelsCanvas, 0, 0, mapCanvas.width, mapCanvas.height);
-    }
 
 
     // OBS: o reforço manual que existia aqui (redesenhar o contorno direto no
