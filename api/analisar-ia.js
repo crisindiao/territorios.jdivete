@@ -43,31 +43,41 @@ module.exports = async function handler(req, res) {
       `Aponte quais quadras merecem atenção primeiro e por quê, alertas relevantes (quadras sem grupo, atrasadas), e um resumo geral do progresso do ciclo. ` +
       `Não invente números que não foram fornecidos — use só os dados abaixo.\n\nDADOS DO TERRITÓRIO:\n${resumo}`;
 
-    const model = 'gemini-1.5-flash';
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
+    // Contas diferentes do Google liberam nomes de modelo diferentes na camada grátis,
+    // então tentamos essa lista em ordem até um deles responder com sucesso.
+    const modelosParaTentar = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-pro-latest'];
+    let text = '';
+    let ultimoErro = null;
+    for (const model of modelosParaTentar) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+          }
+        );
+        const data = await response.json();
+        if (!response.ok) {
+          ultimoErro = (data && data.error && data.error.message) ? data.error.message : `Erro com o modelo ${model}`;
+          continue; // tenta o próximo modelo da lista
+        }
+        text = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts)
+          ? data.candidates[0].content.parts.map((p) => p.text || '').join('\n')
+          : '';
+        if (text) { ultimoErro = null; break; }
+      } catch (e) {
+        ultimoErro = e.message;
       }
-    );
+    }
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      const msg = (data && data.error && data.error.message) ? data.error.message : 'Erro na API do Gemini';
-      res.status(response.status).json({ error: msg });
+    if (!text) {
+      res.status(502).json({ error: ultimoErro || 'Nenhum modelo do Gemini respondeu.' });
       return;
     }
 
-    const text = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts)
-      ? data.candidates[0].content.parts.map((p) => p.text || '').join('\n')
-      : '';
-
-    res.status(200).json({ text: text || 'A IA não retornou nenhum texto.' });
+    res.status(200).json({ text });
   } catch (e) {
     res.status(500).json({ error: e.message || 'Erro ao chamar a IA.' });
   }
