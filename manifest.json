@@ -1,7 +1,7 @@
 {
   "name": "Jd.ivete - Gerenciar Território",
-  "short_name": "Jd.ivete",
-  "description": "Gestão de território - Jardim Ivete",
+  "short_name": "Gerenciador",
+  "description": "Gestão de território",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
