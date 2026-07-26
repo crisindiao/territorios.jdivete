@@ -463,6 +463,19 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .report-bar-fill{height:100%;border-radius:99px;transition:width .4s ease;}
 .report-alert-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.82rem;}
 .report-alert-item:last-child{border-bottom:none;}
+
+/* ── PAINEL "PRECISAM DE ATENÇÃO" (home) ── */
+.atencao-grid{display:flex;flex-direction:column;gap:8px;padding:0 16px;margin-bottom:6px;}
+.atencao-card{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:var(--r-sm);background:var(--surface);border:1px solid var(--border);box-shadow:var(--sh1);cursor:pointer;transition:transform .1s;}
+.atencao-card:active{transform:scale(0.98);}
+.atencao-card .dot-lg{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.atencao-card .num{font-size:1.15rem;font-weight:800;color:var(--text);}
+.atencao-card .txt{flex:1;min-width:0;}
+.atencao-card .txt .title{font-size:0.85rem;font-weight:600;color:var(--text);}
+.atencao-card .txt .sub{font-size:0.72rem;color:var(--text2);}
+.atencao-card.empty{opacity:0.55;cursor:default;}
+.atencao-card.empty:active{transform:none;}
+.prio-badge{display:inline-flex;align-items:center;gap:3px;font-size:0.68rem;font-weight:700;padding:2px 7px;border-radius:99px;}
 .search-result{background:var(--surface);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;box-shadow:var(--sh1);cursor:pointer;border:1.5px solid var(--border);}
 .activity-item{background:var(--surface);border-radius:var(--r);padding:10px 14px;margin-bottom:6px;box-shadow:var(--sh1);border:1.5px solid var(--border);}
 .activity-acao{font-size:0.86rem;color:var(--text);font-weight:500;}
@@ -715,6 +728,16 @@ body.no-anim .leaflet-zoom-animated{
       <span class="home-search-icon">🔍</span>
       <input type="text" placeholder="Buscar no território..." readonly>
     </div>
+  </div>
+
+  <!-- Territórios que precisam de atenção -->
+  <div class="home-section">
+    <div class="home-section-head">
+      <span class="home-section-title">⚡ Precisam de atenção</span>
+    </div>
+  </div>
+  <div class="atencao-grid" id="atencaoPanel">
+    <!-- preenchido pelo JS -->
   </div>
 
   <!-- Resumo do Território -->
@@ -1184,7 +1207,7 @@ async function aplicarDistribSugestoes() {
   });
   logActivity(`🧭 distribuiu ${count} quadra(s) por grupo automaticamente`);
   await saveState();
-  renderQuadras(); renderCatbar(); updateLegend(); if (viewMode==='lista') renderList();
+  renderQuadras(); renderCatbar(); updateLegend(); renderAtencaoPanel(); if (viewMode==='lista') renderList();
   closeDistribOverlay();
   showSnack(`✓ ${count} quadra(s) atualizada(s)`);
 }
@@ -1300,6 +1323,61 @@ async function baixarRelatorioImagem() {
     console.error(e);
     showSnack('❌ Não foi possível gerar a imagem do relatório');
   }
+}
+
+// ── SELO DE PRIORIDADE POR QUADRA ──
+// Deriva a prioridade automaticamente da cobertura + tempo sem trabalhar (sem precisar de campo manual)
+function prioridadeQuadra(qd) {
+  if (!qd.grupo) return { tag: '🟡', label: 'Sem grupo', cor: 'var(--warning)', bg: '#fff7e6' };
+  if (qd.coberta) return { tag: '🟢', label: 'Coberta', cor: 'var(--success)', bg: '#e6f4ea' };
+  const d = diasDesde(qd.ultimaCobertura);
+  if (d === null || d > 180) return { tag: '🔴', label: 'Urgente', cor: 'var(--error)', bg: '#fce8e6' };
+  if (d > 90) return { tag: '🟡', label: 'Atenção', cor: 'var(--warning)', bg: '#fff7e6' };
+  return { tag: '🟢', label: 'Normal', cor: 'var(--success)', bg: '#e6f4ea' };
+}
+function prioBadgeHTML(qd) {
+  const p = prioridadeQuadra(qd);
+  return `<span class="prio-badge" style="background:${p.bg};color:${p.cor}">${p.tag} ${p.label}</span>`;
+}
+
+// ── PAINEL "TERRITÓRIOS QUE PRECISAM DE ATENÇÃO" (home) ──
+// 🟥 sem cobertura há mais de 6 meses (ou nunca cobertas) — trabalhar com urgência
+// 🟨 sem grupo designado — precisa ser atribuída antes de poder ser trabalhada
+// 🟩 prontas — têm grupo e estão em dia, disponíveis pra trabalhar no ritmo normal
+function renderAtencaoPanel() {
+  const box = document.getElementById('atencaoPanel');
+  if (!box) return;
+  const semGrupo = quadrasData.filter(q => !q.grupo);
+  const atrasadas = quadrasData.filter(q => q.grupo && !q.coberta && (diasDesde(q.ultimaCobertura) === null || diasDesde(q.ultimaCobertura) > 180));
+  const prontas = quadrasData.filter(q => q.grupo && !q.coberta && !atrasadas.includes(q));
+
+  if (!quadrasData.length) {
+    box.innerHTML = '<div class="atencao-card empty"><span>🗺️</span><div class="txt"><div class="title">Nenhuma quadra cadastrada ainda</div></div></div>';
+    return;
+  }
+
+  const cards = [
+    { count: atrasadas.length, dot: 'var(--error)', title: 'Há mais de 6 meses sem trabalho', sub: atrasadas.length ? atrasadas.slice(0,4).map(q=>'Mapa '+q.mapa).join(', ') + (atrasadas.length>4?'...':'') : 'Nenhuma — ótimo trabalho!', filtro: () => irParaQuadrasFiltradas(atrasadas) },
+    { count: semGrupo.length, dot: 'var(--warning)', title: 'Sem grupo designado', sub: semGrupo.length ? semGrupo.slice(0,4).map(q=>'Mapa '+q.mapa).join(', ') + (semGrupo.length>4?'...':'') : 'Todas já têm grupo', filtro: () => irParaQuadrasFiltradas(semGrupo) },
+    { count: prontas.length, dot: 'var(--success)', title: 'Prontas para trabalhar', sub: prontas.length ? 'Designadas e em dia' : 'Nenhuma no momento', filtro: () => irParaQuadrasFiltradas(prontas) },
+  ];
+
+  box.innerHTML = cards.map(c => `
+    <div class="atencao-card${c.count===0?' empty':''}" data-card>
+      <div class="dot-lg" style="background:${c.dot}"></div>
+      <div class="txt"><div class="title">${escapeHtml(c.title)}</div><div class="sub">${escapeHtml(c.sub)}</div></div>
+      <div class="num" style="color:${c.dot}">${c.count}</div>
+    </div>`).join('');
+  box.querySelectorAll('[data-card]').forEach((el, i) => { if (cards[i].count > 0) el.onclick = cards[i].filtro; });
+}
+// Leva pra aba Quadras (lista) mostrando só o conjunto filtrado, sem mexer nos filtros globais existentes
+let _atencaoFiltroAtivo = null;
+let _switchingForAtencaoFilter = false;
+function irParaQuadrasFiltradas(lista) {
+  _atencaoFiltroAtivo = lista;
+  _switchingForAtencaoFilter = true;
+  activeMapaFilter=null; activeQuadraGrupoFilter=null; activeCoberturaFilter=null;
+  switchTab('quadras'); setViewMode('lista'); renderList();
 }
 
 function pushUndo(entry) { undoStack.push(entry); if (undoStack.length > 15) undoStack.shift(); }
@@ -1677,7 +1755,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
           // Atualiza cache local
           localStorage.setItem(getDataStorageKey(), JSON.stringify(saved));
           // Re-renderiza (não dispara saveState pois applyingRemoteUpdate está true)
-          renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras(); renderCatbar(); updateLegend(); renderList(); renderHomeAtividades();
+          renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras(); renderCatbar(); updateLegend(); renderList(); renderHomeAtividades(); renderAtencaoPanel();
         } finally {
           applyingRemoteUpdate = false;
         }
@@ -2336,7 +2414,7 @@ function renderQuadras() {
     const estimativaPopupHTML = estMinPopup ? `<br><small>⏱ ~${formatMinutos(estMinPopup)} estimado (${qd.casas} casas × ${MINUTOS_POR_CASA}min)</small>` : '';
     const shareBtn = `<br><button onclick="(function(){const c=quadrasData[${idx}]._layer.getBounds().getCenter();shareWhatsApp('Quadra ${qd.mapa}',c.lat,c.lng);})()" style="margin-top:6px;background:#25d366;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📤 WhatsApp</button>`;
     const baixarCartaoBtn = `<br><button class="btn-baixar-cartao-popup" style="margin-top:6px;background:#1967d2;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">⬇️ Baixar cartão</button>`;
-    poly.bindPopup(`<b>Mapa ${qd.mapa}</b>${qd.nome?'<br>'+qd.nome:''}${qd.grupo?`<br>👥 Grupo responsável: <b>${qd.grupo}</b>`:''}<br><small>${qd.coords.length} pontos — 📏 ~${perimQd}m de perímetro</small>${estimativaPopupHTML}${qd.coberta?`<br><small style="color:#1e8e3e">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</small>`:''}${atrasadaPopup?`<br><small style="color:#d97706">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</small>`:''}<br><button onclick="showQuadraCartao(${idx})" style="margin-top:6px;background:var(--md-primary);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📋 Cartão</button>`+baixarCartaoBtn+shareBtn+(isAdmin?coberturaBtn:'')+(editMode?`<br><button onclick="deleteQuadra(${idx})" style="margin-top:6px;background:#d93025;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">🗑 Excluir</button>`:''));
+    poly.bindPopup(`<b>Mapa ${qd.mapa}</b> ${prioBadgeHTML(qd)}${qd.nome?'<br>'+qd.nome:''}${qd.grupo?`<br>👥 Grupo responsável: <b>${qd.grupo}</b>`:''}<br><small>${qd.coords.length} pontos — 📏 ~${perimQd}m de perímetro</small>${estimativaPopupHTML}${qd.coberta?`<br><small style="color:#1e8e3e">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</small>`:''}${atrasadaPopup?`<br><small style="color:#d97706">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</small>`:''}<br><button onclick="showQuadraCartao(${idx})" style="margin-top:6px;background:var(--md-primary);color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">📋 Cartão</button>`+baixarCartaoBtn+shareBtn+(isAdmin?coberturaBtn:'')+(editMode?`<br><button onclick="deleteQuadra(${idx})" style="margin-top:6px;background:#d93025;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;font-weight:700;cursor:pointer">🗑 Excluir</button>`:''));
     // Referência direta ao objeto `qd` (fechamento/closure), sem depender de
     // índice ou id que possam ficar desatualizados após uma sincronização.
     poly.on('popupopen', (e) => {
@@ -2373,7 +2451,7 @@ function toggleQuadraCobertura(idx) {
   }
   if (qd.historico.length > 30) qd.historico.length = 30;
   logActivity(`${qd.coberta?'✓ deu baixa':'↺ desfez baixa'} na quadra ${qd.mapa}${qd.nome?' ('+qd.nome+')':''}`);
-  renderQuadras(); renderCatbar(); updateLegend(); renderList();
+  renderQuadras(); renderCatbar(); updateLegend(); renderList(); renderAtencaoPanel();
   showSnack(qd.coberta ? '✓ Quadra marcada como coberta' : '↺ Baixa desfeita');
 }
 function resetCobertura() {
@@ -2857,6 +2935,8 @@ function locateMe() { map.locate({ setView:true, maxZoom:18 }); }
 // ── NAVIGATION (reescrito para suportar home) ──
 function switchTabChip(name, btn) {
   stopDrawing(); activeTab = name;
+  if (!_switchingForAtencaoFilter) _atencaoFiltroAtivo = null;
+  _switchingForAtencaoFilter = false;
   document.querySelectorAll('.chip').forEach(b => b.classList.toggle('active', b===btn));
   Object.keys(layerGroups).forEach(k => {
     if (k===name) { if (!map.hasLayer(layerGroups[k])) map.addLayer(layerGroups[k]); }
@@ -2916,6 +2996,7 @@ function setViewMode(mode) {
     document.getElementById('topbar-subtitle').textContent = 'Gestão de Território';
     renderHomeStats();
     renderHomeAtividades();
+    renderAtencaoPanel();
   } else if (mode==='mapa') {
     document.getElementById('map').style.display = 'block';
     document.getElementById('legendBox').style.display = 'block';
@@ -3049,10 +3130,10 @@ function renderCatbar() {
       sorted.forEach(n=>{const count=quadrasData.filter(qd=>qd.mapa===n).length; html+=`<button class="cat-chip${activeMapaFilter===n?' active':''}" data-mapa="${escapeHtml(n)}"><span class="dot" style="background:${nums[n]};width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px"></span>Mapa ${escapeHtml(n)} <span class="count">${count}</span></button>`;});
     }
     box.innerHTML=html;
-    box.querySelectorAll('.mode-chip').forEach(btn=>{btn.onclick=()=>{quadraCatMode=btn.dataset.mode; activeMapaFilter=null; activeQuadraGrupoFilter=null; activeCoberturaFilter=null; renderCatbar(); renderQuadras(); updateLegend(); if(viewMode==='lista') renderList();};});
-    box.querySelectorAll('.cat-chip[data-mapa]').forEach(btn=>{btn.onclick=()=>{activeMapaFilter=btn.dataset.mapa||null; renderCatbar(); renderQuadras(); updateLegend(); if(viewMode==='lista') renderList(); if(activeMapaFilter){const m=quadrasData.filter(qd=>qd.mapa===activeMapaFilter&&qd._layer); if(m.length){const g=L.featureGroup(m.map(qd=>qd._layer)); map.fitBounds(g.getBounds(),{padding:[30,30]});}}};});
-    box.querySelectorAll('.cat-chip[data-grp]').forEach(btn=>{btn.onclick=()=>{activeQuadraGrupoFilter=btn.dataset.grp||null; renderCatbar(); renderQuadras(); updateLegend(); if(viewMode==='lista') renderList(); if(activeQuadraGrupoFilter){const m=quadrasData.filter(qd=>(activeQuadraGrupoFilter==='__sem__'?!qd.grupo:qd.grupo===activeQuadraGrupoFilter)&&qd._layer); if(m.length){const g=L.featureGroup(m.map(qd=>qd._layer)); map.fitBounds(g.getBounds(),{padding:[30,30]});}}};});
-    box.querySelectorAll('.cat-chip[data-cob]').forEach(btn=>{btn.onclick=()=>{activeCoberturaFilter=btn.dataset.cob||null; renderCatbar(); renderQuadras(); updateLegend(); if(viewMode==='lista') renderList();};});
+    box.querySelectorAll('.mode-chip').forEach(btn=>{btn.onclick=()=>{quadraCatMode=btn.dataset.mode; activeMapaFilter=null; activeQuadraGrupoFilter=null; activeCoberturaFilter=null; _atencaoFiltroAtivo=null; renderCatbar(); renderQuadras(); updateLegend(); if(viewMode==='lista') renderList();};});
+    box.querySelectorAll('.cat-chip[data-mapa]').forEach(btn=>{btn.onclick=()=>{activeMapaFilter=btn.dataset.mapa||null; _atencaoFiltroAtivo=null; renderCatbar(); renderQuadras(); updateLegend(); if(viewMode==='lista') renderList(); if(activeMapaFilter){const m=quadrasData.filter(qd=>qd.mapa===activeMapaFilter&&qd._layer); if(m.length){const g=L.featureGroup(m.map(qd=>qd._layer)); map.fitBounds(g.getBounds(),{padding:[30,30]});}}};});
+    box.querySelectorAll('.cat-chip[data-grp]').forEach(btn=>{btn.onclick=()=>{activeQuadraGrupoFilter=btn.dataset.grp||null; _atencaoFiltroAtivo=null; renderCatbar(); renderQuadras(); updateLegend(); if(viewMode==='lista') renderList(); if(activeQuadraGrupoFilter){const m=quadrasData.filter(qd=>(activeQuadraGrupoFilter==='__sem__'?!qd.grupo:qd.grupo===activeQuadraGrupoFilter)&&qd._layer); if(m.length){const g=L.featureGroup(m.map(qd=>qd._layer)); map.fitBounds(g.getBounds(),{padding:[30,30]});}}};});
+    box.querySelectorAll('.cat-chip[data-cob]').forEach(btn=>{btn.onclick=()=>{activeCoberturaFilter=btn.dataset.cob||null; _atencaoFiltroAtivo=null; renderCatbar(); renderQuadras(); updateLegend(); if(viewMode==='lista') renderList();};});
     const resetBtn = document.getElementById('btnResetCobertura'); if (resetBtn) resetBtn.onclick = resetCobertura;
     return;
   }
@@ -3288,7 +3369,8 @@ function renderList() {
 
   if (activeTab==='quadras') {
     let base=quadrasData;
-    if (activeMapaFilter) base=base.filter(qd=>qd.mapa===activeMapaFilter);
+    if (_atencaoFiltroAtivo) base=_atencaoFiltroAtivo;
+    else if (activeMapaFilter) base=base.filter(qd=>qd.mapa===activeMapaFilter);
     else if (activeQuadraGrupoFilter) base=base.filter(qd=>activeQuadraGrupoFilter==='__sem__'?!qd.grupo:qd.grupo===activeQuadraGrupoFilter);
     else if (activeCoberturaFilter) base=base.filter(qd=>activeCoberturaFilter==='feita'?!!qd.coberta:!qd.coberta);
     const items=base.filter(qd=>!q||('mapa '+qd.mapa+' '+(qd.nome||'')+' '+(qd.grupo||'')).toLowerCase().includes(q));
@@ -3301,16 +3383,17 @@ function renderList() {
       const coberturaBadge = qd.coberta
         ? `<div class="cobertura-badge cobertura-feita">✓ Coberta${qd.coberturaData?' — '+formatarDataBR(qd.coberturaData):''}</div>`
         : `<div class="cobertura-badge cobertura-pendente">○ Pendente${atrasada?` — ⚠️ ${diasUlt===null?'nunca coberta':'há '+diasUlt+' dias sem cobertura'}`:''}</div>`;
-      const historicoHTML = (qd.historico&&qd.historico.length) ? `<details class="quadra-historico"><summary>📜 Histórico (${qd.historico.length})</summary>${qd.historico.slice(0,10).map(h=>`<div class="hist-item">${formatarDataBR(h.data)} — ${h.acao}${h.usuario?' — '+h.usuario:''}</div>`).join('')}</details>` : '';
+      const prioBadge = `<div style="margin-bottom:6px">${prioBadgeHTML(qd)}</div>`;
+      const historicoHTML = (qd.historico&&qd.historico.length) ? `<details class="quadra-historico"><summary>📜 Linha do tempo (${qd.historico.length})</summary>${qd.historico.slice(0,10).map(h=>`<div class="hist-item">${formatarDataBR(h.data)} — ${h.acao}${h.usuario?' — '+h.usuario:''}</div>`).join('')}</details>` : '';
       const idxQd = quadrasData.indexOf(qd);
       const estMin = estimativaTempoQuadra(qd);
       const estimativaHTML = estMin ? ` — ⏱ ~${formatMinutos(estMin)} (${qd.casas} casas)` : '';
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${escapeHtml(qd.mapa)}</div><div class="card-sub">${escapeHtml(qd.nome||'Sem nome')} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+escapeHtml(qd.grupo):''}${estimativaHTML}</div></div></div>${coberturaBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${escapeHtml(qd.mapa)}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${escapeHtml(qd.nome||'')}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button><button class="btn-action btn-baixar-cartao" style="background:#e8f0fe;color:#1967d2">⬇️ Baixar cartão</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${escapeHtml(qd.mapa)}</div><div class="card-sub">${escapeHtml(qd.nome||'Sem nome')} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+escapeHtml(qd.grupo):''}${estimativaHTML}</div></div></div>${coberturaBadge}${prioBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${escapeHtml(qd.mapa)}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${escapeHtml(qd.nome||'')}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button><button class="btn-action btn-baixar-cartao" style="background:#e8f0fe;color:#1967d2">⬇️ Baixar cartão</button></div>`;
       wireDirty(card);
       wireCartaoBlock(card,qd,renderQuadras);
       card.querySelector('.btn-baixar-cartao').onclick=()=>baixarCartaoQuadra(qd);
       card.querySelector('.btn-cor-auto').onclick=()=>{if(!isAdmin)return; card.querySelector('[data-f="cor"]').value=getColorForMapa(card.querySelector('[data-f="mapa"]').value.trim()||qd.mapa); card.classList.add('dirty'); card.querySelector('.btn-save-card').disabled=false;};
-      card.querySelector('.btn-save-card').onclick=()=>{if(!isAdmin)return; qd.mapa=card.querySelector('[data-f="mapa"]').value.trim(); qd.nome=card.querySelector('[data-f="nome"]').value; const casasVal=parseInt(card.querySelector('[data-f="casas"]').value,10); qd.casas=isNaN(casasVal)?null:Math.max(0,casasVal); qd.grupo=card.querySelector('[data-f="grupo"]').value||''; qd.cor=card.querySelector('[data-f="cor"]').value; const w=parseInt(card.querySelector('[data-f="weight"]').value,10); qd.weight=isNaN(w)?3:Math.max(1,Math.min(12,w)); renderQuadras(); renderCatbar(); updateLegend(); finishSave(card);};
+      card.querySelector('.btn-save-card').onclick=()=>{if(!isAdmin)return; qd.mapa=card.querySelector('[data-f="mapa"]').value.trim(); qd.nome=card.querySelector('[data-f="nome"]').value; const casasVal=parseInt(card.querySelector('[data-f="casas"]').value,10); qd.casas=isNaN(casasVal)?null:Math.max(0,casasVal); qd.grupo=card.querySelector('[data-f="grupo"]').value||''; qd.cor=card.querySelector('[data-f="cor"]').value; const w=parseInt(card.querySelector('[data-f="weight"]').value,10); qd.weight=isNaN(w)?3:Math.max(1,Math.min(12,w)); renderQuadras(); renderCatbar(); updateLegend(); renderAtencaoPanel(); finishSave(card);};
       card.querySelector('.btn-locate').onclick=()=>focusItem(qd);
       card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover quadra?')) return; const idx=quadrasData.indexOf(qd); if(idx>-1){ quadrasData.splice(idx,1); pushUndo({type:'quadra',data:qd,index:idx,label:'Quadra '+qd.mapa}); logActivity('🗑 removeu a quadra '+qd.mapa); } renderQuadras(); renderList(); renderCatbar(); updateLegend(); showSnack('🗑 Quadra removida', 6000, undoLast);};
       card.querySelector('.btn-cobertura-toggle').onclick=()=>toggleQuadraCobertura(idxQd);
