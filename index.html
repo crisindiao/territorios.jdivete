@@ -1598,12 +1598,12 @@ function wireCartasBlock(card, c, rerenderFn) {
 const map = L.map('map', { zoomControl: true, tap: true });
 const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', crossOrigin: true }).addTo(map);
 const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics', crossOrigin: true });
-// Nomes de rua sobre o satélite: "World_Boundaries_and_Places" (usado antes)
-// só tem nomes de cidade/bairro, não de rua — por isso sumiu o nome das
-// ruas. "World_Transportation" é o serviço Esri certo pra isso: linhas e
-// nomes das ruas, feito pra sobrepor a imagem de satélite (texto branco
-// com contorno escuro já vem pronto no tile).
-const satelliteLabelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, crossOrigin: true });
+// Voltei para este serviço (CartoDB): é o único, dos que testei, que mostra
+// nome de rua residencial de verdade. O "World_Transportation" da Esri só
+// mostra rodovias/vias principais (por isso sumiram os nomes das ruas do
+// bairro, só ficou rodovia/avenida grande). O texto sai numa cor cinza/
+// escura (não branco puro), mas pelo menos sai correto e completo.
+const satelliteLabelsLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', crossOrigin: true });
 let mapLayerMode = 'street';
 function toggleSatellite() {
   const btn = document.getElementById('satelliteBtn');
@@ -2018,7 +2018,7 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.font = '600 12px monospace';
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-o-transportlabels id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
+  const debugTxt = `build:2026-07-25-p-voyagerback id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
   ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
   ctx.restore();
   let y = mapY + mapH + 34;
