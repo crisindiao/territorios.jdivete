@@ -112,19 +112,18 @@ body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-conten
 .cartas-filterbar button{flex-shrink:0;padding:7px 13px;border-radius:999px;font-size:0.76rem;font-weight:600;background:var(--md-surface-variant);color:var(--text2);border:none;}
 .cartas-filterbar button.active{background:var(--purple);color:#fff;}
 .cartas-resumo-bar{padding:10px 14px;font-size:0.78rem;color:var(--purple-dark);background:var(--md-primary-light);font-weight:600;}
-.cartas-item{padding:14px;margin:10px 12px;border-radius:14px;background:var(--surface);box-shadow:var(--sh1);border-bottom:none;}
-.cartas-item .ci-head{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
-.cartas-item .ci-nome{font-weight:700;font-size:0.9rem;flex:1;}
-.cartas-item .ci-tag{font-size:0.68rem;color:var(--purple);background:var(--md-primary-light);padding:2px 8px;border-radius:999px;font-weight:700;white-space:nowrap;}
-.cartas-item .ci-end{font-size:0.76rem;color:var(--text2);margin-bottom:12px;}
-.cartas-item .ci-field{margin-bottom:10px;}
-.cartas-item .ci-field label{display:block;font-size:0.66rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:4px;}
-.cartas-item .ci-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
-.cartas-item select,.cartas-item input{font-size:0.8rem;padding:8px 9px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);width:100%;box-sizing:border-box;}
-.cartas-item .ci-status{font-weight:700;}
-.cartas-item .ci-obs{width:100%;}
-.cartas-item .ci-data{flex:0 0 130px;}
-.cartas-item .ci-obs{flex:1;min-width:0;margin-top:6px;width:100%;}
+.carta-card{padding:14px;margin:10px 12px;border-radius:14px;background:var(--surface);box-shadow:var(--sh1);}
+.carta-card .ci-head{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.carta-card .ci-nome{font-weight:700;font-size:0.9rem;flex:1;}
+.carta-card .ci-tag{font-size:0.68rem;color:var(--purple);background:var(--md-primary-light);padding:2px 8px;border-radius:999px;font-weight:700;white-space:nowrap;}
+.carta-card .ci-end{font-size:0.76rem;color:var(--text2);margin-bottom:12px;}
+.carta-card .ci-field{margin-bottom:10px;}
+.carta-card .ci-field label{display:block;font-size:0.66rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:4px;}
+.carta-card .ci-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.carta-card .ci-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;}
+.carta-card select,.carta-card input{font-size:0.8rem;padding:8px 9px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);width:100%;box-sizing:border-box;}
+.carta-card .ci-status{font-weight:700;}
+.carta-card .ci-obs{width:100%;}
 .status-pendente{color:var(--warning);}
 .status-entregue{color:var(--success);}
 .status-recusou{color:var(--error);}
@@ -778,6 +777,7 @@ body.no-anim .leaflet-zoom-animated{
   <button class="chip" data-layer="condominios" onclick="switchTabChip('condominios',this)">🏢 Cond. <span class="chip-cnt" id="cnt-condominios">0</span></button>
   <button class="chip" data-layer="publicadores" onclick="switchTabChip('publicadores',this)">🏠 Publicadores <span class="chip-cnt" id="cnt-publicadores">0</span></button>
   <button class="chip" data-layer="quadras" onclick="switchTabChip('quadras',this)">🧩 Quadras <span class="chip-cnt" id="cnt-quadras">0</span></button>
+  <button class="chip" data-layer="carrinhos" onclick="switchTabChip('carrinhos',this)">🛒 Testemunho <span class="chip-cnt" id="cnt-carrinhos">0</span></button>
 </div>
 
 <!-- CAT BAR -->
@@ -2607,7 +2607,7 @@ let viewMode = 'mapa';
 let activeCategoryFilter = null;
 let activeGroupFilter = null;
 let activeSaidaGrupoFilter = null;
-const layerGroups = { grupos: L.layerGroup().addTo(map), comercios: L.layerGroup(), condominios: L.layerGroup(), publicadores: L.layerGroup(), quadras: L.layerGroup(), carrinhos: L.layerGroup().addTo(map) };
+const layerGroups = { grupos: L.layerGroup().addTo(map), comercios: L.layerGroup(), condominios: L.layerGroup(), publicadores: L.layerGroup(), quadras: L.layerGroup(), carrinhos: L.layerGroup() };
 
 function makeDivIcon(color, letter) {
   return L.divIcon({ className: '', html: `<div class="saida-pin" style="background:${color}"><span>${letter}</span></div>`, iconSize: [28,28], iconAnchor: [14,28] });
@@ -2774,7 +2774,7 @@ function renderComercios() {
   const items = activeCategoryFilter ? comerciosData.filter(c=>c.categoria===activeCategoryFilter) : comerciosData;
   items.forEach(c => {
     const marker = L.marker([c.lat,c.lng], { icon: makeDotIcon(c.cor||'#868e96'), draggable: editMode });
-    marker.bindPopup(editMode ? editComercioPopup(marker,c) : `${c.foto?`<img src="${escapeHtml(c.foto)}" class="popup-photo">`:''}<b>${escapeHtml(c.nome)}</b><br>${escapeHtml(c.categoria)}<br><small style="color:#5f6368">${escapeHtml(c.endereco)}</small>`);
+    marker.bindPopup(editMode ? editComercioPopup(marker,c) : `${c.foto?`<img src="${escapeHtml(c.foto)}" class="popup-photo">`:''}<b>${escapeHtml(c.nome)}</b><br>${escapeHtml(c.categoria)}<br><small style="color:#5f6368">${escapeHtml(c.endereco)}</small>${cartaInfoBadge(c)}`);
     marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); c.lat=p.lat; c.lng=p.lng; });
     marker.addTo(layerGroups.comercios); c._marker = marker;
   });
@@ -2785,7 +2785,7 @@ function renderCondominios() {
   layerGroups.condominios.clearLayers();
   condominiosData.forEach(c => {
     const marker = L.marker([c.lat,c.lng], { icon: makeDotIcon(c.cor||'#364fc7'), draggable: editMode });
-    marker.bindPopup(editMode ? editCondominioPopup(marker,c) : `${c.foto?`<img src="${escapeHtml(c.foto)}" class="popup-photo">`:''}<b>${escapeHtml(c.nome)}</b><br>Condomínio/Prédio<br><small style="color:#5f6368">${escapeHtml(c.endereco)}</small>`);
+    marker.bindPopup(editMode ? editCondominioPopup(marker,c) : `${c.foto?`<img src="${escapeHtml(c.foto)}" class="popup-photo">`:''}<b>${escapeHtml(c.nome)}</b><br>Condomínio/Prédio<br><small style="color:#5f6368">${escapeHtml(c.endereco)}</small>${cartaInfoBadge(c)}`);
     marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); c.lat=p.lat; c.lng=p.lng; });
     marker.addTo(layerGroups.condominios); c._marker = marker;
   });
@@ -2813,6 +2813,7 @@ function renderPublicadores() {
 }
 function renderCarrinhos() {
   layerGroups.carrinhos.clearLayers();
+  const cntEl = document.getElementById('cnt-carrinhos'); if (cntEl) cntEl.textContent = carrinhosData.length;
   carrinhosData.forEach((c, i) => {
     if (c.lat == null || c.lng == null) return;
     const marker = L.marker([c.lat, c.lng], { icon: makeCarrinhoIcon(), draggable: editMode });
@@ -2822,11 +2823,12 @@ function renderCarrinhos() {
   });
 }
 function carrinhoPopupContent(marker, c, i) {
-  const designacoes = designacoesData.filter(d => d.ponto === c.nome).sort((a, b) => (a.mesAno + a.dia).localeCompare(b.mesAno + b.dia));
+  const designacoes = designacoesData.filter(d => d.ponto === c.nome && d.mesAno === _tpMesAno)
+    .sort((a, b) => DIAS_SEMANA.indexOf(a.dia) - DIAS_SEMANA.indexOf(b.dia));
   const div = document.createElement('div'); div.className = 'popup-edit';
   const lista = designacoes.length
     ? designacoes.map(d => `<div style="font-size:0.76rem;padding:4px 0;border-bottom:1px solid var(--border, #eee);"><b>${escapeHtml(d.dia)}</b> · ${escapeHtml(d.horario || '')}<br><span style="color:#5f6368">${escapeHtml(d.pessoa1 || '—')}${d.pessoa2 ? ' e ' + escapeHtml(d.pessoa2) : ''}</span></div>`).join('')
-    : '<div style="font-size:0.76rem;color:#5f6368;">Nenhum horário cadastrado neste ponto ainda.</div>';
+    : '<div style="font-size:0.76rem;color:#5f6368;">Nenhum horário cadastrado neste mês ainda.</div>';
   div.innerHTML = `<b>🛒 ${escapeHtml(c.nome)}</b>${c.endereco ? '<br><small style="color:#5f6368">' + escapeHtml(c.endereco) + '</small>' : ''}
     <div style="margin-top:8px;max-height:160px;overflow-y:auto;">${lista}</div>
     ${isAdmin ? `<div class="popup-actions" style="margin-top:9px;"><button class="btn-save">Editar</button><button class="btn-del">Excluir</button></div>` : ''}`;
@@ -3431,10 +3433,12 @@ function switchTabChip(name, btn) {
   if (name==='condominios') { renderCondominios(); }
   if (name==='publicadores') { renderCatbar(); renderPublicadores(); }
   if (name==='quadras') { renderCatbar(); renderQuadras(); }
+  if (name==='carrinhos') { renderCarrinhos(); }
   updateLegend(); renderList();
   document.getElementById('topbar-subtitle').textContent = {
     grupos:'Grupos de Campo', comercios:'Comércios e Lugares',
-    condominios:'Condomínios e Prédios', publicadores:'Publicadores', quadras:'Quadras por Mapa'
+    condominios:'Condomínios e Prédios', publicadores:'Publicadores', quadras:'Quadras por Mapa',
+    carrinhos:'Pontos do Testemunho Público'
   }[name] || 'Gestão de Território';
 }
 
@@ -4001,6 +4005,7 @@ function updateChipCounts() {
   document.getElementById('cnt-condominios').textContent = condominiosData.length;
   document.getElementById('cnt-publicadores').textContent = publicadoresData.length;
   document.getElementById('cnt-quadras').textContent = quadrasData.length;
+  document.getElementById('cnt-carrinhos').textContent = carrinhosData.length;
 }
 updateChipCounts();
 
@@ -4501,7 +4506,7 @@ function renderTestemunhoPontos() {
   box.innerHTML = carrinhosData.map((c, i) => `
     <div class="tp-row">
       <span class="tp-name"><b>${escapeHtml(c.nome)}</b>${c.endereco ? '<br><span style="color:var(--text2);font-size:0.72rem;">' + escapeHtml(c.endereco) + '</span>' : ''}</span>
-      ${c.lat ? `<a class="tp-btn-sm" style="text-decoration:none;" href="https://www.google.com/maps?q=${c.lat},${c.lng}" target="_blank">🗺 Ver</a>` : ''}
+      ${c.lat ? `<button class="tp-btn-sm" onclick="closeTestemunhoOverlay(); switchTab('carrinhos'); focusItem(carrinhosData[${i}])">📍 Ver no mapa</button>` : ''}
       <button class="tp-btn-edit" onclick="editarCarrinhoPrompt(${i})" title="Editar">✏️</button>
       <button class="tp-btn-del" onclick="removerCarrinho(${i})" title="Excluir">🗑</button>
     </div>`).join('');
@@ -4652,8 +4657,17 @@ async function baixarTestemunhoImagem() {
 // CONTROLE DE CARTAS — COMÉRCIOS E PRÉDIOS
 // ══════════════════════════════════════════════
 function ensureCarta(item) {
-  if (!item.carta) item.carta = { status: 'pendente', data: '', obs: '' };
+  if (!item.carta) item.carta = { status: 'pendente', data: '', obs: '', qtd: 1 };
+  if (item.carta.qtd == null) item.carta.qtd = 1;
   return item.carta;
+}
+function cartaInfoBadge(item) {
+  if (!item.carta) return '';
+  const c = item.carta;
+  const statusLabel = { pendente: '⏳ Pendente', entregue: '✅ Entregue', recusou: '🚫 Recusou' }[c.status] || '';
+  const qtdLabel = c.qtd ? `${c.qtd} carta${c.qtd == 1 ? '' : 's'}` : '';
+  if (!statusLabel && !qtdLabel) return '';
+  return `<br><span style="font-size:0.74rem;color:#5f6368;">✉️ ${qtdLabel}${qtdLabel && statusLabel ? ' · ' : ''}${statusLabel}</span>`;
 }
 let _cartasFiltro = 'todos';
 function openCartasOverlay() {
@@ -4686,16 +4700,17 @@ function renderCartasList() {
 
   const todos = listaCartasItens();
   const entregues = todos.filter(x => ensureCarta(x.item).status === 'entregue').length;
-  document.getElementById('cartasResumo').textContent = `${entregues} de ${todos.length} com carta entregue`;
+  const totalCartas = todos.reduce((s, x) => s + (ensureCarta(x.item).qtd || 0), 0);
+  document.getElementById('cartasResumo').textContent = `${entregues} de ${todos.length} com carta entregue · ${totalCartas} carta${totalCartas == 1 ? '' : 's'} no total`;
 
   if (!arr.length) { box.innerHTML = '<div class="empty-msg"><strong>✉️</strong>Nenhum item encontrado</div>'; return; }
   box.innerHTML = arr.map(x => {
     const c = ensureCarta(x.item);
     const gid = x.tipo + '_' + (x.tipo === 'comercio' ? comerciosData.indexOf(x.item) : condominiosData.indexOf(x.item));
-    return `<div class="cartas-item">
+    return `<div class="carta-card">
       <div class="ci-head"><span class="ci-nome">${escapeHtml(x.item.nome)}</span><span class="ci-tag">${x.tipo === 'comercio' ? '🏪 Comércio' : '🏢 Prédio'}</span></div>
       <div class="ci-end">${escapeHtml(x.item.endereco || '')}</div>
-      <div class="ci-row">
+      <div class="ci-row-3">
         <div class="ci-field">
           <label>Status da carta</label>
           <select class="ci-status status-${c.status}" onchange="setCartaField('${gid}','status',this.value)">
@@ -4703,6 +4718,10 @@ function renderCartasList() {
             <option value="entregue" ${c.status === 'entregue' ? 'selected' : ''}>✅ Entregue</option>
             <option value="recusou" ${c.status === 'recusou' ? 'selected' : ''}>🚫 Recusou</option>
           </select>
+        </div>
+        <div class="ci-field">
+          <label>Qtd. cartas</label>
+          <input type="number" min="0" class="ci-qtd" value="${c.qtd != null ? c.qtd : 1}" onchange="setCartaField('${gid}','qtd',this.value)">
         </div>
         <div class="ci-field">
           <label>Data</label>
@@ -4725,9 +4744,9 @@ function setCartaField(gid, field, value) {
   if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar'); renderCartasList(); return; }
   const item = findCartaItemByGid(gid);
   if (!item) return;
-  ensureCarta(item)[field] = value;
+  ensureCarta(item)[field] = field === 'qtd' ? Math.max(0, parseInt(value, 10) || 0) : value;
   saveState();
-  if (field === 'status') renderCartasList();
+  if (field === 'status' || field === 'qtd') renderCartasList();
 }
 
 initFirebaseAuth();
