@@ -16,6 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.7"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -808,6 +809,18 @@ body.no-anim .leaflet-zoom-animated{
     <div class="cobertura-bar-bg"><div class="cobertura-bar-fill" id="home-cob-bar" style="width:0%"></div></div>
   </div>
 
+  <!-- Saúde do Território -->
+  <div class="cobertura-card" id="saudeCard" onclick="openReportOverlay()" style="margin-top:10px;">
+    <div class="cobertura-top">
+      <div class="cobertura-pct" id="saude-pct" style="color:var(--success)">—</div>
+      <div class="cobertura-legend">
+        <div style="font-weight:700;font-size:0.82rem" id="saude-label">Saúde do território</div>
+        <div style="font-size:0.72rem;color:var(--text2)" id="saude-sub">Calculando...</div>
+      </div>
+    </div>
+    <div class="cobertura-bar-bg"><div class="cobertura-bar-fill" id="saude-bar" style="width:0%;background:var(--success)"></div></div>
+  </div>
+
   <!-- Ações Rápidas -->
   <div class="home-section-acoes">
   <div class="home-section">
@@ -954,6 +967,16 @@ body.no-anim .leaflet-zoom-animated{
   <div class="search-overlay-results" id="reportResults" style="background:var(--bg)"></div>
 </div>
 
+<!-- QR de repasse de quadra (handoff entre publicadores) -->
+<div class="search-overlay" id="qrOverlay">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="closeQrOverlay()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;flex:1;">🔲 Repassar quadra</div>
+    <button class="icon-btn" onclick="baixarQrQuadra()" title="Baixar QR" style="color:var(--text);">⬇️</button>
+  </div>
+  <div class="search-overlay-results" id="qrResults" style="background:var(--bg)"></div>
+</div>
+
 <!-- SIDE MENU -->
 <div class="side-menu-backdrop" id="sideMenuBackdrop" onclick="closeSideMenu()"></div>
 <div class="side-menu" id="sideMenu">
@@ -979,6 +1002,7 @@ body.no-anim .leaflet-zoom-animated{
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();togglePresentationMode()"><span class="smi-icon">🖥</span> Modo apresentação</button>
     <button class="side-menu-item" id="sideMenuDarkBtn" onclick="toggleDarkMode();updateSideMenuState()"><span class="smi-icon">🌙</span> Modo escuro <span class="smi-state" id="sideMenuDarkState"></span></button>
+    <button class="side-menu-item" id="sideMenuNotifBtn" onclick="toggleNotificacoes()"><span class="smi-icon">🔔</span> Lembretes de território <span class="smi-state" id="sideMenuNotifState"></span></button>
   </div>
 </div>
 
@@ -1372,6 +1396,24 @@ function prioBadgeHTML(qd) {
   return `<span class="prio-badge" style="background:${p.bg};color:${p.cor}">${p.tag} ${p.label}</span>`;
 }
 
+// ── HEATMAP DE TEMPO PARADO (gradiente por dias desde a última cobertura) ──
+const HEATMAP_FAIXAS = [
+  { max: 30,  cor: '#16a34a', label: 'Até 30 dias' },
+  { max: 90,  cor: '#fbbf24', label: '31–90 dias' },
+  { max: 180, cor: '#f59e0b', label: '91–180 dias' },
+  { max: Infinity, cor: '#d93025', label: '+180 dias / nunca' },
+];
+function corHeatmapQuadra(qd) {
+  const d = diasDesde(qd.ultimaCobertura);
+  if (d === null) return HEATMAP_FAIXAS[3].cor;
+  const faixa = HEATMAP_FAIXAS.find(f => d <= f.max);
+  return faixa ? faixa.cor : HEATMAP_FAIXAS[3].cor;
+}
+function heatmapLabelDias(qd) {
+  const d = diasDesde(qd.ultimaCobertura);
+  return d === null ? 'Nunca coberta' : `Há ${d} dia${d===1?'':'s'}`;
+}
+
 // ── PAINEL "TERRITÓRIOS QUE PRECISAM DE ATENÇÃO" (home) ──
 // 🟥 sem cobertura há mais de 6 meses (ou nunca cobertas) — trabalhar com urgência
 // 🟨 sem grupo designado — precisa ser atribuída antes de poder ser trabalhada
@@ -1543,6 +1585,11 @@ function updateSideMenuState() {
   const dark = document.body.classList.contains('dark-mode');
   const stateEl = document.getElementById('sideMenuDarkState');
   if (stateEl) stateEl.textContent = dark ? 'Ativado' : 'Desativado';
+  const notifStateEl = document.getElementById('sideMenuNotifState');
+  if (notifStateEl) {
+    const ativo = localStorage.getItem('notif-ativas') === '1' && typeof Notification !== 'undefined' && Notification.permission === 'granted';
+    notifStateEl.textContent = ativo ? 'Ativado' : 'Desativado';
+  }
   const nameEl = document.getElementById('sideMenuName');
   const subEl = document.getElementById('sideMenuSub');
   const avatarEl = document.getElementById('sideMenuAvatar');
@@ -1679,6 +1726,48 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     localStorage.setItem(DARK_STORAGE, next);
     applyDarkMode();
     showSnack(next==='auto' ? '🌙 Modo escuro: automático (segue horário/sistema)' : next==='on' ? '🌙 Modo escuro: sempre ativado' : '☀️ Modo escuro: sempre desativado');
+  }
+
+  // ---------- LEMBRETES DE TERRITÓRIO (notificações locais, via Service Worker) ----------
+  // Não depende de servidor push: o próprio app, quando aberto, confere a saúde do
+  // território e dispara uma notificação do sistema no máximo 1x por dia se houver
+  // quadras atrasadas. Notificação de verdade (enviada mesmo com o app fechado por
+  // dias) exigiria um backend com chaves VAPID — isso é um passo à parte.
+  async function toggleNotificacoes() {
+    if (!('Notification' in window)) { showSnack('❌ Este navegador não suporta notificações'); return; }
+    const ativoAgora = localStorage.getItem('notif-ativas') === '1' && Notification.permission === 'granted';
+    if (ativoAgora) {
+      localStorage.setItem('notif-ativas', '0');
+      showSnack('🔕 Lembretes desativados');
+      updateSideMenuState();
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') {
+      localStorage.setItem('notif-ativas', '1');
+      showSnack('🔔 Lembretes ativados — você será avisada(o) sobre quadras atrasadas');
+      verificarLembretesTerritorio(true);
+    } else {
+      showSnack('🔕 Permissão de notificação não concedida pelo navegador');
+    }
+    updateSideMenuState();
+  }
+  async function verificarLembretesTerritorio(forcar) {
+    if (localStorage.getItem('notif-ativas') !== '1') return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    if (!('serviceWorker' in navigator)) return;
+    const hoje = new Date().toISOString().slice(0, 10);
+    if (!forcar && localStorage.getItem('notif-ultimo-aviso') === hoje) return;
+    const s = calcularSaudeTerritorio();
+    if (!s || !s.atrasadas) { localStorage.setItem('notif-ultimo-aviso', hoje); return; }
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      reg.showNotification('🗺️ Território Jardim Ivete', {
+        body: `${s.atrasadas} quadra${s.atrasadas===1?'':'s'} atrasada${s.atrasadas===1?'':'s'} — saúde do território: ${s.label} (${s.score}%).`,
+        icon: 'icon-180.png', badge: 'icon-180.png', tag: 'saude-territorio'
+      });
+    } catch (e) {}
+    localStorage.setItem('notif-ultimo-aviso', hoje);
   }
   applyDarkMode();
   if (window.matchMedia) { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyDarkMode); }
@@ -2634,8 +2723,13 @@ function renderQuadras() {
   quadrasData.forEach((qd, idx) => {
     const baseWeight = qd.weight||3;
     const isCobertura = quadraCatMode==='cobertura';
+    const isHeatmap = quadraCatMode==='heatmap';
     let cor, isFiltered, match, fillOpacity, borderOpacity, weight;
-    if (isCobertura) {
+    if (isHeatmap) {
+      cor = corHeatmapQuadra(qd);
+      isFiltered = false; match = true;
+      fillOpacity = 0.5; borderOpacity = 1; weight = baseWeight;
+    } else if (isCobertura) {
       cor = qd.coberta ? CORES_COBERTURA.feita : CORES_COBERTURA.pendente;
       isFiltered = !!activeCoberturaFilter;
       match = activeCoberturaFilter ? (activeCoberturaFilter==='feita' ? !!qd.coberta : !qd.coberta) : true;
@@ -2660,8 +2754,9 @@ function renderQuadras() {
     const shareBtn = `<button onclick="(function(){const c=quadrasData[${idx}]._layer.getBounds().getCenter();shareWhatsApp('Quadra ${qd.mapa}',c.lat,c.lng);})()" class="popup-act-btn" style="background:#25d366">📤<span>WhatsApp</span></button>`;
     const baixarCartaoBtn = `<button class="popup-act-btn btn-baixar-cartao-popup" style="background:#1967d2">⬇️<span>Cartão</span></button>`;
     const analisarBtn = `<button onclick="analisarQuadra(${idx})" class="popup-act-btn" style="background:#00897b">🔍<span>Analisar</span></button>`;
+    const qrBtn = `<button onclick="openQrQuadra(${idx})" class="popup-act-btn" style="background:#3d1c5c">🔲<span>Repassar</span></button>`;
     const editarBtn = `<button onclick="abrirEdicaoDetalhada(${idx})" class="popup-act-btn full" style="background:#5b2c83">✏️<span>Editar detalhes</span></button>`;
-    poly.bindPopup(`<div style="min-width:190px"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b style="font-size:0.95rem">Mapa ${qd.mapa}</b>${prioBadgeHTML(qd)}</div>${qd.nome?`<div style="font-size:0.78rem;color:var(--text2);margin-top:2px">${qd.nome}</div>`:''}${qd.grupo?`<div style="font-size:0.78rem;margin-top:2px">👥 <b>${qd.grupo}</b></div>`:''}<div style="font-size:0.72rem;color:var(--text2);margin-top:4px">${qd.coords.length} pontos — 📏 ~${perimQd}m${estimativaPopupHTML}</div>${qd.coberta?`<div style="font-size:0.72rem;color:#1e8e3e;margin-top:2px">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</div>`:''}${atrasadaPopup?`<div style="font-size:0.72rem;color:#d97706;margin-top:2px">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</div>`:''}<div class="popup-actions"><button onclick="showQuadraCartao(${idx})" class="popup-act-btn" style="background:var(--md-primary)">📋<span>Cartão</span></button>${baixarCartaoBtn}${shareBtn}${analisarBtn}${isAdmin?coberturaBtn:''}${editarBtn}${editMode?`<button onclick="deleteQuadra(${idx})" class="popup-act-btn full" style="background:#d93025">🗑<span>Excluir</span></button>`:''}</div></div>`);
+    poly.bindPopup(`<div style="min-width:190px"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b style="font-size:0.95rem">Mapa ${qd.mapa}</b>${prioBadgeHTML(qd)}</div>${qd.nome?`<div style="font-size:0.78rem;color:var(--text2);margin-top:2px">${qd.nome}</div>`:''}${qd.grupo?`<div style="font-size:0.78rem;margin-top:2px">👥 <b>${qd.grupo}</b></div>`:''}<div style="font-size:0.72rem;color:var(--text2);margin-top:4px">${qd.coords.length} pontos — 📏 ~${perimQd}m${estimativaPopupHTML}</div>${qd.coberta?`<div style="font-size:0.72rem;color:#1e8e3e;margin-top:2px">✓ Coberta${qd.coberturaData?' em '+formatarDataBR(qd.coberturaData):''}</div>`:''}${atrasadaPopup?`<div style="font-size:0.72rem;color:#d97706;margin-top:2px">⚠️ ${diasUltPopup===null?'Nunca coberta':'Há '+diasUltPopup+' dias sem cobertura'}</div>`:''}<div class="popup-actions"><button onclick="showQuadraCartao(${idx})" class="popup-act-btn" style="background:var(--md-primary)">📋<span>Cartão</span></button>${baixarCartaoBtn}${shareBtn}${analisarBtn}${qrBtn}${isAdmin?coberturaBtn:''}${editarBtn}${editMode?`<button onclick="deleteQuadra(${idx})" class="popup-act-btn full" style="background:#d93025">🗑<span>Excluir</span></button>`:''}</div></div>`);
     // Referência direta ao objeto `qd` (fechamento/closure), sem depender de
     // índice ou id que possam ficar desatualizados após uma sincronização.
     poly.on('popupopen', (e) => {
@@ -2671,8 +2766,9 @@ function renderQuadras() {
     });
     poly.addTo(layerGroups.quadras);
     const center = poly.getBounds().getCenter();
-    const labelBorder = isCobertura ? cor : cor;
-    L.marker(center, { icon: L.divIcon({ className:'', html:`<div class="quadra-label" style="border:2px solid ${labelBorder}">${isCobertura?(qd.coberta?'✓':qd.mapa):qd.mapa}</div>`, iconSize:[0,0] }), interactive:false }).addTo(layerGroups.quadras);
+    const labelBorder = cor;
+    const labelTxt = isHeatmap ? (diasDesde(qd.ultimaCobertura)===null ? '!' : diasDesde(qd.ultimaCobertura)+'d') : (isCobertura?(qd.coberta?'✓':qd.mapa):qd.mapa);
+    L.marker(center, { icon: L.divIcon({ className:'', html:`<div class="quadra-label" style="border:2px solid ${labelBorder}">${labelTxt}</div>`, iconSize:[0,0] }), interactive:false }).addTo(layerGroups.quadras);
     qd._layer = poly;
   });
   document.getElementById('cnt-quadras').textContent = quadrasData.length;
@@ -3125,6 +3221,10 @@ function updateLegend() {
         html += `<div style="margin:4px 0 6px 0"><div style="background:#e0d5eb;border-radius:6px;height:8px;overflow:hidden;width:140px"><div style="background:${CORES_COBERTURA.feita};height:100%;width:${pct}%"></div></div><div style="font-size:0.7rem;color:#5f6368;margin-top:3px">${feitas} de ${total} quadras (${pct}%)</div></div>`;
         html += `<div><span class="dot" style="background:${CORES_COBERTURA.feita}"></span>Coberta</div><div><span class="dot" style="background:${CORES_COBERTURA.pendente}"></span>Pendente</div>`;
       }
+    } else if (quadraCatMode==='heatmap') {
+      html = `<span class="legend-title" ${toggleAttr}>Tempo parado (última cobertura)${arrow}</span>`;
+      if (!quadrasData.length) html += '<div style="font-size:0.7rem;color:#9aa0a6;margin-top:4px">Nenhuma quadra ainda</div>';
+      else HEATMAP_FAIXAS.forEach(f=>{ html += `<div><span class="dot" style="background:${f.cor}"></span>${f.label}</div>`; });
     } else {
       html=`<span class="legend-title" ${toggleAttr}>Quadras por mapa${arrow}</span>`;
       const nums={}; quadrasData.forEach(qd=>{if(!nums[qd.mapa]) nums[qd.mapa]=qd.cor||getColorForMapa(qd.mapa);});
@@ -3310,6 +3410,45 @@ function renderHomeStats() {
   document.getElementById('home-cob-feitas').textContent = feitas;
   document.getElementById('home-cob-pendentes').textContent = pendentes;
   document.getElementById('home-cob-bar').style.width = pct + '%';
+
+  renderSaudeTerritorio();
+}
+
+// ── SCORE DE SAÚDE DO TERRITÓRIO ──
+// Combina cobertura em dia + quadras atrasadas (+90d ou nunca cobertas) + quadras sem grupo,
+// dando uma visão rápida de "quão saudável" o ciclo de território está agora.
+function calcularSaudeTerritorio() {
+  const d = computeReportData();
+  if (!d.total) return null;
+  let score = 100 - (d.atrasadas.length / d.total) * 70 - (d.semGrupo / d.total) * 15;
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  let label, cor;
+  if (score >= 85) { label = 'Excelente'; cor = 'var(--success)'; }
+  else if (score >= 65) { label = 'Boa'; cor = '#2563eb'; }
+  else if (score >= 40) { label = 'Atenção'; cor = 'var(--warning)'; }
+  else { label = 'Crítica'; cor = 'var(--error)'; }
+  return { score, label, cor, atrasadas: d.atrasadas.length, semGrupo: d.semGrupo, total: d.total };
+}
+function renderSaudeTerritorio() {
+  const el = document.getElementById('saude-pct'); if (!el) return;
+  const s = calcularSaudeTerritorio();
+  const barEl = document.getElementById('saude-bar');
+  const labelEl = document.getElementById('saude-label');
+  const subEl = document.getElementById('saude-sub');
+  if (!s) {
+    el.textContent = '—'; el.style.color = 'var(--text2)';
+    labelEl.textContent = 'Saúde do território';
+    subEl.textContent = 'Cadastre quadras para calcular';
+    barEl.style.width = '0%';
+    return;
+  }
+  el.textContent = s.score + '%'; el.style.color = s.cor;
+  labelEl.textContent = '💚 Saúde do território: ' + s.label;
+  const partes = [];
+  if (s.atrasadas) partes.push(s.atrasadas + ' atrasada' + (s.atrasadas===1?'':'s'));
+  if (s.semGrupo) partes.push(s.semGrupo + ' sem grupo');
+  subEl.textContent = partes.length ? partes.join(' · ') : 'Tudo em dia — ótimo trabalho!';
+  barEl.style.width = s.score + '%'; barEl.style.background = s.cor;
 }
 
 function goToCobertura() {
@@ -3370,7 +3509,7 @@ function renderCatbar() {
     return;
   }
   if (activeTab==='quadras') {
-    let html = `<button class="cat-chip mode-chip${quadraCatMode==='mapa'?' active':''}" data-mode="mapa">🗺️ Mapas</button><button class="cat-chip mode-chip${quadraCatMode==='grupo'?' active':''}" data-mode="grupo">👥 Grupos</button><button class="cat-chip mode-chip${quadraCatMode==='cobertura'?' active':''}" data-mode="cobertura">🎯 Cobertura</button><div class="catbar-divider"></div>`;
+    let html = `<button class="cat-chip mode-chip${quadraCatMode==='mapa'?' active':''}" data-mode="mapa">🗺️ Mapas</button><button class="cat-chip mode-chip${quadraCatMode==='grupo'?' active':''}" data-mode="grupo">👥 Grupos</button><button class="cat-chip mode-chip${quadraCatMode==='cobertura'?' active':''}" data-mode="cobertura">🎯 Cobertura</button><button class="cat-chip mode-chip${quadraCatMode==='heatmap'?' active':''}" data-mode="heatmap">🔥 Tempo parado</button><div class="catbar-divider"></div>`;
     if (quadraCatMode==='grupo') {
       html += `<button class="cat-chip${activeQuadraGrupoFilter?'':' active'}" data-grp="">Todos <span class="count">${quadrasData.length}</span></button>`;
       Object.keys(groupColors).forEach(g=>{const count=quadrasData.filter(qd=>qd.grupo===g).length; html+=`<button class="cat-chip${activeQuadraGrupoFilter===g?' active':''}" data-grp="${g}"><span class="dot" style="background:${groupColors[g]};width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px"></span>${g} <span class="count">${count}</span></button>`;});
@@ -3715,7 +3854,19 @@ function importData(event) {
 
 // ── PWA / SERVICE WORKER ──
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const novo = reg.installing;
+        if (!novo) return;
+        novo.addEventListener('statechange', () => {
+          if (novo.state === 'installed' && navigator.serviceWorker.controller) {
+            showSnack && showSnack('🔄 Nova versão do app disponível — feche e abra de novo pra atualizar');
+          }
+        });
+      });
+    }).catch(()=>{});
+  });
 }
 
 // ── INIT ──
@@ -3810,6 +3961,61 @@ async function proceedWithTerritory(territoryKey) {
   renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras();
   updateLegend(); renderList(); renderHomeStats();
   updateSideMenuState();
+
+  abrirQuadraViaLinkQr();
+  verificarLembretesTerritorio(false);
+}
+
+// ── ABRIR QUADRA A PARTIR DE UM QR CODE ESCANEADO (?q=<id> na URL) ──
+// Permite repassar uma quadra de um publicador pro outro escaneando um QR Code
+// que leva direto pra ela no app, sem precisar procurar na lista.
+function abrirQuadraViaLinkQr() {
+  const params = new URLSearchParams(location.search);
+  const qId = params.get('q');
+  if (!qId) return;
+  const qd = quadrasData.find(q => q.id === qId);
+  // Limpa o parâmetro da URL pra não reabrir de novo num refresh
+  history.replaceState(null, '', location.pathname);
+  if (!qd) { showSnack('❌ Quadra do QR Code não foi encontrada'); return; }
+  switchTab('quadras'); setViewMode('mapa');
+  setTimeout(() => {
+    if (qd._layer) {
+      map.fitBounds(qd._layer.getBounds(), { padding: [60, 60] });
+      qd._layer.openPopup();
+    }
+    showSnack('🔲 Quadra recebida: Mapa ' + qd.mapa);
+  }, 500);
+}
+
+// ── QR CODE DE REPASSE DE QUADRA ──
+let qrInstanceAtual = null;
+function openQrQuadra(idx) {
+  const qd = quadrasData[idx]; if (!qd) return;
+  ensureQuadraIds();
+  const url = location.origin + location.pathname + '?q=' + encodeURIComponent(qd.id);
+  document.getElementById('qrResults').innerHTML = `
+    <div class="report-section" style="text-align:center;">
+      <div class="report-section-title" style="justify-content:center;">Mapa ${escapeHtml(qd.mapa)}${qd.nome ? ' — ' + escapeHtml(qd.nome) : ''}</div>
+      ${qd.grupo ? `<div style="font-size:0.8rem;color:var(--text2);margin-bottom:10px;">👥 Grupo ${escapeHtml(qd.grupo)}</div>` : ''}
+      <div id="qrCanvasBox" style="display:flex;justify-content:center;margin:14px 0;"></div>
+      <div style="font-size:0.8rem;color:var(--text2);line-height:1.5;">Peça para quem vai receber esta quadra escanear o código com a câmera do celular. O app abre direto nela, sem precisar procurar na lista.</div>
+    </div>`;
+  const box = document.getElementById('qrCanvasBox');
+  box.innerHTML = '';
+  qrInstanceAtual = new QRCode(box, { text: url, width: 220, height: 220, colorDark: '#3d1c5c', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+  document.getElementById('qrOverlay').classList.add('show');
+}
+function closeQrOverlay() { document.getElementById('qrOverlay').classList.remove('show'); }
+function baixarQrQuadra() {
+  const box = document.getElementById('qrCanvasBox');
+  const img = box && box.querySelector('img');
+  const canvas = box && box.querySelector('canvas');
+  const dataUrl = img && img.src ? img.src : (canvas ? canvas.toDataURL('image/png') : null);
+  if (!dataUrl) { showSnack('❌ QR ainda não gerado'); return; }
+  const a = document.createElement('a');
+  a.href = dataUrl; a.download = 'qr-quadra-' + new Date().toISOString().slice(0,10) + '.png';
+  document.body.appendChild(a); a.click(); a.remove();
+  showSnack('✓ QR Code baixado');
 }
 
 // Restaura o contorno original do Jardim Ivete no mapa (caso o usuário tenha
