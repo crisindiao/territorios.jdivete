@@ -70,6 +70,39 @@ body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-conten
 .popup-act-btn{display:flex;align-items:center;justify-content:center;gap:5px;border:none;border-radius:9px;padding:9px 4px;color:#fff;font-size:0.74rem;font-weight:700;cursor:pointer;white-space:nowrap;}
 .popup-act-btn.full{grid-column:1 / -1;}
 .card-highlight{animation:card-flash 1.8s ease;}
+/* ── TESTEMUNHO PÚBLICO / CARTAS ── */
+.tp-section{padding:12px 14px;border-bottom:1px solid var(--border);}
+.tp-section-title{font-weight:700;font-size:0.88rem;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.tp-hint{font-size:0.74rem;color:var(--text2);margin-bottom:8px;}
+.tp-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.82rem;}
+.tp-row:last-child{border-bottom:none;}
+.tp-row .tp-name{flex:1;min-width:0;}
+.tp-row select, .tp-row input[type=text]{font-size:0.8rem;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
+.tp-chk{width:20px;height:20px;flex-shrink:0;}
+.tp-btn-sm{background:var(--md-primary-light);color:var(--purple);border-radius:8px;padding:6px 10px;font-size:0.76rem;font-weight:700;white-space:nowrap;}
+.tp-btn-del{color:var(--error);font-size:1rem;padding:4px 6px;flex-shrink:0;}
+.tp-table{width:100%;border-collapse:collapse;font-size:0.78rem;background:var(--surface);}
+.tp-table th,.tp-table td{border:1px solid var(--border);padding:6px 8px;text-align:left;}
+.tp-table th{background:var(--md-primary-light);color:var(--purple-dark);}
+.tp-table-wrap{overflow-x:auto;padding:12px 14px;}
+.tp-empty{font-size:0.8rem;color:var(--text2);padding:8px 0;}
+.tp-badge-grupo{display:inline-block;padding:1px 7px;border-radius:999px;font-size:0.68rem;font-weight:700;color:#fff;}
+.cartas-filterbar{display:flex;gap:6px;padding:8px 14px;overflow-x:auto;border-bottom:1px solid var(--border);flex-shrink:0;}
+.cartas-filterbar button{flex-shrink:0;padding:6px 12px;border-radius:999px;font-size:0.76rem;font-weight:600;background:var(--md-surface-variant);color:var(--text2);}
+.cartas-filterbar button.active{background:var(--purple);color:#fff;}
+.cartas-item{padding:10px 14px;border-bottom:1px solid var(--border);}
+.cartas-item .ci-head{display:flex;align-items:baseline;gap:6px;margin-bottom:6px;}
+.cartas-item .ci-nome{font-weight:700;font-size:0.86rem;flex:1;}
+.cartas-item .ci-tag{font-size:0.68rem;color:var(--text2);}
+.cartas-item .ci-end{font-size:0.74rem;color:var(--text2);margin-bottom:8px;}
+.cartas-item .ci-row{display:flex;gap:6px;}
+.cartas-item select,.cartas-item input{font-size:0.78rem;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
+.cartas-item .ci-status{flex:0 0 118px;}
+.cartas-item .ci-data{flex:0 0 130px;}
+.cartas-item .ci-obs{flex:1;min-width:0;margin-top:6px;width:100%;}
+.status-pendente{color:var(--warning);}
+.status-entregue{color:var(--success);}
+.status-recusou{color:var(--error);}
 @keyframes card-flash{0%,100%{box-shadow:var(--sh1);}25%,75%{box-shadow:0 0 0 3px var(--purple);}}
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;width:100%;overflow:hidden;font-family:var(--font);color:var(--text);background:var(--bg);-webkit-tap-highlight-color:transparent;}
@@ -977,6 +1010,31 @@ body.no-anim .leaflet-zoom-animated{
   <div class="search-overlay-results" id="qrResults" style="background:var(--bg)"></div>
 </div>
 
+<!-- TESTEMUNHO PÚBLICO -->
+<div class="search-overlay" id="testemunhoOverlay">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="closeTestemunhoOverlay()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;flex:1;">🛒 Testemunho público</div>
+    <button class="icon-btn" onclick="baixarTestemunhoImagem()" title="Baixar tabela como imagem" style="color:var(--text);">⬇️</button>
+  </div>
+  <div class="search-overlay-results" id="testemunhoResults" style="background:var(--bg)"></div>
+</div>
+
+<!-- CONTROLE DE CARTAS (COMÉRCIOS E PRÉDIOS) -->
+<div class="search-overlay" id="cartasOverlay">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="closeCartasOverlay()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;flex:1;">✉️ Controle de cartas</div>
+  </div>
+  <div class="search-overlay-input" style="margin:8px 14px;">
+    <span class="s-icon">🔍</span>
+    <input type="text" id="cartasSearchInput" placeholder="Buscar comércio ou prédio..." oninput="renderCartasList()">
+  </div>
+  <div class="cartas-filterbar" id="cartasFilterbar"></div>
+  <div id="cartasResumo" style="padding:4px 14px;font-size:0.76rem;color:var(--text2);"></div>
+  <div class="search-overlay-results" id="cartasResults" style="background:var(--bg)"></div>
+</div>
+
 <!-- SIDE MENU -->
 <div class="side-menu-backdrop" id="sideMenuBackdrop" onclick="closeSideMenu()"></div>
 <div class="side-menu" id="sideMenu">
@@ -995,6 +1053,9 @@ body.no-anim .leaflet-zoom-animated{
     <button class="side-menu-item" id="sideMenuDistribuir" style="display:none" onclick="closeSideMenu();openDistribOverlay()"><span class="smi-icon">🧭</span> Distribuir quadras por grupo</button>
     <button class="side-menu-item" onclick="closeSideMenu();openReportOverlay()"><span class="smi-icon">📊</span> Relatório e métricas</button>
     <button class="side-menu-item" onclick="closeSideMenu();openIaOverlay()"><span class="smi-icon">🤖</span> Analisar território com IA</button>
+    <div class="side-menu-sep"></div>
+    <button class="side-menu-item" onclick="closeSideMenu();openTestemunhoOverlay()"><span class="smi-icon">🛒</span> Testemunho público</button>
+    <button class="side-menu-item" onclick="closeSideMenu();openCartasOverlay()"><span class="smi-icon">✉️</span> Controle de cartas</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
     <button class="side-menu-item" onclick="closeSideMenu();document.getElementById('importFile').click()"><span class="smi-icon">📥</span> Importar dados</button>
@@ -1679,6 +1740,10 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
 
   // ---------- QUADRAS (contornos de blocos, agrupados por número do mapa) ----------
   const quadrasData = [];
+
+  // ---------- TESTEMUNHO PÚBLICO (pontos de carrinho + escala mensal) ----------
+  const carrinhosData = []; // {nome, endereco, lat, lng}
+  const designacoesData = []; // {id, mesAno:'YYYY-MM', ponto, dia, horario, pessoa1, pessoa2}
   const quadraPalette = ['#e03131','#1971c2','#2f9e44','#f08c00','#9c36b5','#0c8599','#e64980','#5f3dc4','#37b24d','#f76707','#495057','#862e9c','#0ca678','#d6336c','#1c7ed6','#fab005','#82c91e','#364fc7'];
   function getColorForMapa(mapa) {
     let hash = 0;
@@ -1865,7 +1930,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     if (applyingRemoteUpdate) return { ok: false, reason: 'applying-remote' };
     // Também salva localmente como cache
     try {
-      const payload = { saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, activityLog, savedAt: new Date().toISOString() };
+      const payload = { saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, carrinhosData, designacoesData, activityLog, savedAt: new Date().toISOString() };
       localStorage.setItem(getDataStorageKey(), JSON.stringify(payload, jsonReplacer));
     } catch(e) {}
 
@@ -1883,7 +1948,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     if (!currentUser || !isAdmin) return { ok: false, reason: isAdmin ? 'no-user' : 'not-admin' };
     try {
       await migrateBase64Photos();
-      const payload = JSON.parse(JSON.stringify({ saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, activityLog, savedAt: new Date().toISOString() }, jsonReplacer));
+      const payload = JSON.parse(JSON.stringify({ saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, carrinhosData, designacoesData, activityLog, savedAt: new Date().toISOString() }, jsonReplacer));
       // Corrige arrays aninhados em quadrasData.coords (não suportado pelo Firestore)
       payload.quadrasData = (payload.quadrasData || []).map(qd => ({ ...qd, coords: coordsToFirestore(qd.coords) }));
       const sizeBytes = new Blob([JSON.stringify(payload)]).size;
@@ -2009,6 +2074,8 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     if (Array.isArray(saved.condominiosData)) { condominiosData.length = 0; saved.condominiosData.forEach(x => condominiosData.push(x)); }
     if (Array.isArray(saved.publicadoresData)) { publicadoresData.length = 0; saved.publicadoresData.forEach(x => publicadoresData.push(x)); }
     if (Array.isArray(saved.quadrasData)) { quadrasData.length = 0; saved.quadrasData.forEach(x => quadrasData.push(x)); }
+    if (Array.isArray(saved.carrinhosData)) { carrinhosData.length = 0; saved.carrinhosData.forEach(x => carrinhosData.push(x)); }
+    if (Array.isArray(saved.designacoesData)) { designacoesData.length = 0; saved.designacoesData.forEach(x => designacoesData.push(x)); }
     if (Array.isArray(saved.activityLog)) { activityLog.length = 0; saved.activityLog.forEach(x => activityLog.push(x)); }
   }
 
@@ -3824,7 +3891,7 @@ function renderList() {
 
 // ── EXPORT/IMPORT ──
 function exportData() {
-  const payload={saidasData,comerciosData,condominiosData,publicadoresData,quadrasData,activityLog,exportedAt:new Date().toISOString()};
+  const payload={saidasData,comerciosData,condominiosData,publicadoresData,quadrasData,carrinhosData,designacoesData,activityLog,exportedAt:new Date().toISOString()};
   const blob=new Blob([JSON.stringify(payload,jsonReplacer,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob); const a=document.createElement('a');
   a.href=url; a.download=`territorio-jardim-ivete-${new Date().toISOString().slice(0,10)}.json`;
@@ -4219,6 +4286,299 @@ async function seedConceicaoComerciosCondominios() {
   await saveState();
   showSnack(`✅ ${CONCEICAO_COMERCIOS_SEED.length} comércios e ${CONCEICAO_CONDOMINIOS_SEED.length} prédios carregados no mapa!`, 6000);
   logActivity(`📍 Carga inicial: ${CONCEICAO_COMERCIOS_SEED.length} comércios, ${CONCEICAO_CONDOMINIOS_SEED.length} prédios`);
+}
+
+// ══════════════════════════════════════════════
+// TESTEMUNHO PÚBLICO (pontos de carrinho + escala mensal)
+// ══════════════════════════════════════════════
+
+// Garante/sincroniza os detalhes individuais (sexo, participa) de cada membro
+// da família, mantendo a lista em dia com o array `membros` (nomes).
+function getMembrosDetalhe(p) {
+  if (!Array.isArray(p.membrosDetalhe)) p.membrosDetalhe = [];
+  const det = (p.membros || []).map(nome => {
+    const existente = p.membrosDetalhe.find(m => m.nome === nome);
+    return existente || { nome, sexo: '', participa: false };
+  });
+  p.membrosDetalhe = det;
+  return det;
+}
+function listaParticipantesTestemunho() {
+  const lista = [];
+  publicadoresData.forEach(p => {
+    getMembrosDetalhe(p).forEach(m => { if (m.participa) lista.push({ nome: m.nome, sexo: m.sexo || '', grupo: p.grupo }); });
+  });
+  return lista;
+}
+
+let _tpMesAno = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+
+function openTestemunhoOverlay() {
+  document.getElementById('testemunhoOverlay').classList.add('show');
+  renderTestemunho();
+}
+function closeTestemunhoOverlay() { document.getElementById('testemunhoOverlay').classList.remove('show'); }
+
+function renderTestemunho() {
+  const box = document.getElementById('testemunhoResults');
+  box.innerHTML = `
+    <div class="tp-section">
+      <div class="tp-section-title">🙋 Publicadores participantes <span style="font-weight:400;font-size:0.74rem;color:var(--text2)">${listaParticipantesTestemunho().length} marcados</span></div>
+      <div class="tp-hint">Marque quem participa do testemunho público e o sexo de cada um — usado para montar as duplas automaticamente (homem com homem, mulher com mulher).</div>
+      <div id="tpParticipantes"></div>
+    </div>
+    <div class="tp-section">
+      <div class="tp-section-title">🛒 Pontos do carrinho <button class="tp-btn-sm" onclick="addCarrinhoPrompt()">＋ Adicionar ponto</button></div>
+      <div id="tpPontos"></div>
+    </div>
+    <div class="tp-section">
+      <div class="tp-section-title">📅 Escala mensal</div>
+      <div class="tp-hint" style="display:flex;align-items:center;gap:8px;">Mês: <input type="month" id="tpMesInput" value="${_tpMesAno}" onchange="_tpMesAno=this.value;renderTestemunhoEscala();"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+        <button class="tp-btn-sm" onclick="addDesignacaoPrompt()">＋ Adicionar horário</button>
+        <button class="tp-btn-sm" style="background:var(--purple);color:#fff;" onclick="gerarDesignacaoAutomatica()">🤖 Designação automática</button>
+      </div>
+    </div>
+    <div id="tpEscalaWrap"></div>
+  `;
+  renderTestemunhoParticipantes();
+  renderTestemunhoPontos();
+  renderTestemunhoEscala();
+}
+
+function renderTestemunhoParticipantes() {
+  const box = document.getElementById('tpParticipantes');
+  if (!box) return;
+  if (!publicadoresData.length) { box.innerHTML = '<div class="tp-empty">Nenhum publicador cadastrado ainda.</div>'; return; }
+  let html = '';
+  publicadoresData.forEach((p, pi) => {
+    const cor = groupColors[p.grupo] || '#868e96';
+    getMembrosDetalhe(p).forEach((m, mi) => {
+      html += `<div class="tp-row">
+        <span class="tp-badge-grupo" style="background:${cor}">${escapeHtml(p.grupo || '')}</span>
+        <span class="tp-name">${escapeHtml(m.nome)}</span>
+        <select data-pi="${pi}" data-mi="${mi}" onchange="onChangeSexoPublicador(this)">
+          <option value="" ${!m.sexo ? 'selected' : ''}>Sexo</option>
+          <option value="M" ${m.sexo === 'M' ? 'selected' : ''}>Homem</option>
+          <option value="F" ${m.sexo === 'F' ? 'selected' : ''}>Mulher</option>
+        </select>
+        <input type="checkbox" class="tp-chk" data-pi="${pi}" data-mi="${mi}" ${m.participa ? 'checked' : ''} onchange="onToggleParticipaTestemunho(this)" title="Participa do testemunho público">
+      </div>`;
+    });
+  });
+  box.innerHTML = html;
+}
+function onChangeSexoPublicador(el) {
+  const p = publicadoresData[parseInt(el.dataset.pi, 10)];
+  if (!p) return;
+  getMembrosDetalhe(p)[parseInt(el.dataset.mi, 10)].sexo = el.value;
+  saveState();
+}
+function onToggleParticipaTestemunho(el) {
+  const p = publicadoresData[parseInt(el.dataset.pi, 10)];
+  if (!p) return;
+  getMembrosDetalhe(p)[parseInt(el.dataset.mi, 10)].participa = el.checked;
+  saveState();
+  const contador = document.querySelector('#testemunhoResults .tp-section-title span');
+  if (contador) contador.textContent = listaParticipantesTestemunho().length + ' marcados';
+}
+
+async function addCarrinhoPrompt() {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode adicionar pontos'); return; }
+  const nome = prompt('Nome/referência do ponto do carrinho:'); if (!nome) return;
+  const endereco = prompt('Endereço:', '') || '';
+  let pos = null;
+  if (endereco) { showSnack('📍 Localizando endereço...', 4000); pos = await geocode(endereco); }
+  carrinhosData.push({ nome, endereco, lat: pos ? pos.lat : null, lng: pos ? pos.lng : null });
+  renderTestemunhoPontos(); saveState(); logActivity('🛒 adicionou ponto de carrinho: ' + nome);
+  showSnack('✓ Ponto adicionado');
+}
+function renderTestemunhoPontos() {
+  const box = document.getElementById('tpPontos');
+  if (!box) return;
+  if (!carrinhosData.length) { box.innerHTML = '<div class="tp-empty">Nenhum ponto cadastrado ainda.</div>'; return; }
+  box.innerHTML = carrinhosData.map((c, i) => `
+    <div class="tp-row">
+      <span class="tp-name"><b>${escapeHtml(c.nome)}</b>${c.endereco ? '<br><span style="color:var(--text2);font-size:0.72rem;">' + escapeHtml(c.endereco) + '</span>' : ''}</span>
+      ${c.lat ? `<a class="tp-btn-sm" style="text-decoration:none;" href="https://www.google.com/maps?q=${c.lat},${c.lng}" target="_blank">🗺 Ver</a>` : ''}
+      <button class="tp-btn-del" onclick="removerCarrinho(${i})">🗑</button>
+    </div>`).join('');
+}
+function removerCarrinho(i) {
+  if (!isAdmin) return;
+  if (!carrinhosData[i]) return;
+  if (!confirm('Remover este ponto de carrinho? As designações que usam este ponto continuarão com o nome antigo.')) return;
+  const nome = carrinhosData[i].nome;
+  carrinhosData.splice(i, 1);
+  renderTestemunhoPontos(); saveState();
+  logActivity('🗑 removeu ponto de carrinho: ' + nome);
+}
+
+function addDesignacaoPrompt() {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar a escala'); return; }
+  if (!carrinhosData.length) { showSnack('Cadastre um ponto de carrinho primeiro'); return; }
+  const opcoes = carrinhosData.map((c, i) => `${i + 1} - ${c.nome}`).join('\n');
+  const idxStr = prompt('Qual ponto?\n' + opcoes);
+  const idx = parseInt(idxStr, 10) - 1;
+  if (isNaN(idx) || !carrinhosData[idx]) return;
+  const dia = prompt('Dia (ex: Sábado, ou 05/08):', ''); if (!dia) return;
+  const horario = prompt('Horário (ex: 09:00 às 11:00):', '') || '';
+  designacoesData.push({ id: 'd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7), mesAno: _tpMesAno, ponto: carrinhosData[idx].nome, dia, horario, pessoa1: '', pessoa2: '' });
+  renderTestemunhoEscala(); saveState();
+}
+
+function renderTestemunhoEscala() {
+  const wrap = document.getElementById('tpEscalaWrap');
+  if (!wrap) return;
+  const itens = designacoesData.filter(d => d.mesAno === _tpMesAno);
+  if (!itens.length) { wrap.innerHTML = '<div class="tp-empty" style="padding:0 14px 14px;">Nenhum horário cadastrado para este mês ainda.</div>'; return; }
+  const participantes = listaParticipantesTestemunho();
+  const opcoesPessoas = nomeAtual => `<option value="">—</option>` + participantes.map(p => `<option value="${escapeHtml(p.nome)}" ${p.nome === nomeAtual ? 'selected' : ''}>${escapeHtml(p.nome)}</option>`).join('');
+  wrap.innerHTML = `<div class="tp-table-wrap"><table class="tp-table" id="tpTabelaImg">
+    <thead><tr><th>Ponto</th><th>Dia</th><th>Horário</th><th>Dupla</th><th></th></tr></thead>
+    <tbody>
+    ${itens.map(d => {
+      const idx = designacoesData.indexOf(d);
+      return `<tr>
+        <td>${escapeHtml(d.ponto)}</td>
+        <td>${escapeHtml(d.dia)}</td>
+        <td>${escapeHtml(d.horario)}</td>
+        <td>
+          <select onchange="setDesignacaoPessoa(${idx},1,this.value)">${opcoesPessoas(d.pessoa1)}</select>
+          <select onchange="setDesignacaoPessoa(${idx},2,this.value)">${opcoesPessoas(d.pessoa2)}</select>
+        </td>
+        <td><button class="tp-btn-del" onclick="removerDesignacao(${idx})">🗑</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
+}
+function setDesignacaoPessoa(idx, qual, valor) {
+  if (!designacoesData[idx]) return;
+  designacoesData[idx]['pessoa' + qual] = valor;
+  saveState();
+}
+function removerDesignacao(idx) {
+  if (!isAdmin) return;
+  designacoesData.splice(idx, 1);
+  renderTestemunhoEscala(); saveState();
+}
+
+// Monta duplas: mesmo grupo + mesmo sexo primeiro; sobras do mesmo sexo entre
+// grupos diferentes em seguida; o que sobrar (sexo não informado, ou ímpar) vai sozinho.
+function gerarDuplasAutomaticas() {
+  const participantes = listaParticipantesTestemunho();
+  const buckets = {};
+  participantes.forEach(p => { const key = p.grupo + '|' + (p.sexo || '?'); (buckets[key] = buckets[key] || []).push(p); });
+  const duplas = [];
+  const sobras = { M: [], F: [], '?': [] };
+  Object.values(buckets).forEach(lista => {
+    const arr = lista.slice();
+    while (arr.length >= 2) duplas.push([arr.pop(), arr.pop()]);
+    if (arr.length === 1) sobras[arr[0].sexo || '?'].push(arr[0]);
+  });
+  ['M', 'F'].forEach(sx => { while (sobras[sx].length >= 2) duplas.push([sobras[sx].pop(), sobras[sx].pop()]); });
+  const solos = [...sobras.M, ...sobras.F, ...sobras['?']];
+  return { duplas, solos };
+}
+function gerarDesignacaoAutomatica() {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode gerar a designação'); return; }
+  const itens = designacoesData.filter(d => d.mesAno === _tpMesAno);
+  if (!itens.length) { showSnack('Cadastre os horários deste mês primeiro'); return; }
+  const { duplas, solos } = gerarDuplasAutomaticas();
+  const pool = [...duplas.map(d => [d[0].nome, d[1].nome]), ...solos.map(s => [s.nome, ''])];
+  if (!pool.length) { showSnack('Marque publicadores como participantes (com sexo definido) primeiro'); return; }
+  let i = 0;
+  itens.forEach(d => { const dupla = pool[i % pool.length]; d.pessoa1 = dupla[0]; d.pessoa2 = dupla[1]; i++; });
+  renderTestemunhoEscala(); saveState();
+  logActivity('🤖 gerou designação automática do testemunho público (' + _tpMesAno + ')');
+  showSnack(`✓ Designação gerada — ${duplas.length} dupla(s)${solos.length ? ', ' + solos.length + ' sozinho(s) por falta de par' : ''}`);
+}
+async function baixarTestemunhoImagem() {
+  if (typeof html2canvas === 'undefined') { showSnack('❌ Recurso de captura não carregado. Verifique sua internet.'); return; }
+  const el = document.getElementById('tpTabelaImg');
+  if (!el) { showSnack('Cadastre a escala deste mês antes de baixar'); return; }
+  showSnack('📊 Gerando imagem da escala...', 6000);
+  try {
+    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', useCORS: true, scale: 2 });
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl; a.download = `testemunho-publico-${_tpMesAno}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    showSnack('✓ Tabela baixada');
+  } catch (e) { console.error(e); showSnack('❌ Não foi possível gerar a imagem'); }
+}
+
+// ══════════════════════════════════════════════
+// CONTROLE DE CARTAS — COMÉRCIOS E PRÉDIOS
+// ══════════════════════════════════════════════
+function ensureCarta(item) {
+  if (!item.carta) item.carta = { status: 'pendente', data: '', obs: '' };
+  return item.carta;
+}
+let _cartasFiltro = 'todos';
+function openCartasOverlay() {
+  document.getElementById('cartasOverlay').classList.add('show');
+  document.getElementById('cartasSearchInput').value = '';
+  renderCartasFilterbar();
+  renderCartasList();
+}
+function closeCartasOverlay() { document.getElementById('cartasOverlay').classList.remove('show'); }
+function renderCartasFilterbar() {
+  const box = document.getElementById('cartasFilterbar');
+  const opcoes = [['todos', 'Todos'], ['comercios', '🏪 Comércios'], ['predios', '🏢 Prédios'], ['pendente', '⏳ Pendente'], ['entregue', '✅ Entregue'], ['recusou', '🚫 Recusou']];
+  box.innerHTML = opcoes.map(([k, l]) => `<button class="${_cartasFiltro === k ? 'active' : ''}" onclick="setCartasFiltro('${k}')">${l}</button>`).join('');
+}
+function setCartasFiltro(k) { _cartasFiltro = k; renderCartasFilterbar(); renderCartasList(); }
+function listaCartasItens() {
+  const arr = [];
+  comerciosData.forEach(c => arr.push({ item: c, tipo: 'comercio' }));
+  condominiosData.forEach(c => arr.push({ item: c, tipo: 'predio' }));
+  return arr;
+}
+function renderCartasList() {
+  const box = document.getElementById('cartasResults');
+  const search = (document.getElementById('cartasSearchInput').value || '').toLowerCase();
+  let arr = listaCartasItens();
+  if (_cartasFiltro === 'comercios') arr = arr.filter(x => x.tipo === 'comercio');
+  else if (_cartasFiltro === 'predios') arr = arr.filter(x => x.tipo === 'predio');
+  else if (['pendente', 'entregue', 'recusou'].includes(_cartasFiltro)) arr = arr.filter(x => ensureCarta(x.item).status === _cartasFiltro);
+  if (search) arr = arr.filter(x => (x.item.nome || '').toLowerCase().includes(search) || (x.item.endereco || '').toLowerCase().includes(search));
+
+  const todos = listaCartasItens();
+  const entregues = todos.filter(x => ensureCarta(x.item).status === 'entregue').length;
+  document.getElementById('cartasResumo').textContent = `${entregues} de ${todos.length} com carta entregue`;
+
+  if (!arr.length) { box.innerHTML = '<div class="empty-msg"><strong>✉️</strong>Nenhum item encontrado</div>'; return; }
+  box.innerHTML = arr.map(x => {
+    const c = ensureCarta(x.item);
+    const gid = x.tipo + '_' + (x.tipo === 'comercio' ? comerciosData.indexOf(x.item) : condominiosData.indexOf(x.item));
+    return `<div class="cartas-item">
+      <div class="ci-head"><span class="ci-nome">${escapeHtml(x.item.nome)}</span><span class="ci-tag">${x.tipo === 'comercio' ? '🏪 Comércio' : '🏢 Prédio'}</span></div>
+      <div class="ci-end">${escapeHtml(x.item.endereco || '')}</div>
+      <div class="ci-row">
+        <select class="ci-status status-${c.status}" onchange="setCartaField('${gid}','status',this.value)">
+          <option value="pendente" ${c.status === 'pendente' ? 'selected' : ''}>⏳ Pendente</option>
+          <option value="entregue" ${c.status === 'entregue' ? 'selected' : ''}>✅ Entregue</option>
+          <option value="recusou" ${c.status === 'recusou' ? 'selected' : ''}>🚫 Recusou</option>
+        </select>
+        <input type="date" class="ci-data" value="${c.data || ''}" onchange="setCartaField('${gid}','data',this.value)">
+      </div>
+      <input type="text" class="ci-obs" placeholder="Observação..." value="${escapeHtml(c.obs || '')}" onchange="setCartaField('${gid}','obs',this.value)">
+    </div>`;
+  }).join('');
+}
+function findCartaItemByGid(gid) {
+  const sep = gid.indexOf('_');
+  const tipo = gid.slice(0, sep), idx = parseInt(gid.slice(sep + 1), 10);
+  return tipo === 'comercio' ? comerciosData[idx] : condominiosData[idx];
+}
+function setCartaField(gid, field, value) {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar'); renderCartasList(); return; }
+  const item = findCartaItemByGid(gid);
+  if (!item) return;
+  ensureCarta(item)[field] = value;
+  saveState();
+  if (field === 'status') renderCartasList();
 }
 
 initFirebaseAuth();
