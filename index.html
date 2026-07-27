@@ -16,6 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.7"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -78,6 +79,13 @@ body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-conten
 .tp-row:last-child{border-bottom:none;}
 .tp-row .tp-name{flex:1;min-width:0;}
 .tp-row select, .tp-row input[type=text]{font-size:0.8rem;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
+.tp-part-row{padding:10px 0;border-bottom:1px solid var(--border);}
+.tp-part-row:last-child{border-bottom:none;}
+.tp-part-top{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.tp-part-top .tp-name{flex:1;min-width:0;font-size:0.84rem;font-weight:600;}
+.tp-part-bottom{display:flex;align-items:center;gap:10px;padding-left:2px;}
+.tp-part-bottom select{flex:0 1 140px;font-size:0.8rem;padding:7px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
+.tp-part-bottom .tp-part-chklabel{display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text2);}
 .tp-chk{width:20px;height:20px;flex-shrink:0;}
 .tp-btn-sm{background:var(--md-primary-light);color:var(--purple);border-radius:8px;padding:7px 11px;font-size:0.76rem;font-weight:700;white-space:nowrap;border:none;}
 .tp-btn-edit{color:var(--purple);font-size:0.95rem;padding:4px 6px;flex-shrink:0;border:none;background:none;}
@@ -89,7 +97,7 @@ body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-conten
 .tp-filterbar .tp-sexo-btns button:last-child{border-right:none;}
 .tp-filterbar .tp-sexo-btns button.active{background:var(--purple);color:#fff;}
 .tp-addform{display:grid;grid-template-columns:1fr;gap:8px;background:var(--md-surface-variant);padding:12px;border-radius:12px;margin-bottom:12px;}
-.tp-addform-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.tp-addform-row{display:grid;grid-template-columns:1fr;gap:8px;}
 .tp-addform label{font-size:0.68rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.03em;display:block;margin-bottom:3px;}
 .tp-addform select{width:100%;font-size:0.82rem;padding:8px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
 .tp-addform .tp-btn-sm{width:100%;text-align:center;padding:10px;font-size:0.8rem;}
@@ -1040,7 +1048,7 @@ body.no-anim .leaflet-zoom-animated{
   <div class="search-overlay-header">
     <button class="icon-btn" onclick="closeTestemunhoOverlay()" style="color:var(--text);">←</button>
     <div style="font-weight:700;font-size:0.95rem;flex:1;">🛒 Testemunho público</div>
-    <button class="icon-btn" onclick="baixarTestemunhoImagem()" title="Baixar tabela como imagem" style="color:var(--text);">⬇️</button>
+    <button class="icon-btn" onclick="baixarTestemunhoImagem()" title="Baixar relatório em PDF" style="color:var(--text);">⬇️</button>
   </div>
   <div class="search-overlay-results" id="testemunhoResults" style="background:var(--bg)"></div>
 </div>
@@ -2397,9 +2405,9 @@ function wireCartaoBlock(card, qd, rerenderFn) {
   });
 }
 
-// ── CONTROLE DE CARTAS (condomínios) ──
+// ── CONTROLE DE CARTAS (condomínios e comércios) ──
 function totalCartasGeral() {
-  return condominiosData.reduce((s,c)=> s + ((c.cartas||[]).reduce((s2,r)=> s2 + (r.qtd||0), 0)), 0);
+  return [...condominiosData, ...comerciosData].reduce((s,c)=> s + ((c.cartas||[]).reduce((s2,r)=> s2 + (r.qtd||0), 0)), 0);
 }
 function totalCartasCondo(c) {
   return (c.cartas||[]).reduce((s,r)=> s + (r.qtd||0), 0);
@@ -2415,7 +2423,7 @@ function cartasListHTML(c) {
 function cartasBlockHTML(c) {
   const total = totalCartasCondo(c);
   const today = new Date().toISOString().slice(0,10);
-  return `<div class="card-label">📇 Controle de cartas${total ? `<span class="cartas-total">${total} no total</span>` : ''}</div><div class="cartas-list" data-cartas-list>${cartasListHTML(c)}</div><div class="card-row cartas-add-row"><input type="date" class="cartas-input-data" value="${today}"><input type="number" min="1" class="cartas-input-qtd" placeholder="Qtd" value="1"><button type="button" class="btn-action btn-cartas-add">＋ Add</button></div>`;
+  return `<div class="card-label">📇 Histórico de entregas${total ? `<span class="cartas-total">${total} no total</span>` : ''}</div><div class="cartas-list" data-cartas-list>${cartasListHTML(c)}</div><div class="card-row cartas-add-row"><input type="date" class="cartas-input-data" value="${today}"><input type="number" min="1" class="cartas-input-qtd" placeholder="Qtd" value="1"><button type="button" class="btn-action btn-cartas-add">＋ Add</button></div>`;
 }
 function wireCartasBlock(card, c, rerenderFn) {
   const addBtn = card.querySelector('.btn-cartas-add');
@@ -3871,17 +3879,17 @@ function renderList() {
     const items=condominiosData.filter(c=>!q||(c.nome+' '+c.endereco).toLowerCase().includes(q));
     if (!items.length) { box.innerHTML='<div class="empty-msg"><strong>🏢</strong>Nenhum condomínio encontrado</div>'; return; }
     const totalGeral = totalCartasGeral();
-    const comCartas = condominiosData.map(c=>({c,total:totalCartasCondo(c)})).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
+    const comCartas = [...condominiosData.map(c=>({c,tag:'🏢',total:totalCartasCondo(c)})), ...comerciosData.map(c=>({c,tag:'🏪',total:totalCartasCondo(c)}))].filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
     const resumo=document.createElement('div'); resumo.className='card'; resumo.style.borderLeftColor='var(--purple)';
-    resumo.innerHTML = `<div class="card-header"><div class="card-avatar" style="background:#5b2c8320"><span style="font-size:18px">📇</span></div><div><div class="card-name">Cartas — Resumo geral</div><div class="card-sub">${totalGeral} carta${totalGeral==1?'':'s'} no total, em ${comCartas.length} condomínio${comCartas.length==1?'':'s'}</div></div></div>${comCartas.length?`<div class="cartas-list">${comCartas.map(x=>`<div class="cartas-item"><div class="cartas-item-info"><span>🏢 ${escapeHtml(x.c.nome)}</span></div><span class="cartas-item-qtd">${x.total}</span></div>`).join('')}</div>`:'<div class="cartas-empty">Nenhuma carta registrada ainda</div>'}`;
+    resumo.innerHTML = `<div class="card-header"><div class="card-avatar" style="background:#5b2c8320"><span style="font-size:18px">📇</span></div><div><div class="card-name">Cartas — Resumo geral</div><div class="card-sub">${totalGeral} carta${totalGeral==1?'':'s'} no total, em ${comCartas.length} local${comCartas.length==1?'':'is'}</div></div></div>${comCartas.length?`<div class="cartas-list">${comCartas.map(x=>`<div class="cartas-item"><div class="cartas-item-info"><span>${x.tag} ${escapeHtml(x.c.nome)}</span></div><span class="cartas-item-qtd">${x.total}</span></div>`).join('')}</div>`:'<div class="cartas-empty">Nenhuma carta registrada ainda</div>'}<div class="card-actions"><button class="btn-action btn-abrir-controle-cartas" style="background:var(--md-primary-light);color:var(--purple)">📇 Abrir controle de cartas</button></div>`;
+    resumo.querySelector('.btn-abrir-controle-cartas').onclick = () => openCartasOverlay();
     box.appendChild(resumo);
     items.forEach(c=>{
       const card=document.createElement('div'); card.className='card'; card.style.borderLeftColor=c.cor||'#364fc7';
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:#364fc720">${avatarHTML(c,'🏢')}</div><div><div class="card-name">${escapeHtml(c.nome)}</div><div class="card-sub">${escapeHtml(c.endereco)}</div></div></div>${photoBlockHTML(c)}<div class="card-label">Nome</div><div class="card-row"><input type="text" data-f="nome" value="${escapeHtml(c.nome)}"></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${escapeHtml(c.endereco)}"></div><div class="geo-status" data-geo-status></div>${cartasBlockHTML(c)}<div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:#364fc720">${avatarHTML(c,'🏢')}</div><div><div class="card-name">${escapeHtml(c.nome)}</div><div class="card-sub">${escapeHtml(c.endereco)}</div></div></div>${photoBlockHTML(c)}<div class="card-label">Nome</div><div class="card-row"><input type="text" data-f="nome" value="${escapeHtml(c.nome)}"></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${escapeHtml(c.endereco)}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div>`;
       wireDirty(card);
       wirePhotoBlock(card,c,renderCondominios);
       wireStreetView(card,c);
-      wireCartasBlock(card,c,renderCondominios);
       card.querySelector('.btn-save-card').onclick=async()=>{if(!isAdmin)return; const btn=card.querySelector('.btn-save-card'); const st=card.querySelector('[data-geo-status]'); btn.disabled=true; c.nome=card.querySelector('[data-f="nome"]').value; const ne=card.querySelector('[data-f="endereco"]').value; if(ne&&ne!==c.endereco){btn.textContent='Localizando...'; const res=await geocode(ne); if(res){c.lat=res.lat;c.lng=res.lng;st.className='geo-status ok';st.textContent='✓ Localizado';} else{st.className='geo-status fail';st.textContent='✗ Não encontrado';}} else st.textContent=''; c.endereco=ne; renderCondominios(); finishSave(card);};
       card.querySelector('.btn-locate').onclick=()=>focusItem(c);
       card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover?')) return; const idx=condominiosData.indexOf(c); if(idx>-1){ condominiosData.splice(idx,1); pushUndo({type:'condominio',data:c,index:idx,label:c.nome}); logActivity('🗑 removeu o condomínio '+c.nome); } renderCondominios(); renderList(); showSnack('🗑 Condomínio removido', 6000, undoLast);};
@@ -4444,15 +4452,19 @@ function renderTestemunhoParticipantes() {
     getMembrosDetalhe(p).forEach((m, mi) => {
       if (_tpFiltroSexo && m.sexo !== _tpFiltroSexo) return;
       visiveis++;
-      html += `<div class="tp-row">
-        <span class="tp-badge-grupo" style="background:${cor}">${escapeHtml(p.grupo || '')}</span>
-        <span class="tp-name">${escapeHtml(m.nome)}</span>
-        <select data-pi="${pi}" data-mi="${mi}" onchange="onChangeSexoPublicador(this)">
-          <option value="" ${!m.sexo ? 'selected' : ''}>Sexo</option>
-          <option value="M" ${m.sexo === 'M' ? 'selected' : ''}>Irmão</option>
-          <option value="F" ${m.sexo === 'F' ? 'selected' : ''}>Irmã</option>
-        </select>
-        <input type="checkbox" class="tp-chk" data-pi="${pi}" data-mi="${mi}" ${m.participa ? 'checked' : ''} onchange="onToggleParticipaTestemunho(this)" title="Participa do testemunho público">
+      html += `<div class="tp-part-row">
+        <div class="tp-part-top">
+          <span class="tp-badge-grupo" style="background:${cor}">${escapeHtml(p.grupo || '')}</span>
+          <span class="tp-name">${escapeHtml(m.nome)}</span>
+        </div>
+        <div class="tp-part-bottom">
+          <select data-pi="${pi}" data-mi="${mi}" onchange="onChangeSexoPublicador(this)">
+            <option value="" ${!m.sexo ? 'selected' : ''}>Sexo</option>
+            <option value="M" ${m.sexo === 'M' ? 'selected' : ''}>Irmão</option>
+            <option value="F" ${m.sexo === 'F' ? 'selected' : ''}>Irmã</option>
+          </select>
+          <label class="tp-part-chklabel"><input type="checkbox" class="tp-chk" data-pi="${pi}" data-mi="${mi}" ${m.participa ? 'checked' : ''} onchange="onToggleParticipaTestemunho(this)"> Participa</label>
+        </div>
       </div>`;
     });
   });
@@ -4636,38 +4648,65 @@ function gerarDesignacaoAutomatica() {
   showSnack(`✓ Designação gerada — ${duplas.length} dupla(s)${solos.length ? ', ' + solos.length + ' sozinho(s) por falta de par' : ''}`);
 }
 async function baixarTestemunhoImagem() {
-  if (typeof html2canvas === 'undefined') { showSnack('❌ Recurso de captura não carregado. Verifique sua internet.'); return; }
+  if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') { showSnack('❌ Recurso de PDF não carregado. Verifique sua internet.'); return; }
   const el = document.getElementById('tpRelatorioCard');
   if (!el) { showSnack('Cadastre a escala deste mês antes de baixar'); return; }
-  showSnack('📊 Gerando imagem do relatório...', 6000);
+  showSnack('📄 Gerando PDF do relatório...', 6000);
   try {
     const canvas = await html2canvas(el, {
       backgroundColor: '#ffffff', useCORS: true, scale: 2,
       onclone: doc => { doc.querySelectorAll('.no-print').forEach(n => { n.style.display = 'none'; }); }
     });
-    const dataUrl = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl; a.download = `testemunho-publico-${_tpMesAno}.png`;
-    document.body.appendChild(a); a.click(); a.remove();
-    showSnack('✓ Relatório baixado');
-  } catch (e) { console.error(e); showSnack('❌ Não foi possível gerar a imagem'); }
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 8;
+    const usableW = pageW - margin * 2;
+    const imgH = canvas.height * (usableW / canvas.width);
+    const imgData = canvas.toDataURL('image/png');
+    if (imgH <= pageH - margin * 2) {
+      pdf.addImage(imgData, 'PNG', margin, margin, usableW, imgH);
+    } else {
+      // Relatório mais alto que uma página: fatia em blocos de página
+      const pageUsableH = pageH - margin * 2;
+      const pxPerMm = canvas.width / usableW;
+      const sliceHpx = Math.floor(pageUsableH * pxPerMm);
+      let y = 0, first = true;
+      while (y < canvas.height) {
+        const h = Math.min(sliceHpx, canvas.height - y);
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = canvas.width; sliceCanvas.height = h;
+        sliceCanvas.getContext('2d').drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+        const sliceData = sliceCanvas.toDataURL('image/png');
+        if (!first) pdf.addPage();
+        pdf.addImage(sliceData, 'PNG', margin, margin, usableW, h / pxPerMm);
+        y += h; first = false;
+      }
+    }
+    pdf.save(`testemunho-publico-${_tpMesAno}.pdf`);
+    showSnack('✓ PDF baixado');
+  } catch (e) { console.error(e); showSnack('❌ Não foi possível gerar o PDF'); }
 }
 
 // ══════════════════════════════════════════════
 // CONTROLE DE CARTAS — COMÉRCIOS E PRÉDIOS
 // ══════════════════════════════════════════════
 function ensureCarta(item) {
-  if (!item.carta) item.carta = { status: 'pendente', data: '', obs: '', qtd: 1 };
-  if (item.carta.qtd == null) item.carta.qtd = 1;
+  if (!item.carta) item.carta = { status: 'pendente', obs: '' };
   return item.carta;
 }
 function cartaInfoBadge(item) {
-  if (!item.carta) return '';
   const c = item.carta;
-  const statusLabel = { pendente: '⏳ Pendente', entregue: '✅ Entregue', recusou: '🚫 Recusou' }[c.status] || '';
-  const qtdLabel = c.qtd ? `${c.qtd} carta${c.qtd == 1 ? '' : 's'}` : '';
-  if (!statusLabel && !qtdLabel) return '';
-  return `<br><span style="font-size:0.74rem;color:#5f6368;">✉️ ${qtdLabel}${qtdLabel && statusLabel ? ' · ' : ''}${statusLabel}</span>`;
+  const statusLabel = c ? ({ pendente: '⏳ Pendente', entregue: '✅ Entregue', recusou: '🚫 Recusou' }[c.status] || '') : '';
+  const hist = (item.cartas || []).slice().sort((a, b) => b.data.localeCompare(a.data));
+  const total = hist.reduce((s, r) => s + (r.qtd || 0), 0);
+  if (!statusLabel && !hist.length) return '';
+  const linhas = hist.slice(0, 5).map(r => { const [y, m, d] = r.data.split('-'); return `${d}/${m}/${y} — ${r.qtd} carta${r.qtd == 1 ? '' : 's'}`; }).join('<br>');
+  return `<div style="margin-top:6px;font-size:0.74rem;color:#5f6368;">
+    ${statusLabel ? '✉️ ' + statusLabel + (total ? ' · ' + total + ' no total' : '') + '<br>' : (total ? '✉️ ' + total + ' carta' + (total == 1 ? '' : 's') + ' no total<br>' : '')}
+    ${linhas ? '<span style="font-size:0.72rem;">' + linhas + '</span>' : ''}
+  </div>`;
 }
 let _cartasFiltro = 'todos';
 function openCartasOverlay() {
@@ -4700,40 +4739,40 @@ function renderCartasList() {
 
   const todos = listaCartasItens();
   const entregues = todos.filter(x => ensureCarta(x.item).status === 'entregue').length;
-  const totalCartas = todos.reduce((s, x) => s + (ensureCarta(x.item).qtd || 0), 0);
+  const totalCartas = totalCartasGeral();
   document.getElementById('cartasResumo').textContent = `${entregues} de ${todos.length} com carta entregue · ${totalCartas} carta${totalCartas == 1 ? '' : 's'} no total`;
 
+  box.innerHTML = '';
   if (!arr.length) { box.innerHTML = '<div class="empty-msg"><strong>✉️</strong>Nenhum item encontrado</div>'; return; }
-  box.innerHTML = arr.map(x => {
+  arr.forEach(x => {
     const c = ensureCarta(x.item);
     const gid = x.tipo + '_' + (x.tipo === 'comercio' ? comerciosData.indexOf(x.item) : condominiosData.indexOf(x.item));
-    return `<div class="carta-card">
+    const card = document.createElement('div');
+    card.className = 'carta-card';
+    card.innerHTML = `
       <div class="ci-head"><span class="ci-nome">${escapeHtml(x.item.nome)}</span><span class="ci-tag">${x.tipo === 'comercio' ? '🏪 Comércio' : '🏢 Prédio'}</span></div>
       <div class="ci-end">${escapeHtml(x.item.endereco || '')}</div>
-      <div class="ci-row-3">
+      <div class="ci-row">
         <div class="ci-field">
           <label>Status da carta</label>
-          <select class="ci-status status-${c.status}" onchange="setCartaField('${gid}','status',this.value)">
+          <select class="ci-status status-${c.status}" data-f="status">
             <option value="pendente" ${c.status === 'pendente' ? 'selected' : ''}>⏳ Pendente</option>
             <option value="entregue" ${c.status === 'entregue' ? 'selected' : ''}>✅ Entregue</option>
             <option value="recusou" ${c.status === 'recusou' ? 'selected' : ''}>🚫 Recusou</option>
           </select>
         </div>
         <div class="ci-field">
-          <label>Qtd. cartas</label>
-          <input type="number" min="0" class="ci-qtd" value="${c.qtd != null ? c.qtd : 1}" onchange="setCartaField('${gid}','qtd',this.value)">
-        </div>
-        <div class="ci-field">
-          <label>Data</label>
-          <input type="date" class="ci-data" value="${c.data || ''}" onchange="setCartaField('${gid}','data',this.value)">
+          <label>Observação</label>
+          <input type="text" class="ci-obs" placeholder="Observação..." data-f="obs" value="${escapeHtml(c.obs || '')}">
         </div>
       </div>
-      <div class="ci-field">
-        <label>Observação</label>
-        <input type="text" class="ci-obs" placeholder="Observação..." value="${escapeHtml(c.obs || '')}" onchange="setCartaField('${gid}','obs',this.value)">
-      </div>
-    </div>`;
-  }).join('');
+      ${cartasBlockHTML(x.item)}
+    `;
+    card.querySelector('[data-f="status"]').onchange = e => setCartaField(gid, 'status', e.target.value);
+    card.querySelector('[data-f="obs"]').onchange = e => setCartaField(gid, 'obs', e.target.value);
+    wireCartasBlock(card, x.item, renderCartasList);
+    box.appendChild(card);
+  });
 }
 function findCartaItemByGid(gid) {
   const sep = gid.indexOf('_');
@@ -4744,9 +4783,9 @@ function setCartaField(gid, field, value) {
   if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar'); renderCartasList(); return; }
   const item = findCartaItemByGid(gid);
   if (!item) return;
-  ensureCarta(item)[field] = field === 'qtd' ? Math.max(0, parseInt(value, 10) || 0) : value;
+  ensureCarta(item)[field] = value;
   saveState();
-  if (field === 'status' || field === 'qtd') renderCartasList();
+  if (field === 'status') renderCartasList();
 }
 
 initFirebaseAuth();
