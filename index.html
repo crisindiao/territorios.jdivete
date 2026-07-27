@@ -1857,10 +1857,28 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     try {
       const { db, doc, onSnapshot } = window._fb;
       const docId = currentTerritoryConfig ? currentTerritoryConfig.docId : "dados";
+
+      // IMPORTANTE: esperamos o PRIMEIRO snapshot real do servidor antes de deixar
+      // o resto do app (ex.: seedConceicaoComerciosCondominios, telas, etc.) seguir em frente.
+      // Sem isso, código que roda logo após "await loadState()" pode enxergar apenas o
+      // cache local (desatualizado/vazio) e, ao salvar, sobrescrever no Firestore dados
+      // recém-criados em outro dispositivo (ex.: uma quadra criada no PC "sumindo" no celular).
+      let resolveFirstSnapshot;
+      const firstSnapshotPromise = new Promise(res => { resolveFirstSnapshot = res; });
+      let firstSnapshotSettled = false;
+      // Timeout de segurança: se a conexão estiver ruim e o Firestore não responder,
+      // não travamos o app pra sempre — seguimos com o que tiver (cache local).
+      const safetyTimeout = setTimeout(() => {
+        if (!firstSnapshotSettled) { firstSnapshotSettled = true; resolveFirstSnapshot(); }
+      }, 6000);
+
       firestoreUnsubscribe = onSnapshot(doc(db, "territorio", docId), (snap) => {
         // Ignora o "eco" da nossa própria escrita otimista local (evita piscar/loop)
         if (snap.metadata && snap.metadata.hasPendingWrites) return;
-        if (!snap.exists()) return;
+        if (!snap.exists()) {
+          if (!firstSnapshotSettled) { firstSnapshotSettled = true; clearTimeout(safetyTimeout); resolveFirstSnapshot(); }
+          return;
+        }
         const saved = snap.data();
         if (Array.isArray(saved.quadrasData)) {
           saved.quadrasData = saved.quadrasData.map(qd => ({ ...qd, coords: coordsFromFirestore(qd.coords) }));
@@ -1876,7 +1894,15 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
         } finally {
           applyingRemoteUpdate = false;
         }
-      }, (err) => { console.error('Falha na sincronização em tempo real:', err); });
+        if (!firstSnapshotSettled) { firstSnapshotSettled = true; clearTimeout(safetyTimeout); resolveFirstSnapshot(); }
+      }, (err) => {
+        console.error('Falha na sincronização em tempo real:', err);
+        if (!firstSnapshotSettled) { firstSnapshotSettled = true; clearTimeout(safetyTimeout); resolveFirstSnapshot(); }
+      });
+
+      // Só liberamos loadState() (e quem chamou "await loadState()") depois que os
+      // dados reais do servidor chegaram (ou o timeout de segurança estourou).
+      await firstSnapshotPromise;
     } catch(e) { console.error('Falha ao conectar ao Firebase:', e); }
   }
 
