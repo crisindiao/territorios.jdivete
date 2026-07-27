@@ -71,33 +71,58 @@ body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-conten
 .popup-act-btn.full{grid-column:1 / -1;}
 .card-highlight{animation:card-flash 1.8s ease;}
 /* ── TESTEMUNHO PÚBLICO / CARTAS ── */
-.tp-section{padding:12px 14px;border-bottom:1px solid var(--border);}
-.tp-section-title{font-weight:700;font-size:0.88rem;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
-.tp-hint{font-size:0.74rem;color:var(--text2);margin-bottom:8px;}
-.tp-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.82rem;}
+.tp-section{padding:14px 16px;border-bottom:1px solid var(--border);}
+.tp-section-title{font-weight:700;font-size:0.9rem;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.tp-hint{font-size:0.74rem;color:var(--text2);margin-bottom:10px;line-height:1.4;}
+.tp-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);font-size:0.82rem;}
 .tp-row:last-child{border-bottom:none;}
 .tp-row .tp-name{flex:1;min-width:0;}
 .tp-row select, .tp-row input[type=text]{font-size:0.8rem;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
 .tp-chk{width:20px;height:20px;flex-shrink:0;}
-.tp-btn-sm{background:var(--md-primary-light);color:var(--purple);border-radius:8px;padding:6px 10px;font-size:0.76rem;font-weight:700;white-space:nowrap;}
-.tp-btn-del{color:var(--error);font-size:1rem;padding:4px 6px;flex-shrink:0;}
+.tp-btn-sm{background:var(--md-primary-light);color:var(--purple);border-radius:8px;padding:7px 11px;font-size:0.76rem;font-weight:700;white-space:nowrap;border:none;}
+.tp-btn-edit{color:var(--purple);font-size:0.95rem;padding:4px 6px;flex-shrink:0;border:none;background:none;}
+.tp-btn-del{color:var(--error);font-size:1rem;padding:4px 6px;flex-shrink:0;border:none;background:none;}
+.tp-filterbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.tp-filterbar select{font-size:0.78rem;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
+.tp-filterbar .tp-sexo-btns{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.tp-filterbar .tp-sexo-btns button{border:none;background:var(--surface);color:var(--text2);font-size:0.76rem;font-weight:600;padding:7px 12px;border-right:1px solid var(--border);}
+.tp-filterbar .tp-sexo-btns button:last-child{border-right:none;}
+.tp-filterbar .tp-sexo-btns button.active{background:var(--purple);color:#fff;}
+.tp-addform{display:grid;grid-template-columns:1fr;gap:8px;background:var(--md-surface-variant);padding:12px;border-radius:12px;margin-bottom:12px;}
+.tp-addform-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.tp-addform label{font-size:0.68rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.03em;display:block;margin-bottom:3px;}
+.tp-addform select{width:100%;font-size:0.82rem;padding:8px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
+.tp-addform .tp-btn-sm{width:100%;text-align:center;padding:10px;font-size:0.8rem;}
+.tp-report-card{margin:12px 14px;border-radius:14px;overflow:hidden;box-shadow:var(--sh1);background:var(--surface);}
+.tp-report-head{background:var(--grad);color:#fff;padding:14px 16px;}
+.tp-report-head .tp-report-title{font-weight:700;font-size:1rem;}
+.tp-report-head .tp-report-sub{font-size:0.74rem;opacity:0.85;margin-top:2px;}
 .tp-table{width:100%;border-collapse:collapse;font-size:0.78rem;background:var(--surface);}
-.tp-table th,.tp-table td{border:1px solid var(--border);padding:6px 8px;text-align:left;}
-.tp-table th{background:var(--md-primary-light);color:var(--purple-dark);}
+.tp-table th,.tp-table td{border:1px solid var(--border);padding:8px 9px;text-align:left;vertical-align:top;}
+.tp-table th{background:var(--md-primary-light);color:var(--purple-dark);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.02em;}
+.tp-table tbody tr:nth-child(even){background:var(--md-surface-variant);}
+.tp-table .tp-pessoa-nome{font-weight:600;}
+.tp-table .tp-pessoa-grupo{display:block;font-size:0.68rem;color:var(--text2);margin-top:1px;}
+.tp-table select{width:100%;}
 .tp-table-wrap{overflow-x:auto;padding:12px 14px;}
 .tp-empty{font-size:0.8rem;color:var(--text2);padding:8px 0;}
 .tp-badge-grupo{display:inline-block;padding:1px 7px;border-radius:999px;font-size:0.68rem;font-weight:700;color:#fff;}
-.cartas-filterbar{display:flex;gap:6px;padding:8px 14px;overflow-x:auto;border-bottom:1px solid var(--border);flex-shrink:0;}
-.cartas-filterbar button{flex-shrink:0;padding:6px 12px;border-radius:999px;font-size:0.76rem;font-weight:600;background:var(--md-surface-variant);color:var(--text2);}
+.cartas-search-wrap{background:var(--surface);padding:12px 14px 8px;border-bottom:1px solid var(--border);}
+.cartas-filterbar{display:flex;gap:6px;padding:10px 14px;overflow-x:auto;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface);}
+.cartas-filterbar button{flex-shrink:0;padding:7px 13px;border-radius:999px;font-size:0.76rem;font-weight:600;background:var(--md-surface-variant);color:var(--text2);border:none;}
 .cartas-filterbar button.active{background:var(--purple);color:#fff;}
-.cartas-item{padding:10px 14px;border-bottom:1px solid var(--border);}
-.cartas-item .ci-head{display:flex;align-items:baseline;gap:6px;margin-bottom:6px;}
-.cartas-item .ci-nome{font-weight:700;font-size:0.86rem;flex:1;}
-.cartas-item .ci-tag{font-size:0.68rem;color:var(--text2);}
-.cartas-item .ci-end{font-size:0.74rem;color:var(--text2);margin-bottom:8px;}
-.cartas-item .ci-row{display:flex;gap:6px;}
-.cartas-item select,.cartas-item input{font-size:0.78rem;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
-.cartas-item .ci-status{flex:0 0 118px;}
+.cartas-resumo-bar{padding:10px 14px;font-size:0.78rem;color:var(--purple-dark);background:var(--md-primary-light);font-weight:600;}
+.cartas-item{padding:14px;margin:10px 12px;border-radius:14px;background:var(--surface);box-shadow:var(--sh1);border-bottom:none;}
+.cartas-item .ci-head{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.cartas-item .ci-nome{font-weight:700;font-size:0.9rem;flex:1;}
+.cartas-item .ci-tag{font-size:0.68rem;color:var(--purple);background:var(--md-primary-light);padding:2px 8px;border-radius:999px;font-weight:700;white-space:nowrap;}
+.cartas-item .ci-end{font-size:0.76rem;color:var(--text2);margin-bottom:12px;}
+.cartas-item .ci-field{margin-bottom:10px;}
+.cartas-item .ci-field label{display:block;font-size:0.66rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:4px;}
+.cartas-item .ci-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.cartas-item select,.cartas-item input{font-size:0.8rem;padding:8px 9px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);width:100%;box-sizing:border-box;}
+.cartas-item .ci-status{font-weight:700;}
+.cartas-item .ci-obs{width:100%;}
 .cartas-item .ci-data{flex:0 0 130px;}
 .cartas-item .ci-obs{flex:1;min-width:0;margin-top:6px;width:100%;}
 .status-pendente{color:var(--warning);}
@@ -1026,13 +1051,15 @@ body.no-anim .leaflet-zoom-animated{
     <button class="icon-btn" onclick="closeCartasOverlay()" style="color:var(--text);">←</button>
     <div style="font-weight:700;font-size:0.95rem;flex:1;">✉️ Controle de cartas</div>
   </div>
-  <div class="search-overlay-input" style="margin:8px 14px;">
-    <span class="s-icon">🔍</span>
-    <input type="text" id="cartasSearchInput" placeholder="Buscar comércio ou prédio..." oninput="renderCartasList()">
+  <div class="cartas-search-wrap">
+    <div class="search-overlay-input" style="background:var(--md-surface-variant);">
+      <span class="s-icon">🔍</span>
+      <input type="text" id="cartasSearchInput" placeholder="Buscar comércio ou prédio..." oninput="renderCartasList()">
+    </div>
   </div>
   <div class="cartas-filterbar" id="cartasFilterbar"></div>
-  <div id="cartasResumo" style="padding:4px 14px;font-size:0.76rem;color:var(--text2);"></div>
-  <div class="search-overlay-results" id="cartasResults" style="background:var(--bg)"></div>
+  <div class="cartas-resumo-bar" id="cartasResumo"></div>
+  <div class="search-overlay-results" id="cartasResults" style="background:var(--bg);padding:4px 0;"></div>
 </div>
 
 <!-- SIDE MENU -->
@@ -1616,7 +1643,7 @@ function undoLast() {
   if (!arr) return;
   const idx = Math.min(entry.index, arr.length);
   arr.splice(idx, 0, entry.data);
-  renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras(); renderCatbar(); updateLegend(); renderList();
+  renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderCarrinhos(); renderQuadras(); renderCatbar(); updateLegend(); renderList();
   logActivity(`↺ desfez a remoção de ${entry.label}`);
   showSnack('↺ Restaurado: ' + entry.label);
 }
@@ -2052,7 +2079,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
           // Atualiza cache local
           localStorage.setItem(getDataStorageKey(), JSON.stringify(saved));
           // Re-renderiza (não dispara saveState pois applyingRemoteUpdate está true)
-          renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras(); renderCatbar(); updateLegend(); renderList(); renderHomeAtividades(); renderAtencaoPanel();
+          renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderCarrinhos(); renderQuadras(); renderCatbar(); updateLegend(); renderList(); renderHomeAtividades(); renderAtencaoPanel();
         } finally {
           applyingRemoteUpdate = false;
         }
@@ -2580,13 +2607,16 @@ let viewMode = 'mapa';
 let activeCategoryFilter = null;
 let activeGroupFilter = null;
 let activeSaidaGrupoFilter = null;
-const layerGroups = { grupos: L.layerGroup().addTo(map), comercios: L.layerGroup(), condominios: L.layerGroup(), publicadores: L.layerGroup(), quadras: L.layerGroup() };
+const layerGroups = { grupos: L.layerGroup().addTo(map), comercios: L.layerGroup(), condominios: L.layerGroup(), publicadores: L.layerGroup(), quadras: L.layerGroup(), carrinhos: L.layerGroup().addTo(map) };
 
 function makeDivIcon(color, letter) {
   return L.divIcon({ className: '', html: `<div class="saida-pin" style="background:${color}"><span>${letter}</span></div>`, iconSize: [28,28], iconAnchor: [14,28] });
 }
 function makeDotIcon(color) {
   return L.divIcon({ className: '', html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2.5px solid white;box-shadow:0 1px 5px rgba(0,0,0,0.4)"></div>`, iconSize:[16,16], iconAnchor:[8,8] });
+}
+function makeCarrinhoIcon() {
+  return L.divIcon({ className: '', html: `<div style="width:30px;height:30px;border-radius:50% 50% 50% 0;background:var(--purple, #5b2c83);transform:rotate(-45deg);box-shadow:0 1px 6px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);font-size:15px;">🛒</span></div>`, iconSize: [30,30], iconAnchor: [15,29] });
 }
 
 // ── COMPARTILHAR NO WHATSAPP ──
@@ -2780,6 +2810,31 @@ function renderPublicadores() {
   });
   document.getElementById('cnt-publicadores').textContent = (activeGroupFilter?items.length+'/':'')+publicadoresData.length;
   saveState();
+}
+function renderCarrinhos() {
+  layerGroups.carrinhos.clearLayers();
+  carrinhosData.forEach((c, i) => {
+    if (c.lat == null || c.lng == null) return;
+    const marker = L.marker([c.lat, c.lng], { icon: makeCarrinhoIcon(), draggable: editMode });
+    marker.bindPopup(() => carrinhoPopupContent(marker, c, i));
+    marker.on('dragend', e => { if (!isAdmin) return; const pos = e.target.getLatLng(); c.lat = pos.lat; c.lng = pos.lng; saveState(); });
+    marker.addTo(layerGroups.carrinhos); c._marker = marker;
+  });
+}
+function carrinhoPopupContent(marker, c, i) {
+  const designacoes = designacoesData.filter(d => d.ponto === c.nome).sort((a, b) => (a.mesAno + a.dia).localeCompare(b.mesAno + b.dia));
+  const div = document.createElement('div'); div.className = 'popup-edit';
+  const lista = designacoes.length
+    ? designacoes.map(d => `<div style="font-size:0.76rem;padding:4px 0;border-bottom:1px solid var(--border, #eee);"><b>${escapeHtml(d.dia)}</b> · ${escapeHtml(d.horario || '')}<br><span style="color:#5f6368">${escapeHtml(d.pessoa1 || '—')}${d.pessoa2 ? ' e ' + escapeHtml(d.pessoa2) : ''}</span></div>`).join('')
+    : '<div style="font-size:0.76rem;color:#5f6368;">Nenhum horário cadastrado neste ponto ainda.</div>';
+  div.innerHTML = `<b>🛒 ${escapeHtml(c.nome)}</b>${c.endereco ? '<br><small style="color:#5f6368">' + escapeHtml(c.endereco) + '</small>' : ''}
+    <div style="margin-top:8px;max-height:160px;overflow-y:auto;">${lista}</div>
+    ${isAdmin ? `<div class="popup-actions" style="margin-top:9px;"><button class="btn-save">Editar</button><button class="btn-del">Excluir</button></div>` : ''}`;
+  if (isAdmin) {
+    div.querySelector('.btn-save').onclick = () => { marker.closePopup(); editarCarrinhoPrompt(i); };
+    div.querySelector('.btn-del').onclick = () => { marker.closePopup(); removerCarrinho(i); };
+  }
+  return div;
 }
 function ensureQuadraIds() {
   quadrasData.forEach(qd => { if (!qd.id) qd.id = 'q_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9); });
@@ -3315,7 +3370,7 @@ function toggleEditMode() {
   btn.title = editMode ? 'Sair do modo edição' : 'Modo edição';
   if (!editMode) stopDrawing();
   refreshHintForTab();
-  renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras();
+  renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderCarrinhos(); renderQuadras();
   showSnack(editMode ? '✏️ Modo edição ativado' : '✓ Edição desativada');
 }
 
@@ -3906,7 +3961,7 @@ function importData(event) {
       const saved=JSON.parse(reader.result);
       if (!confirm('Importar vai substituir todos os dados atuais. Continuar?')) return;
       applyLoadedData(saved);
-      renderGrupos();renderComercios();renderCondominios();renderPublicadores();renderQuadras();updateLegend();renderList();
+      renderGrupos();renderComercios();renderCondominios();renderPublicadores();renderCarrinhos();renderQuadras();updateLegend();renderList();
       showSnack('⏳ Sincronizando com o servidor...');
       const result = await saveState();
       if (result && result.ok) {
@@ -3937,7 +3992,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ── INIT ──
-renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras(); updateLegend(); renderList(); renderCatbar();
+renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderCarrinhos(); renderQuadras(); updateLegend(); renderList(); renderCatbar();
 
 // Atualiza chips com contagens
 function updateChipCounts() {
@@ -4025,7 +4080,7 @@ async function proceedWithTerritory(territoryKey) {
   }
 
   // Garante que mapa/popups reflitam os dados e o papel já definidos
-  renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderQuadras();
+  renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderCarrinhos(); renderQuadras();
   updateLegend(); renderList(); renderHomeStats();
   updateSideMenuState();
 
@@ -4310,8 +4365,17 @@ function listaParticipantesTestemunho() {
   });
   return lista;
 }
+// Slots de 2h começando às 08:00 (08-10, 10-12 ... até 20-22)
+function horarioSlots() {
+  const slots = [];
+  for (let h = 8; h < 22; h += 2) slots.push(`${String(h).padStart(2,'0')}:00 às ${String(h+2).padStart(2,'0')}:00`);
+  return slots;
+}
+const DIAS_SEMANA = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
 
 let _tpMesAno = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+let _tpFiltroGrupo = '';
+let _tpFiltroSexo = '';
 
 function openTestemunhoOverlay() {
   document.getElementById('testemunhoOverlay').classList.add('show');
@@ -4321,52 +4385,73 @@ function closeTestemunhoOverlay() { document.getElementById('testemunhoOverlay')
 
 function renderTestemunho() {
   const box = document.getElementById('testemunhoResults');
+  const gruposDisponiveis = [...new Set(publicadoresData.map(p => p.grupo).filter(Boolean))].sort();
   box.innerHTML = `
     <div class="tp-section">
       <div class="tp-section-title">🙋 Publicadores participantes <span style="font-weight:400;font-size:0.74rem;color:var(--text2)">${listaParticipantesTestemunho().length} marcados</span></div>
-      <div class="tp-hint">Marque quem participa do testemunho público e o sexo de cada um — usado para montar as duplas automaticamente (homem com homem, mulher com mulher).</div>
+      <div class="tp-hint">Marque quem participa do testemunho público e o sexo de cada um — usado para montar as duplas automaticamente (irmão com irmão, irmã com irmã).</div>
+      <div class="tp-filterbar">
+        <select id="tpFiltroGrupoSel" onchange="_tpFiltroGrupo=this.value; renderTestemunhoParticipantes();">
+          <option value="">Todos os grupos</option>
+          ${gruposDisponiveis.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('')}
+        </select>
+        <div class="tp-sexo-btns">
+          <button class="active" onclick="setTpFiltroSexo('', this)">Todos</button>
+          <button onclick="setTpFiltroSexo('M', this)">Irmãos</button>
+          <button onclick="setTpFiltroSexo('F', this)">Irmãs</button>
+        </div>
+      </div>
       <div id="tpParticipantes"></div>
     </div>
     <div class="tp-section">
       <div class="tp-section-title">🛒 Pontos do carrinho <button class="tp-btn-sm" onclick="addCarrinhoPrompt()">＋ Adicionar ponto</button></div>
+      <div class="tp-hint">Cadastre os pontos do carrinho — eles também aparecem no mapa 🛒, com os dias, horários e duplas designadas.</div>
       <div id="tpPontos"></div>
     </div>
     <div class="tp-section">
       <div class="tp-section-title">📅 Escala mensal</div>
       <div class="tp-hint" style="display:flex;align-items:center;gap:8px;">Mês: <input type="month" id="tpMesInput" value="${_tpMesAno}" onchange="_tpMesAno=this.value;renderTestemunhoEscala();"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
-        <button class="tp-btn-sm" onclick="addDesignacaoPrompt()">＋ Adicionar horário</button>
-        <button class="tp-btn-sm" style="background:var(--purple);color:#fff;" onclick="gerarDesignacaoAutomatica()">🤖 Designação automática</button>
-      </div>
+      <div class="tp-addform" id="tpAddForm"></div>
+      <button class="tp-btn-sm" style="background:var(--purple);color:#fff;width:100%;text-align:center;padding:10px;" onclick="gerarDesignacaoAutomatica()">🤖 Gerar duplas automaticamente</button>
     </div>
     <div id="tpEscalaWrap"></div>
   `;
   renderTestemunhoParticipantes();
   renderTestemunhoPontos();
+  renderTpAddForm();
   renderTestemunhoEscala();
+}
+function setTpFiltroSexo(v, btn) {
+  _tpFiltroSexo = v;
+  if (btn) btn.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+  renderTestemunhoParticipantes();
 }
 
 function renderTestemunhoParticipantes() {
   const box = document.getElementById('tpParticipantes');
   if (!box) return;
-  if (!publicadoresData.length) { box.innerHTML = '<div class="tp-empty">Nenhum publicador cadastrado ainda.</div>'; return; }
+  if (!publicadoresData.length) { box.innerHTML = '<div class="tp-empty">Nenhum publicador cadastrado ainda. Cadastre pela aba Publicadores.</div>'; return; }
   let html = '';
+  let visiveis = 0;
   publicadoresData.forEach((p, pi) => {
+    if (_tpFiltroGrupo && p.grupo !== _tpFiltroGrupo) return;
     const cor = groupColors[p.grupo] || '#868e96';
     getMembrosDetalhe(p).forEach((m, mi) => {
+      if (_tpFiltroSexo && m.sexo !== _tpFiltroSexo) return;
+      visiveis++;
       html += `<div class="tp-row">
         <span class="tp-badge-grupo" style="background:${cor}">${escapeHtml(p.grupo || '')}</span>
         <span class="tp-name">${escapeHtml(m.nome)}</span>
         <select data-pi="${pi}" data-mi="${mi}" onchange="onChangeSexoPublicador(this)">
           <option value="" ${!m.sexo ? 'selected' : ''}>Sexo</option>
-          <option value="M" ${m.sexo === 'M' ? 'selected' : ''}>Homem</option>
-          <option value="F" ${m.sexo === 'F' ? 'selected' : ''}>Mulher</option>
+          <option value="M" ${m.sexo === 'M' ? 'selected' : ''}>Irmão</option>
+          <option value="F" ${m.sexo === 'F' ? 'selected' : ''}>Irmã</option>
         </select>
         <input type="checkbox" class="tp-chk" data-pi="${pi}" data-mi="${mi}" ${m.participa ? 'checked' : ''} onchange="onToggleParticipaTestemunho(this)" title="Participa do testemunho público">
       </div>`;
     });
   });
-  box.innerHTML = html;
+  box.innerHTML = html || '<div class="tp-empty">Nenhum publicador encontrado com esse filtro.</div>';
 }
 function onChangeSexoPublicador(el) {
   const p = publicadoresData[parseInt(el.dataset.pi, 10)];
@@ -4390,8 +4475,24 @@ async function addCarrinhoPrompt() {
   let pos = null;
   if (endereco) { showSnack('📍 Localizando endereço...', 4000); pos = await geocode(endereco); }
   carrinhosData.push({ nome, endereco, lat: pos ? pos.lat : null, lng: pos ? pos.lng : null });
-  renderTestemunhoPontos(); saveState(); logActivity('🛒 adicionou ponto de carrinho: ' + nome);
-  showSnack('✓ Ponto adicionado');
+  renderTestemunhoPontos(); renderTpAddForm(); renderCarrinhos(); saveState(); logActivity('🛒 adicionou ponto de carrinho: ' + nome);
+  showSnack('✓ Ponto adicionado — ele já aparece no mapa 🛒');
+}
+async function editarCarrinhoPrompt(i) {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar pontos'); return; }
+  const c = carrinhosData[i]; if (!c) return;
+  const novoNome = prompt('Nome/referência do ponto do carrinho:', c.nome); if (!novoNome) return;
+  const novoEndereco = prompt('Endereço:', c.endereco || '') || '';
+  const nomeAntigo = c.nome;
+  c.nome = novoNome;
+  if (novoEndereco !== c.endereco) {
+    c.endereco = novoEndereco;
+    if (novoEndereco) { showSnack('📍 Localizando endereço...', 4000); const pos = await geocode(novoEndereco); if (pos) { c.lat = pos.lat; c.lng = pos.lng; } }
+  }
+  if (novoNome !== nomeAntigo) designacoesData.forEach(d => { if (d.ponto === nomeAntigo) d.ponto = novoNome; });
+  renderTestemunhoPontos(); renderTpAddForm(); renderTestemunhoEscala(); renderCarrinhos(); saveState();
+  logActivity('✏️ editou ponto de carrinho: ' + novoNome);
+  showSnack('✓ Ponto atualizado');
 }
 function renderTestemunhoPontos() {
   const box = document.getElementById('tpPontos');
@@ -4401,7 +4502,8 @@ function renderTestemunhoPontos() {
     <div class="tp-row">
       <span class="tp-name"><b>${escapeHtml(c.nome)}</b>${c.endereco ? '<br><span style="color:var(--text2);font-size:0.72rem;">' + escapeHtml(c.endereco) + '</span>' : ''}</span>
       ${c.lat ? `<a class="tp-btn-sm" style="text-decoration:none;" href="https://www.google.com/maps?q=${c.lat},${c.lng}" target="_blank">🗺 Ver</a>` : ''}
-      <button class="tp-btn-del" onclick="removerCarrinho(${i})">🗑</button>
+      <button class="tp-btn-edit" onclick="editarCarrinhoPrompt(${i})" title="Editar">✏️</button>
+      <button class="tp-btn-del" onclick="removerCarrinho(${i})" title="Excluir">🗑</button>
     </div>`).join('');
 }
 function removerCarrinho(i) {
@@ -4410,57 +4512,92 @@ function removerCarrinho(i) {
   if (!confirm('Remover este ponto de carrinho? As designações que usam este ponto continuarão com o nome antigo.')) return;
   const nome = carrinhosData[i].nome;
   carrinhosData.splice(i, 1);
-  renderTestemunhoPontos(); saveState();
+  renderTestemunhoPontos(); renderTpAddForm(); renderCarrinhos(); saveState();
   logActivity('🗑 removeu ponto de carrinho: ' + nome);
 }
 
-function addDesignacaoPrompt() {
+function renderTpAddForm() {
+  const box = document.getElementById('tpAddForm');
+  if (!box) return;
+  if (!carrinhosData.length) { box.innerHTML = '<div class="tp-empty">Cadastre um ponto de carrinho acima para poder montar a escala.</div>'; return; }
+  box.innerHTML = `
+    <div>
+      <label>Ponto do carrinho</label>
+      <select id="tpAddPonto">${carrinhosData.map((c, i) => `<option value="${i}">${escapeHtml(c.nome)}</option>`).join('')}</select>
+    </div>
+    <div class="tp-addform-row">
+      <div>
+        <label>Dia</label>
+        <select id="tpAddDia">${DIAS_SEMANA.map(d => `<option value="${d}">${d}</option>`).join('')}</select>
+      </div>
+      <div>
+        <label>Horário (blocos de 2h)</label>
+        <select id="tpAddHorario">${horarioSlots().map(s => `<option value="${s}">${s}</option>`).join('')}</select>
+      </div>
+    </div>
+    <button class="tp-btn-sm" style="background:var(--purple);color:#fff;" onclick="adicionarDesignacao()">＋ Adicionar horário na escala</button>
+  `;
+}
+function adicionarDesignacao() {
   if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar a escala'); return; }
-  if (!carrinhosData.length) { showSnack('Cadastre um ponto de carrinho primeiro'); return; }
-  const opcoes = carrinhosData.map((c, i) => `${i + 1} - ${c.nome}`).join('\n');
-  const idxStr = prompt('Qual ponto?\n' + opcoes);
-  const idx = parseInt(idxStr, 10) - 1;
-  if (isNaN(idx) || !carrinhosData[idx]) return;
-  const dia = prompt('Dia (ex: Sábado, ou 05/08):', ''); if (!dia) return;
-  const horario = prompt('Horário (ex: 09:00 às 11:00):', '') || '';
-  designacoesData.push({ id: 'd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7), mesAno: _tpMesAno, ponto: carrinhosData[idx].nome, dia, horario, pessoa1: '', pessoa2: '' });
-  renderTestemunhoEscala(); saveState();
+  const ponto = carrinhosData[parseInt(document.getElementById('tpAddPonto').value, 10)];
+  if (!ponto) { showSnack('Cadastre um ponto de carrinho primeiro'); return; }
+  const dia = document.getElementById('tpAddDia').value;
+  const horario = document.getElementById('tpAddHorario').value;
+  designacoesData.push({ id: 'd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7), mesAno: _tpMesAno, ponto: ponto.nome, dia, horario, pessoa1: '', pessoa2: '' });
+  renderTestemunhoEscala(); renderCarrinhos(); saveState();
+  showSnack('✓ Horário adicionado à escala');
 }
 
 function renderTestemunhoEscala() {
   const wrap = document.getElementById('tpEscalaWrap');
   if (!wrap) return;
   const itens = designacoesData.filter(d => d.mesAno === _tpMesAno);
+  const mesLabel = (() => { try { const t = new Date(_tpMesAno + '-02T00:00:00'); const s = t.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }); return s.charAt(0).toUpperCase() + s.slice(1); } catch (e) { return _tpMesAno; } })();
   if (!itens.length) { wrap.innerHTML = '<div class="tp-empty" style="padding:0 14px 14px;">Nenhum horário cadastrado para este mês ainda.</div>'; return; }
   const participantes = listaParticipantesTestemunho();
+  const grupoPorNome = {}; participantes.forEach(p => grupoPorNome[p.nome] = p.grupo);
   const opcoesPessoas = nomeAtual => `<option value="">—</option>` + participantes.map(p => `<option value="${escapeHtml(p.nome)}" ${p.nome === nomeAtual ? 'selected' : ''}>${escapeHtml(p.nome)}</option>`).join('');
-  wrap.innerHTML = `<div class="tp-table-wrap"><table class="tp-table" id="tpTabelaImg">
-    <thead><tr><th>Ponto</th><th>Dia</th><th>Horário</th><th>Dupla</th><th></th></tr></thead>
-    <tbody>
-    ${itens.map(d => {
-      const idx = designacoesData.indexOf(d);
-      return `<tr>
-        <td>${escapeHtml(d.ponto)}</td>
-        <td>${escapeHtml(d.dia)}</td>
-        <td>${escapeHtml(d.horario)}</td>
-        <td>
-          <select onchange="setDesignacaoPessoa(${idx},1,this.value)">${opcoesPessoas(d.pessoa1)}</select>
-          <select onchange="setDesignacaoPessoa(${idx},2,this.value)">${opcoesPessoas(d.pessoa2)}</select>
-        </td>
-        <td><button class="tp-btn-del" onclick="removerDesignacao(${idx})">🗑</button></td>
-      </tr>`;
-    }).join('')}
-    </tbody></table></div>`;
+  const pessoaCell = (nome, grupo) => nome ? `<span class="tp-pessoa-nome">${escapeHtml(nome)}</span><span class="tp-pessoa-grupo">Grupo ${escapeHtml(grupo || '—')}</span>` : '';
+  wrap.innerHTML = `<div class="tp-report-card" id="tpRelatorioCard">
+    <div class="tp-report-head">
+      <div class="tp-report-title">🛒 Testemunho Público</div>
+      <div class="tp-report-sub">${escapeHtml(mesLabel)} · gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+    </div>
+    <div class="tp-table-wrap" style="padding:0;">
+      <table class="tp-table" id="tpTabelaImg">
+        <thead><tr><th>Ponto</th><th>Dia</th><th>Horário</th><th>Dupla</th><th class="no-print"></th></tr></thead>
+        <tbody>
+        ${itens.map(d => {
+          const idx = designacoesData.indexOf(d);
+          return `<tr>
+            <td>${escapeHtml(d.ponto)}</td>
+            <td>${escapeHtml(d.dia)}</td>
+            <td>${escapeHtml(d.horario)}</td>
+            <td>
+              <select onchange="setDesignacaoPessoa(${idx},1,this.value)">${opcoesPessoas(d.pessoa1)}</select>
+              ${pessoaCell(d.pessoa1, grupoPorNome[d.pessoa1])}
+              <select style="margin-top:6px;" onchange="setDesignacaoPessoa(${idx},2,this.value)">${opcoesPessoas(d.pessoa2)}</select>
+              ${pessoaCell(d.pessoa2, grupoPorNome[d.pessoa2])}
+            </td>
+            <td class="no-print"><button class="tp-btn-del" onclick="removerDesignacao(${idx})">🗑</button></td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
 }
 function setDesignacaoPessoa(idx, qual, valor) {
   if (!designacoesData[idx]) return;
   designacoesData[idx]['pessoa' + qual] = valor;
   saveState();
+  renderTestemunhoEscala();
 }
 function removerDesignacao(idx) {
   if (!isAdmin) return;
   designacoesData.splice(idx, 1);
-  renderTestemunhoEscala(); saveState();
+  renderTestemunhoEscala(); renderCarrinhos(); saveState();
 }
 
 // Monta duplas: mesmo grupo + mesmo sexo primeiro; sobras do mesmo sexo entre
@@ -4495,16 +4632,19 @@ function gerarDesignacaoAutomatica() {
 }
 async function baixarTestemunhoImagem() {
   if (typeof html2canvas === 'undefined') { showSnack('❌ Recurso de captura não carregado. Verifique sua internet.'); return; }
-  const el = document.getElementById('tpTabelaImg');
+  const el = document.getElementById('tpRelatorioCard');
   if (!el) { showSnack('Cadastre a escala deste mês antes de baixar'); return; }
-  showSnack('📊 Gerando imagem da escala...', 6000);
+  showSnack('📊 Gerando imagem do relatório...', 6000);
   try {
-    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', useCORS: true, scale: 2 });
+    const canvas = await html2canvas(el, {
+      backgroundColor: '#ffffff', useCORS: true, scale: 2,
+      onclone: doc => { doc.querySelectorAll('.no-print').forEach(n => { n.style.display = 'none'; }); }
+    });
     const dataUrl = canvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = dataUrl; a.download = `testemunho-publico-${_tpMesAno}.png`;
     document.body.appendChild(a); a.click(); a.remove();
-    showSnack('✓ Tabela baixada');
+    showSnack('✓ Relatório baixado');
   } catch (e) { console.error(e); showSnack('❌ Não foi possível gerar a imagem'); }
 }
 
@@ -4556,14 +4696,23 @@ function renderCartasList() {
       <div class="ci-head"><span class="ci-nome">${escapeHtml(x.item.nome)}</span><span class="ci-tag">${x.tipo === 'comercio' ? '🏪 Comércio' : '🏢 Prédio'}</span></div>
       <div class="ci-end">${escapeHtml(x.item.endereco || '')}</div>
       <div class="ci-row">
-        <select class="ci-status status-${c.status}" onchange="setCartaField('${gid}','status',this.value)">
-          <option value="pendente" ${c.status === 'pendente' ? 'selected' : ''}>⏳ Pendente</option>
-          <option value="entregue" ${c.status === 'entregue' ? 'selected' : ''}>✅ Entregue</option>
-          <option value="recusou" ${c.status === 'recusou' ? 'selected' : ''}>🚫 Recusou</option>
-        </select>
-        <input type="date" class="ci-data" value="${c.data || ''}" onchange="setCartaField('${gid}','data',this.value)">
+        <div class="ci-field">
+          <label>Status da carta</label>
+          <select class="ci-status status-${c.status}" onchange="setCartaField('${gid}','status',this.value)">
+            <option value="pendente" ${c.status === 'pendente' ? 'selected' : ''}>⏳ Pendente</option>
+            <option value="entregue" ${c.status === 'entregue' ? 'selected' : ''}>✅ Entregue</option>
+            <option value="recusou" ${c.status === 'recusou' ? 'selected' : ''}>🚫 Recusou</option>
+          </select>
+        </div>
+        <div class="ci-field">
+          <label>Data</label>
+          <input type="date" class="ci-data" value="${c.data || ''}" onchange="setCartaField('${gid}','data',this.value)">
+        </div>
       </div>
-      <input type="text" class="ci-obs" placeholder="Observação..." value="${escapeHtml(c.obs || '')}" onchange="setCartaField('${gid}','obs',this.value)">
+      <div class="ci-field">
+        <label>Observação</label>
+        <input type="text" class="ci-obs" placeholder="Observação..." value="${escapeHtml(c.obs || '')}" onchange="setCartaField('${gid}','obs',this.value)">
+      </div>
     </div>`;
   }).join('');
 }
