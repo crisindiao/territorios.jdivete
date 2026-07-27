@@ -14,6 +14,7 @@
 <meta name="theme-color" content="#3d1c5c">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.7"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -648,7 +649,14 @@ body.no-anim .leaflet-tile,
 body.no-anim .leaflet-zoom-animated{
   transition:none!important;
   animation:none!important;
+}.map-compass-btn {
+  background: var(--white);
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--sh1);
 }
+.map-compass-btn svg { transition: transform 0.15s linear; }
 </style>
 </head>
 <body>
@@ -2251,7 +2259,74 @@ function wireCartasBlock(card, c, rerenderFn) {
 }
 
 // ── MAP ──
-const map = L.map('map', { zoomControl: true, tap: true });
+// rotate: liga a rotação do mapa (via plugin leaflet-rotate, carregado no <head>).
+// rotateControl: false porque criamos nossa própria bússola mais abaixo,
+// já no estilo visual do app. touchRotate: gesto de 2 dedos gira no celular.
+// shiftKeyRotate: false porque o giro no PC é feito por Ctrl+arrastar (handler
+// próprio logo abaixo), não por Shift+scroll.
+const map = L.map('map', { zoomControl: true, tap: true, rotate: true, bearing: 0, rotateControl: false, touchRotate: true, shiftKeyRotate: false });
+
+// ---------- ROTAÇÃO DO MAPA (bússola + Ctrl+arrastar no PC) ----------
+(function setupMapRotation() {
+  if (typeof map.setBearing !== 'function') return; // plugin não carregou (ex.: sem internet) — app segue normal sem rotação
+
+  // Botão bússola: clique único = volta pro Norte (rotação 0). Aponta sempre
+  // pro Norte real girando na direção oposta à rotação do mapa.
+  const CompassControl = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd: function() {
+      const div = L.DomUtil.create('div', 'leaflet-bar map-compass-btn');
+      div.title = 'Girar mapa / toque para voltar ao Norte';
+      div.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2 L15 12 L12 10 L9 12 Z" fill="#d93025"/><path d="M12 22 L9 12 L12 14 L15 12 Z" fill="#9aa0a6"/></svg>';
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.on(div, 'click', () => { map.setBearing(0); });
+      this._icon = div.querySelector('svg');
+      return div;
+    }
+  });
+  map.addControl(new CompassControl());
+
+  function updateCompassIcon() {
+    const el = document.querySelector('.map-compass-btn svg');
+    if (el) el.style.transform = 'rotate(' + (-map.getBearing()) + 'deg)';
+  }
+  map.on('rotate', updateCompassIcon);
+  updateCompassIcon();
+
+  // Ctrl + arrastar com o mouse = girar (igual Google Maps). Enquanto Ctrl
+  // estiver pressionado, desligamos o arrastar normal do mapa (senão ele
+  // panaria E giraria ao mesmo tempo) e calculamos o ângulo do movimento do
+  // mouse em relação ao centro da tela.
+  const mapEl = document.getElementById('map');
+  let rotating = false, startAngle = 0, startBearing = 0;
+
+  function angleFromCenter(clientX, clientY) {
+    const rect = mapEl.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+    return Math.atan2(clientY - cy, clientX - cx) * 180 / Math.PI;
+  }
+
+  mapEl.addEventListener('mousedown', (e) => {
+    if (!e.ctrlKey) return;
+    rotating = true;
+    startAngle = angleFromCenter(e.clientX, e.clientY);
+    startBearing = map.getBearing();
+    map.dragging.disable();
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!rotating) return;
+    const nowAngle = angleFromCenter(e.clientX, e.clientY);
+    map.setBearing(startBearing + (nowAngle - startAngle));
+  });
+  window.addEventListener('mouseup', () => {
+    if (!rotating) return;
+    rotating = false;
+    map.dragging.enable();
+  });
+  // Segurança: se soltar Ctrl no meio do gesto (ex.: trocou de janela), encerra o giro
+  window.addEventListener('keyup', (e) => { if (rotating && e.key === 'Control') { rotating = false; map.dragging.enable(); } });
+})();
 const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', crossOrigin: true }).addTo(map);
 const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics', crossOrigin: true });
 // Voltei para este serviço (CartoDB): é o único, dos que testei, que mostra
@@ -2821,6 +2896,14 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
 
   const prevCenter = map.getCenter();
   const prevZoom = map.getZoom();
+  // Se o mapa estiver girado, força de volta ao Norte antes de capturar —
+  // o cartão impresso precisa sempre sair com Norte pra cima, senão o
+  // contorno/tiles saem tortos no PNG final.
+  const prevBearing = (typeof map.getBearing === 'function') ? map.getBearing() : 0;
+  if (prevBearing) {
+    map.setBearing(0);
+    await new Promise(r => setTimeout(r, 300));
+  }
 
   function waitTilesLoaded() {
     const layers = [streetLayer, satelliteLayer, googleSatLayer].filter(l => map.hasLayer(l));
@@ -2930,6 +3013,7 @@ async function baixarCartaoQuadra(idOrIdxOrQd) {
     if (hadBoundary) boundaryToHide.addTo(map);
     if (hadQuadrasGroup) layerGroups.quadras.addTo(map);
     map.setView(prevCenter, prevZoom, { animate: false });
+    if (prevBearing && typeof map.setBearing === 'function') map.setBearing(prevBearing);
   }
 }
 function deleteQuadra(idx) {
