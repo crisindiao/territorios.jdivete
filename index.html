@@ -2754,11 +2754,10 @@ function renderGrupos() {
     let lat = s.lat, lng = s.lng; if (s.offset) { lat += s.offset[0]; lng += s.offset[1]; }
     const marker = L.marker([lat,lng], { icon: makeDivIcon(s.cor, s.grupo[0]), draggable: editMode });
     marker.bindPopup(editMode ? editSaidaPopup(marker,s) : `${s.foto?`<img src="${escapeHtml(s.foto)}" class="popup-photo">`:''}<b>Grupo ${escapeHtml(s.grupo)}</b><br>Saída: ${escapeHtml(s.nome)}${s.endereco?'<br><small style="color:#5f6368">'+escapeHtml(s.endereco)+'</small>':''}`);
-    marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); s.lat=p.lat; s.lng=p.lng; delete s.offset; });
+    marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); s.lat=p.lat; s.lng=p.lng; delete s.offset; saveState(); });
     marker.addTo(layerGroups.grupos); s._marker = marker;
   });
   document.getElementById('cnt-grupos').textContent = (activeSaidaGrupoFilter?items.length+'/':'')+saidasData.length;
-  saveState();
 }
 function renderComercios() {
   layerGroups.comercios.clearLayers();
@@ -2766,22 +2765,20 @@ function renderComercios() {
   items.forEach(c => {
     const marker = L.marker([c.lat,c.lng], { icon: makeDotIcon(c.cor||'#868e96'), draggable: editMode });
     marker.bindPopup(editMode ? editComercioPopup(marker,c) : `${c.foto?`<img src="${escapeHtml(c.foto)}" class="popup-photo">`:''}<b>${escapeHtml(c.nome)}</b><br>${escapeHtml(c.categoria)}<br><small style="color:#5f6368">${escapeHtml(c.endereco)}</small>${cartaInfoBadge(c)}`);
-    marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); c.lat=p.lat; c.lng=p.lng; });
+    marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); c.lat=p.lat; c.lng=p.lng; saveState(); });
     marker.addTo(layerGroups.comercios); c._marker = marker;
   });
   document.getElementById('cnt-comercios').textContent = comerciosData.length;
-  saveState();
 }
 function renderCondominios() {
   layerGroups.condominios.clearLayers();
   condominiosData.forEach(c => {
     const marker = L.marker([c.lat,c.lng], { icon: makeDotIcon(c.cor||'#364fc7'), draggable: editMode });
     marker.bindPopup(editMode ? editCondominioPopup(marker,c) : `${c.foto?`<img src="${escapeHtml(c.foto)}" class="popup-photo">`:''}<b>${escapeHtml(c.nome)}</b><br>Condomínio/Prédio<br><small style="color:#5f6368">${escapeHtml(c.endereco)}</small>${cartaInfoBadge(c)}`);
-    marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); c.lat=p.lat; c.lng=p.lng; });
+    marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); c.lat=p.lat; c.lng=p.lng; saveState(); });
     marker.addTo(layerGroups.condominios); c._marker = marker;
   });
   document.getElementById('cnt-condominios').textContent = condominiosData.length;
-  saveState();
 }
 function renderPublicadores() {
   layerGroups.publicadores.clearLayers();
@@ -2796,11 +2793,10 @@ function renderPublicadores() {
       div.querySelector('.btn-share-whats').onclick = () => shareWhatsApp(p.membros.join(', '), p.lat, p.lng);
       return div;
     });
-    marker.on('dragend', e => { if (!isAdmin) return; const pos=e.target.getLatLng(); p.lat=pos.lat; p.lng=pos.lng; });
+    marker.on('dragend', e => { if (!isAdmin) return; const pos=e.target.getLatLng(); p.lat=pos.lat; p.lng=pos.lng; saveState(); });
     marker.addTo(layerGroups.publicadores); p._marker = marker;
   });
   document.getElementById('cnt-publicadores').textContent = (activeGroupFilter?items.length+'/':'')+publicadoresData.length;
-  saveState();
 }
 function renderCarrinhos() {
   layerGroups.carrinhos.clearLayers();
@@ -2890,7 +2886,6 @@ function renderQuadras() {
     qd._layer = poly;
   });
   document.getElementById('cnt-quadras').textContent = quadrasData.length;
-  saveState();
 }
 function formatarDataBR(iso) {
   try { const d = new Date(iso); return d.toLocaleDateString('pt-BR'); } catch(e) { return ''; }
@@ -2916,6 +2911,7 @@ function toggleQuadraCobertura(idx) {
   if (qd.historico.length > 30) qd.historico.length = 30;
   logActivity(`${qd.coberta?'✓ deu baixa':'↺ desfez baixa'} na quadra ${qd.mapa}${qd.nome?' ('+qd.nome+')':''}`);
   renderQuadras(); renderCatbar(); updateLegend(); renderList(); renderAtencaoPanel();
+  saveState();
   showSnack(qd.coberta ? '✓ Quadra marcada como coberta' : '↺ Baixa desfeita');
 }
 function resetCobertura() {
@@ -2929,6 +2925,7 @@ function resetCobertura() {
   });
   logActivity('🔄 reiniciou a cobertura de todas as quadras (novo ciclo)');
   renderQuadras(); renderCatbar(); updateLegend(); renderList();
+  saveState();
   showSnack('🔄 Cobertura reiniciada — novo ciclo iniciado');
 }
 function showQuadraCartao(idx) {
@@ -3238,6 +3235,7 @@ function deleteQuadra(idx) {
   quadrasData.splice(idx,1);
   pushUndo({type:'quadra',data:qd,index:idx,label:'Quadra '+qd.mapa});
   renderQuadras(); renderCatbar(); renderList();
+  saveState();
   showSnack('🗑 Quadra removida', 6000, undoLast);
 }
 
@@ -3280,6 +3278,7 @@ function finalizeDrawQuadra() {
   quadrasData.push({ id: 'q_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9), mapa: mapa.trim(), nome, coords: drawPoints.slice(), cor: null, grupo: '', historico: [] });
   logActivity(`➕ criou a quadra ${mapa.trim()}${nome?' ('+nome+')':''}`);
   stopDrawing(); refreshHintForTab(); renderQuadras(); renderCatbar(); renderList(); updateLegend();
+  saveState();
 }
 
 // ── HINT ──
@@ -3424,7 +3423,7 @@ async function addNewItem(target, lat, lng) {
     const nomeCasa=prompt('Referência da casa:','')||'';
     saidasData.push({grupo,nome:nomeCasa,cor:'#495057',lat,lng}); renderGrupos();
   }
-  renderList(); showSnack('✓ Adicionado com sucesso');
+  renderList(); saveState(); showSnack('✓ Adicionado com sucesso');
 }
 function addItemPrompt() {
   if (!isAdmin) { showSnack('❌ Apenas o administrador pode adicionar itens'); return; }
@@ -3866,9 +3865,9 @@ function renderList() {
         if (m.length) { const g=L.featureGroup(m.map(qd=>qd._layer)); map.fitBounds(g.getBounds(),{padding:[30,30]}); }
         else showSnack('Nenhuma quadra atribuída ao grupo '+s.grupo+' ainda');
       };
-      card.querySelector('.btn-save-card').onclick=async()=>{if(!isAdmin)return; const btn=card.querySelector('.btn-save-card'); const st=card.querySelector('[data-geo-status]'); btn.disabled=true; s.grupo=card.querySelector('[data-f="grupo"]').value; s.nome=card.querySelector('[data-f="nome"]').value; const ne=card.querySelector('[data-f="endereco"]').value; if(ne&&ne!==s.endereco){btn.textContent='Localizando...'; const res=await geocode(ne); if(res){s.lat=res.lat;s.lng=res.lng;st.className='geo-status ok';st.textContent='✓ Localizado';} else {st.className='geo-status fail';st.textContent='✗ Não encontrado';}} else st.textContent=''; s.endereco=ne; renderGrupos(); finishSave(card);};
+      card.querySelector('.btn-save-card').onclick=async()=>{if(!isAdmin)return; const btn=card.querySelector('.btn-save-card'); const st=card.querySelector('[data-geo-status]'); btn.disabled=true; s.grupo=card.querySelector('[data-f="grupo"]').value; s.nome=card.querySelector('[data-f="nome"]').value; const ne=card.querySelector('[data-f="endereco"]').value; if(ne&&ne!==s.endereco){btn.textContent='Localizando...'; const res=await geocode(ne); if(res){s.lat=res.lat;s.lng=res.lng;st.className='geo-status ok';st.textContent='✓ Localizado';} else {st.className='geo-status fail';st.textContent='✗ Não encontrado';}} else st.textContent=''; s.endereco=ne; renderGrupos(); saveState(); finishSave(card);};
       card.querySelector('.btn-locate').onclick=()=>focusItem(s);
-      card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover grupo?')) return; const idx=saidasData.indexOf(s); if(idx>-1){ saidasData.splice(idx,1); pushUndo({type:'saida',data:s,index:idx,label:'Grupo '+s.grupo}); logActivity('🗑 removeu o grupo '+s.grupo); } renderGrupos(); renderList(); showSnack('🗑 Grupo removido', 6000, undoLast);};
+      card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover grupo?')) return; const idx=saidasData.indexOf(s); if(idx>-1){ saidasData.splice(idx,1); pushUndo({type:'saida',data:s,index:idx,label:'Grupo '+s.grupo}); logActivity('🗑 removeu o grupo '+s.grupo); } renderGrupos(); renderList(); saveState(); showSnack('🗑 Grupo removido', 6000, undoLast);};
       box.appendChild(card);
     });
   }
@@ -3883,9 +3882,9 @@ function renderList() {
       wireDirty(card);
       wirePhotoBlock(card,c,renderComercios);
       wireStreetView(card,c);
-      card.querySelector('.btn-save-card').onclick=async()=>{if(!isAdmin)return; const btn=card.querySelector('.btn-save-card'); const st=card.querySelector('[data-geo-status]'); btn.disabled=true; c.nome=card.querySelector('[data-f="nome"]').value; c.categoria=card.querySelector('[data-f="categoria"]').value; const ne=card.querySelector('[data-f="endereco"]').value; if(ne&&ne!==c.endereco){btn.textContent='Localizando...'; const res=await geocode(ne); if(res){c.lat=res.lat;c.lng=res.lng;st.className='geo-status ok';st.textContent='✓ Localizado';} else{st.className='geo-status fail';st.textContent='✗ Não encontrado';}} else st.textContent=''; c.endereco=ne; renderComercios(); finishSave(card);};
+      card.querySelector('.btn-save-card').onclick=async()=>{if(!isAdmin)return; const btn=card.querySelector('.btn-save-card'); const st=card.querySelector('[data-geo-status]'); btn.disabled=true; c.nome=card.querySelector('[data-f="nome"]').value; c.categoria=card.querySelector('[data-f="categoria"]').value; const ne=card.querySelector('[data-f="endereco"]').value; if(ne&&ne!==c.endereco){btn.textContent='Localizando...'; const res=await geocode(ne); if(res){c.lat=res.lat;c.lng=res.lng;st.className='geo-status ok';st.textContent='✓ Localizado';} else{st.className='geo-status fail';st.textContent='✗ Não encontrado';}} else st.textContent=''; c.endereco=ne; renderComercios(); saveState(); finishSave(card);};
       card.querySelector('.btn-locate').onclick=()=>focusItem(c);
-      card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover?')) return; const idx=comerciosData.indexOf(c); if(idx>-1){ comerciosData.splice(idx,1); pushUndo({type:'comercio',data:c,index:idx,label:c.nome}); logActivity('🗑 removeu o comércio '+c.nome); } renderComercios(); renderList(); showSnack('🗑 Comércio removido', 6000, undoLast);};
+      card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover?')) return; const idx=comerciosData.indexOf(c); if(idx>-1){ comerciosData.splice(idx,1); pushUndo({type:'comercio',data:c,index:idx,label:c.nome}); logActivity('🗑 removeu o comércio '+c.nome); } renderComercios(); renderList(); saveState(); showSnack('🗑 Comércio removido', 6000, undoLast);};
       box.appendChild(card);
     });
   }
@@ -3905,9 +3904,9 @@ function renderList() {
       wireDirty(card);
       wirePhotoBlock(card,c,renderCondominios);
       wireStreetView(card,c);
-      card.querySelector('.btn-save-card').onclick=async()=>{if(!isAdmin)return; const btn=card.querySelector('.btn-save-card'); const st=card.querySelector('[data-geo-status]'); btn.disabled=true; c.nome=card.querySelector('[data-f="nome"]').value; const ne=card.querySelector('[data-f="endereco"]').value; if(ne&&ne!==c.endereco){btn.textContent='Localizando...'; const res=await geocode(ne); if(res){c.lat=res.lat;c.lng=res.lng;st.className='geo-status ok';st.textContent='✓ Localizado';} else{st.className='geo-status fail';st.textContent='✗ Não encontrado';}} else st.textContent=''; c.endereco=ne; renderCondominios(); finishSave(card);};
+      card.querySelector('.btn-save-card').onclick=async()=>{if(!isAdmin)return; const btn=card.querySelector('.btn-save-card'); const st=card.querySelector('[data-geo-status]'); btn.disabled=true; c.nome=card.querySelector('[data-f="nome"]').value; const ne=card.querySelector('[data-f="endereco"]').value; if(ne&&ne!==c.endereco){btn.textContent='Localizando...'; const res=await geocode(ne); if(res){c.lat=res.lat;c.lng=res.lng;st.className='geo-status ok';st.textContent='✓ Localizado';} else{st.className='geo-status fail';st.textContent='✗ Não encontrado';}} else st.textContent=''; c.endereco=ne; renderCondominios(); saveState(); finishSave(card);};
       card.querySelector('.btn-locate').onclick=()=>focusItem(c);
-      card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover?')) return; const idx=condominiosData.indexOf(c); if(idx>-1){ condominiosData.splice(idx,1); pushUndo({type:'condominio',data:c,index:idx,label:c.nome}); logActivity('🗑 removeu o condomínio '+c.nome); } renderCondominios(); renderList(); showSnack('🗑 Condomínio removido', 6000, undoLast);};
+      card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover?')) return; const idx=condominiosData.indexOf(c); if(idx>-1){ condominiosData.splice(idx,1); pushUndo({type:'condominio',data:c,index:idx,label:c.nome}); logActivity('🗑 removeu o condomínio '+c.nome); } renderCondominios(); renderList(); saveState(); showSnack('🗑 Condomínio removido', 6000, undoLast);};
       box.appendChild(card);
     });
   }
@@ -3924,9 +3923,9 @@ function renderList() {
       wirePhotoBlock(card,p,renderPublicadores);
       wireStreetView(card,p);
       card.querySelector('.btn-share-familia').onclick=()=>shareWhatsApp(p.membros.join(', '), p.lat, p.lng);
-      card.querySelector('.btn-save-card').onclick=async()=>{if(!isAdmin)return; const btn=card.querySelector('.btn-save-card'); const st=card.querySelector('[data-geo-status]'); btn.disabled=true; p.membros=card.querySelector('[data-f="membros"]').value.split(',').map(s=>s.trim()).filter(Boolean); p.grupo=card.querySelector('[data-f="grupo"]').value; const ne=card.querySelector('[data-f="endereco"]').value; if(ne&&ne!==p.endereco){btn.textContent='Localizando...'; const res=await geocode(ne); if(res){p.lat=res.lat;p.lng=res.lng;st.className='geo-status ok';st.textContent='✓ Localizado';} else{st.className='geo-status fail';st.textContent='✗ Não encontrado';}} else st.textContent=''; p.endereco=ne; renderPublicadores(); finishSave(card);};
+      card.querySelector('.btn-save-card').onclick=async()=>{if(!isAdmin)return; const btn=card.querySelector('.btn-save-card'); const st=card.querySelector('[data-geo-status]'); btn.disabled=true; p.membros=card.querySelector('[data-f="membros"]').value.split(',').map(s=>s.trim()).filter(Boolean); p.grupo=card.querySelector('[data-f="grupo"]').value; const ne=card.querySelector('[data-f="endereco"]').value; if(ne&&ne!==p.endereco){btn.textContent='Localizando...'; const res=await geocode(ne); if(res){p.lat=res.lat;p.lng=res.lng;st.className='geo-status ok';st.textContent='✓ Localizado';} else{st.className='geo-status fail';st.textContent='✗ Não encontrado';}} else st.textContent=''; p.endereco=ne; renderPublicadores(); saveState(); finishSave(card);};
       card.querySelector('.btn-locate').onclick=()=>focusItem(p);
-      card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover publicador?')) return; const idx=publicadoresData.indexOf(p); if(idx>-1){ publicadoresData.splice(idx,1); pushUndo({type:'publicador',data:p,index:idx,label:p.membros.join(', ')}); logActivity('🗑 removeu a família '+p.membros.join(', ')); } renderPublicadores(); renderList(); showSnack('🗑 Família removida', 6000, undoLast);};
+      card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover publicador?')) return; const idx=publicadoresData.indexOf(p); if(idx>-1){ publicadoresData.splice(idx,1); pushUndo({type:'publicador',data:p,index:idx,label:p.membros.join(', ')}); logActivity('🗑 removeu a família '+p.membros.join(', ')); } renderPublicadores(); renderList(); saveState(); showSnack('🗑 Família removida', 6000, undoLast);};
       box.appendChild(card);
     });
   }
@@ -3958,7 +3957,7 @@ function renderList() {
       wireCartaoBlock(card,qd,renderQuadras);
       card.querySelector('.btn-baixar-cartao').onclick=()=>baixarCartaoQuadra(qd);
       card.querySelector('.btn-cor-auto').onclick=()=>{if(!isAdmin)return; card.querySelector('[data-f="cor"]').value=getColorForMapa(card.querySelector('[data-f="mapa"]').value.trim()||qd.mapa); card.classList.add('dirty'); card.querySelector('.btn-save-card').disabled=false;};
-      card.querySelector('.btn-save-card').onclick=()=>{if(!isAdmin)return; qd.mapa=card.querySelector('[data-f="mapa"]').value.trim(); qd.nome=card.querySelector('[data-f="nome"]').value; const casasVal=parseInt(card.querySelector('[data-f="casas"]').value,10); qd.casas=isNaN(casasVal)?null:Math.max(0,casasVal); qd.grupo=card.querySelector('[data-f="grupo"]').value||''; qd.cor=card.querySelector('[data-f="cor"]').value; const w=parseInt(card.querySelector('[data-f="weight"]').value,10); qd.weight=isNaN(w)?3:Math.max(1,Math.min(12,w)); renderQuadras(); renderCatbar(); updateLegend(); renderAtencaoPanel(); finishSave(card);};
+      card.querySelector('.btn-save-card').onclick=()=>{if(!isAdmin)return; qd.mapa=card.querySelector('[data-f="mapa"]').value.trim(); qd.nome=card.querySelector('[data-f="nome"]').value; const casasVal=parseInt(card.querySelector('[data-f="casas"]').value,10); qd.casas=isNaN(casasVal)?null:Math.max(0,casasVal); qd.grupo=card.querySelector('[data-f="grupo"]').value||''; qd.cor=card.querySelector('[data-f="cor"]').value; const w=parseInt(card.querySelector('[data-f="weight"]').value,10); qd.weight=isNaN(w)?3:Math.max(1,Math.min(12,w)); renderQuadras(); renderCatbar(); updateLegend(); renderAtencaoPanel(); saveState(); finishSave(card);};
       card.querySelector('.btn-locate').onclick=()=>focusItem(qd);
       card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover quadra?')) return; const idx=quadrasData.indexOf(qd); if(idx>-1){ quadrasData.splice(idx,1); pushUndo({type:'quadra',data:qd,index:idx,label:'Quadra '+qd.mapa}); logActivity('🗑 removeu a quadra '+qd.mapa); } renderQuadras(); renderList(); renderCatbar(); updateLegend(); showSnack('🗑 Quadra removida', 6000, undoLast);};
       card.querySelector('.btn-cobertura-toggle').onclick=()=>toggleQuadraCobertura(idxQd);
