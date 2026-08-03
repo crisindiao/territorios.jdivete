@@ -4217,6 +4217,9 @@ async function criarOuAtualizarSolicitacao(user) {
 // itens do menu lateral, das abas inferiores e dos atalhos da tela inicial
 // que não foram marcados.
 function applyVisitorMenuRestrictions(menus) {
+  // menus === null significa "sem restrição nenhuma" (usuária de verdade,
+  // não é um visitante aprovado com acesso limitado) — mostra tudo.
+  const semRestricao = (menus === null);
   const liberados = new Set(menus || []);
   const map = {
     mapa:       ['nav-mapa'],
@@ -4231,10 +4234,10 @@ function applyVisitorMenuRestrictions(menus) {
   (window._fb.ACCESS_MENUS || []).forEach(m => {
     (map[m.key] || []).forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.style.display = liberados.has(m.key) ? '' : 'none';
+      if (el) el.style.display = (semRestricao || liberados.has(m.key)) ? '' : 'none';
     });
   });
-  window._visitorMenusLiberados = liberados;
+  window._visitorMenusLiberados = semRestricao ? null : liberados;
 }
 
 // Trava central usada por todo lugar que abre um dos menus controláveis —
