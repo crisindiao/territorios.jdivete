@@ -560,7 +560,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 /* ── MARKER ── */
 .saida-pin{width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2.5px solid white;box-shadow:0 3px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;}
 .saida-pin span{transform:rotate(45deg);color:white;font-weight:800;font-size:12px;}
-.quadra-label{background:rgba(255,255,255,0.95);border-radius:6px;padding:2px 8px;font-weight:800;font-size:0.72rem;box-shadow:var(--sh1);white-space:nowrap;transform:translate(-50%,-50%);color:var(--text);}
+.quadra-label{background:rgba(255,255,255,0.95);border-radius:999px;min-width:20px;height:20px;padding:0 3px;font-weight:800;font-size:0.6rem;box-shadow:var(--sh1);white-space:nowrap;transform:translate(-50%,-50%);color:var(--text);display:flex;align-items:center;justify-content:center;text-align:center;line-height:1;box-sizing:border-box;}
 
 /* ── POPUP ── */
 .popup-edit{font-family:var(--font);min-width:220px;}
@@ -723,6 +723,16 @@ body.no-anim .leaflet-zoom-animated{
   box-shadow: var(--sh1);
 }
 .map-compass-btn svg { transition: transform 0.15s linear; }
+.autz-card{margin:10px 14px;border-radius:14px;padding:14px;background:var(--surface);box-shadow:var(--sh1);}
+.autz-head{display:flex;align-items:center;gap:8px;margin-bottom:2px;}
+.autz-email{font-weight:700;font-size:0.86rem;flex:1;word-break:break-all;}
+.autz-status{font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;}
+.autz-status.pendente{background:#fff3cd;color:#8a6500;}
+.autz-status.aprovado{background:#d3f9d8;color:#1e6b2e;}
+.autz-menus{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0;}
+.autz-menu-chk{display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text);}
+.autz-actions{display:flex;gap:8px;margin-top:8px;}
+.autz-section-title{font-size:0.72rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.03em;padding:12px 14px 2px;}
 </style>
 </head>
 <body>
@@ -739,6 +749,12 @@ body.no-anim .leaflet-zoom-animated{
     </button>
   </div>
   <div class="auth-loading" id="authLoading" style="display:none">Verificando...</div>
+  <div class="auth-card" id="authPendingCard" style="display:none;text-align:center;">
+    <div class="auth-logo">⏳</div>
+    <div class="auth-title">Acesso aguardando aprovação</div>
+    <div class="auth-sub" id="authPendingSub">Seu acesso foi solicitado. Assim que o administrador liberar, você já poderá entrar automaticamente.</div>
+    <button class="btn-google" id="btnPendingSair" style="background:var(--md-surface-variant);color:var(--text);box-shadow:none;">Sair</button>
+  </div>
 </div>
 
 <!-- TERRITORY PICKER OVERLAY (aparece só p/ quem pode alternar território) -->
@@ -1070,6 +1086,15 @@ body.no-anim .leaflet-zoom-animated{
   <div class="search-overlay-results" id="cartasResults" style="background:var(--bg);padding:4px 0;"></div>
 </div>
 
+<!-- AUTORIZAR ACESSOS (admin) -->
+<div class="search-overlay" id="autorizarOverlay">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="closeAutorizarOverlay()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;flex:1;">🔐 Autorizar acessos</div>
+  </div>
+  <div class="search-overlay-results" id="autorizarResults" style="background:var(--bg)"></div>
+</div>
+
 <!-- SIDE MENU -->
 <div class="side-menu-backdrop" id="sideMenuBackdrop" onclick="closeSideMenu()"></div>
 <div class="side-menu" id="sideMenu">
@@ -1083,14 +1108,15 @@ body.no-anim .leaflet-zoom-animated{
   </div>
   <div class="side-menu-body">
     <button class="side-menu-item" onclick="closeSideMenu();openGlobalSearch()"><span class="smi-icon">🔍</span> Buscar</button>
-    <button class="side-menu-item" onclick="closeSideMenu();showActivityLog()"><span class="smi-icon">📜</span> Atividade recente</button>
+    <button class="side-menu-item" onclick="closeSideMenu();if(checarMenuLiberado('atividade'))showActivityLog()"><span class="smi-icon">📜</span> Atividade recente</button>
     <button class="side-menu-item" id="sideMenuSwitchTerritory" style="display:none" onclick="switchTerritoryPrompt()"><span class="smi-icon">🔁</span> Trocar território</button>
+    <button class="side-menu-item" id="sideMenuAutorizar" style="display:none" onclick="closeSideMenu();openAutorizarOverlay()"><span class="smi-icon">🔐</span> Autorizar acessos<span class="smi-state" id="smiAutorizarBadge"></span></button>
     <button class="side-menu-item" id="sideMenuDistribuir" style="display:none" onclick="closeSideMenu();openDistribOverlay()"><span class="smi-icon">🧭</span> Distribuir quadras por grupo</button>
-    <button class="side-menu-item" onclick="closeSideMenu();openReportOverlay()"><span class="smi-icon">📊</span> Relatório e métricas</button>
+    <button class="side-menu-item" onclick="closeSideMenu();if(checarMenuLiberado('relatorio'))openReportOverlay()"><span class="smi-icon">📊</span> Relatório e métricas</button>
     <button class="side-menu-item" onclick="closeSideMenu();openIaOverlay()"><span class="smi-icon">🤖</span> Analisar território com IA</button>
     <div class="side-menu-sep"></div>
-    <button class="side-menu-item" onclick="closeSideMenu();openTestemunhoOverlay()"><span class="smi-icon">🛒</span> Testemunho público</button>
-    <button class="side-menu-item" onclick="closeSideMenu();openCartasOverlay()"><span class="smi-icon">✉️</span> Controle de cartas</button>
+    <button class="side-menu-item" onclick="closeSideMenu();if(checarMenuLiberado('testemunho'))openTestemunhoOverlay()"><span class="smi-icon">🛒</span> Testemunho público</button>
+    <button class="side-menu-item" onclick="closeSideMenu();if(checarMenuLiberado('cartas'))openCartasOverlay()"><span class="smi-icon">✉️</span> Controle de cartas</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
     <button class="side-menu-item" onclick="closeSideMenu();document.getElementById('importFile').click()"><span class="smi-icon">📥</span> Importar dados</button>
@@ -1134,7 +1160,7 @@ body.no-anim .leaflet-zoom-animated{
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   const firebaseConfig = {
     apiKey: "AIzaSyDb3i6rxN7P2XB83_HkrorhdTZSVYEphFI",
     authDomain: "territorio-jardim-ivete.firebaseapp.com",
@@ -1175,11 +1201,22 @@ body.no-anim .leaflet-zoom-animated{
     "jardim-conceicao": { docId: "dados-jd-conceicao", label: "Jardim Conceição" }
   };
 
+  // ── MENUS QUE O ADMIN PODE LIBERAR PARA UM VISITANTE APROVADO ──
+  // key = identificador salvo no Firestore; label = texto mostrado na tela de autorização.
+  const ACCESS_MENUS = [
+    { key: "mapa",         label: "Mapa" },
+    { key: "lista",        label: "Lista" },
+    { key: "relatorio",    label: "Relatório e métricas" },
+    { key: "testemunho",   label: "Testemunho público" },
+    { key: "cartas",       label: "Controle de cartas" },
+    { key: "atividade",    label: "Atividade recente" }
+  ];
+
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
   const provider = new GoogleAuthProvider();
-  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, ADMIN_EMAIL, TERRITORY_CONFIG, AVAILABLE_TERRITORIES };
+  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, ADMIN_EMAIL, TERRITORY_CONFIG, AVAILABLE_TERRITORIES, ACCESS_MENUS };
 </script>
 
 <script>
@@ -2457,69 +2494,7 @@ function wireCartasBlock(card, c, rerenderFn) {
 // já no estilo visual do app. touchRotate: gesto de 2 dedos gira no celular.
 // shiftKeyRotate: false porque o giro no PC é feito por Ctrl+arrastar (handler
 // próprio logo abaixo), não por Shift+scroll.
-const map = L.map('map', { zoomControl: true, tap: true, rotate: true, bearing: 0, rotateControl: false, touchRotate: true, shiftKeyRotate: false });
-
-// ---------- ROTAÇÃO DO MAPA (bússola + Ctrl+arrastar no PC) ----------
-(function setupMapRotation() {
-  if (typeof map.setBearing !== 'function') return; // plugin não carregou (ex.: sem internet) — app segue normal sem rotação
-
-  // Botão bússola: clique único = volta pro Norte (rotação 0). Aponta sempre
-  // pro Norte real girando na direção oposta à rotação do mapa.
-  const CompassControl = L.Control.extend({
-    options: { position: 'topright' },
-    onAdd: function() {
-      const div = L.DomUtil.create('div', 'leaflet-bar map-compass-btn');
-      div.title = 'Girar mapa / toque para voltar ao Norte';
-      div.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2 L15 12 L12 10 L9 12 Z" fill="#d93025"/><path d="M12 22 L9 12 L12 14 L15 12 Z" fill="#9aa0a6"/></svg>';
-      L.DomEvent.disableClickPropagation(div);
-      L.DomEvent.on(div, 'click', () => { map.setBearing(0); });
-      this._icon = div.querySelector('svg');
-      return div;
-    }
-  });
-  map.addControl(new CompassControl());
-
-  function updateCompassIcon() {
-    const el = document.querySelector('.map-compass-btn svg');
-    if (el) el.style.transform = 'rotate(' + (-map.getBearing()) + 'deg)';
-  }
-  map.on('rotate', updateCompassIcon);
-  updateCompassIcon();
-
-  // Ctrl + arrastar com o mouse = girar (igual Google Maps). Enquanto Ctrl
-  // estiver pressionado, desligamos o arrastar normal do mapa (senão ele
-  // panaria E giraria ao mesmo tempo) e calculamos o ângulo do movimento do
-  // mouse em relação ao centro da tela.
-  const mapEl = document.getElementById('map');
-  let rotating = false, startAngle = 0, startBearing = 0;
-
-  function angleFromCenter(clientX, clientY) {
-    const rect = mapEl.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
-    return Math.atan2(clientY - cy, clientX - cx) * 180 / Math.PI;
-  }
-
-  mapEl.addEventListener('mousedown', (e) => {
-    if (!e.ctrlKey) return;
-    rotating = true;
-    startAngle = angleFromCenter(e.clientX, e.clientY);
-    startBearing = map.getBearing();
-    map.dragging.disable();
-    e.preventDefault();
-  });
-  window.addEventListener('mousemove', (e) => {
-    if (!rotating) return;
-    const nowAngle = angleFromCenter(e.clientX, e.clientY);
-    map.setBearing(startBearing + (nowAngle - startAngle));
-  });
-  window.addEventListener('mouseup', () => {
-    if (!rotating) return;
-    rotating = false;
-    map.dragging.enable();
-  });
-  // Segurança: se soltar Ctrl no meio do gesto (ex.: trocou de janela), encerra o giro
-  window.addEventListener('keyup', (e) => { if (rotating && e.key === 'Control') { rotating = false; map.dragging.enable(); } });
-})();
+const map = L.map('map', { zoomControl: true, tap: true, rotate: false, bearing: 0, rotateControl: false, touchRotate: false, shiftKeyRotate: false });
 const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap', crossOrigin: true }).addTo(map);
 const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics', crossOrigin: true });
 // Voltei para este serviço (CartoDB): é o único, dos que testei, que mostra
@@ -2878,6 +2853,9 @@ function renderQuadras() {
       borderOpacity = isFiltered?(match?1:0.25):0.9;
       weight = (match||!isFiltered)?baseWeight:Math.max(1,baseWeight-2);
     }
+    // Com filtro por Mapa ativo, esconde por completo (polígono + número) as
+    // quadras que não são a selecionada — só a escolhida fica visível.
+    if (!isHeatmap && !isCobertura && activeMapaFilter && !match) { qd._layer = null; return; }
     const poly = L.polygon(qd.coords, { color:cor, weight, fillColor:cor, fillOpacity, opacity:borderOpacity });
     const coberturaBtn = `<button onclick="toggleQuadraCobertura(${idx})" class="popup-act-btn" style="background:${qd.coberta?'#5f6368':'var(--md-success)'}">${qd.coberta?'↺':'✓'}<span>${qd.coberta?'Desfazer':'Dar baixa'}</span></button>`;
     const diasUltPopup = diasDesde(qd.ultimaCobertura);
@@ -3363,11 +3341,24 @@ function updateLegend() {
       html=`<span class="legend-title" ${toggleAttr}>Quadras por mapa${arrow}</span>`;
       const nums={}; quadrasData.forEach(qd=>{if(!nums[qd.mapa]) nums[qd.mapa]=qd.cor||getColorForMapa(qd.mapa);});
       if (!Object.keys(nums).length) html+='<div style="font-size:0.7rem;color:#9aa0a6;margin-top:4px">Nenhuma quadra ainda</div>';
-      else Object.entries(nums).forEach(([n,c])=>html+=`<div style="${activeMapaFilter&&activeMapaFilter!==n?'opacity:0.3':''}"><span class="dot" style="background:${c}"></span>Mapa ${escapeHtml(n)}</div>`);
-      if (activeMapaFilter) html+=`<div style="margin-top:4px;font-size:0.68rem;color:#5f6368">Filtro: Mapa ${escapeHtml(activeMapaFilter)}</div>`;
+      else Object.entries(nums).forEach(([n,c])=>html+=`<div class="legend-item-click" data-legend-mapa="${escapeHtml(n)}" style="cursor:pointer;${activeMapaFilter&&activeMapaFilter!==n?'opacity:0.3':''}"><span class="dot" style="background:${c}"></span>Mapa ${escapeHtml(n)}</div>`);
+      if (activeMapaFilter) html+=`<div class="legend-item-click" data-legend-mapa="" style="margin-top:4px;font-size:0.68rem;color:#5f6368;cursor:pointer;text-decoration:underline">Filtro: Mapa ${escapeHtml(activeMapaFilter)} · toque para limpar</div>`;
     }
   }
   box.innerHTML = html || '<span style="color:#9aa0a6">Nenhuma camada ativa</span>';
+  box.querySelectorAll('[data-legend-mapa]').forEach(el=>{
+    el.onclick = (e) => {
+      e.stopPropagation();
+      activeMapaFilter = el.dataset.legendMapa || null;
+      _atencaoFiltroAtivo = null;
+      renderCatbar(); renderQuadras(); updateLegend();
+      if (viewMode==='lista') renderList();
+      if (activeMapaFilter) {
+        const m = quadrasData.filter(qd=>qd.mapa===activeMapaFilter && qd._layer);
+        if (m.length) { const g = L.featureGroup(m.map(qd=>qd._layer)); map.fitBounds(g.getBounds(),{padding:[30,30]}); }
+      }
+    };
+  });
 }
 function toggleLegendCollapse() {
   document.getElementById('legendBox').classList.toggle('collapsed');
@@ -4174,6 +4165,62 @@ function restoreIveteBoundary() {
   }
 }
 
+// ── SOLICITAÇÕES DE ACESSO (visitantes sem cadastro em TERRITORY_CONFIG) ──
+// Guardadas em Firestore: coleção "solicitacoes_acesso", 1 documento por e-mail.
+// { email, nome, foto, status: 'pendente'|'aprovado', menus: ['mapa','lista',...], criadoEm, aprovadoEm }
+let visitorAccess = null;      // doc atual do usuário logado (se ele não for do TERRITORY_CONFIG)
+let visitorUnsubscribe = null; // listener ao vivo do próprio doc (detecta aprovação sem precisar relogar)
+
+function solicitacaoDocRef(email) {
+  return window._fb.doc(window._fb.db, 'solicitacoes_acesso', email);
+}
+
+async function criarOuAtualizarSolicitacao(user) {
+  const ref = solicitacaoDocRef(user.email);
+  const existente = await window._fb.getDoc(ref);
+  if (existente.exists()) return existente.data();
+  const nova = {
+    email: user.email,
+    nome: user.displayName || user.email,
+    foto: user.photoURL || '',
+    status: 'pendente',
+    menus: [],
+    criadoEm: window._fb.serverTimestamp()
+  };
+  await window._fb.setDoc(ref, nova);
+  return nova;
+}
+
+// Aplica a lista de menus liberados ao visitante aprovado: some com os
+// itens do menu lateral e das abas inferiores que não foram marcados.
+function applyVisitorMenuRestrictions(menus) {
+  const liberados = new Set(menus || []);
+  const map = {
+    mapa: ['nav-mapa'],
+    lista: ['nav-lista'],
+    relatorio: null, // não some com botão, controlado no clique
+    testemunho: null,
+    cartas: null,
+    atividade: null
+  };
+  (window._fb.ACCESS_MENUS || []).forEach(m => {
+    (map[m.key] || []).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = liberados.has(m.key) ? '' : 'none';
+    });
+  });
+  window._visitorMenusLiberados = liberados;
+}
+
+// Usado pelos itens do menu lateral que não têm um botão fixo próprio
+// (relatório, testemunho, cartas, atividade) — chama antes de abrir o overlay.
+function checarMenuLiberado(key) {
+  if (isAdmin || !window._visitorMenusLiberados) return true; // admin/território fixo: sem restrição
+  if (window._visitorMenusLiberados.has(key)) return true;
+  showSnack('❌ Você não tem acesso liberado a este menu');
+  return false;
+}
+
 function initFirebaseAuth() {
   if (!window._fb) { setTimeout(initFirebaseAuth, 100); return; }
   const { auth, onAuthStateChanged, signInWithPopup, provider, ADMIN_EMAIL } = window._fb;
@@ -4182,24 +4229,60 @@ function initFirebaseAuth() {
   onAuthStateChanged(auth, async (user) => {
     const overlay = document.getElementById('authOverlay');
     const loading = document.getElementById('authLoading');
+    const pendingCard = document.getElementById('authPendingCard');
+    const loginCard = document.querySelector('#authOverlay .auth-card:not(#authPendingCard)');
     const badge = document.getElementById('userBadge');
     const photo = document.getElementById('userPhoto');
     const nameEl = document.getElementById('userName');
     const picker = document.getElementById('territoryPickerOverlay');
+    const menuAutorizar = document.getElementById('sideMenuAutorizar');
+
+    if (visitorUnsubscribe) { visitorUnsubscribe(); visitorUnsubscribe = null; }
 
     if (user) {
-      // Verifica se o e-mail tem acesso configurado
+      // Verifica se o e-mail tem acesso configurado (dono/editora de território)
       const cfg = window._fb.TERRITORY_CONFIG[user.email];
+
       if (!cfg) {
-        // E-mail não autorizado
+        // E-mail sem território fixo: fluxo de solicitação/aprovação pelo admin.
         loading.style.display = 'none';
+        if (loginCard) loginCard.style.display = 'none';
+        pendingCard.style.display = 'block';
         overlay.classList.remove('hidden');
-        await window._fb.signOut(auth);
-        alert('❌ Este e-mail não tem acesso ao sistema.\n\nEntre em contato com o administrador.');
+        badge.style.display = 'none';
+        if (picker) picker.style.display = 'none';
+
+        const dados = await criarOuAtualizarSolicitacao(user);
+
+        if (dados.status === 'aprovado') {
+          // Já aprovado: entra como visualizador, com menus restritos.
+          overlay.classList.add('hidden');
+          pendingCard.style.display = 'none';
+          if (loginCard) loginCard.style.display = '';
+          photo.src = user.photoURL || '';
+          nameEl.textContent = user.displayName ? user.displayName.split(' ')[0] : user.email;
+          badge.style.display = 'flex';
+          updateHomeGreeting(user);
+          applyUserRole(user); // não tem cfg → isAdmin fica false (modo visualizador)
+          await proceedWithTerritory('jardim-ivete');
+          applyVisitorMenuRestrictions(dados.menus);
+        } else {
+          // Pendente: mostra tela de espera e escuta em tempo real por aprovação.
+          document.getElementById('authPendingSub').textContent =
+            'Olá, ' + (user.displayName || user.email) + '. Seu acesso foi solicitado e está aguardando aprovação do administrador. Assim que for liberado, esta tela avança sozinha.';
+          visitorUnsubscribe = window._fb.onSnapshot(solicitacaoDocRef(user.email), (snap) => {
+            if (snap.exists() && snap.data().status === 'aprovado') {
+              onAuthStateChanged(auth, () => {}); // no-op só pra manter padrão; reforça abaixo
+              location.reload(); // forma simples e segura de reiniciar com o novo status aprovado
+            }
+          });
+        }
         return;
       }
 
-      // Usuário autorizado
+      // Usuário autorizado (dono/editora de território)
+      if (loginCard) loginCard.style.display = '';
+      pendingCard.style.display = 'none';
       overlay.classList.add('hidden');
       loading.style.display = 'none';
 
@@ -4211,6 +4294,10 @@ function initFirebaseAuth() {
 
       // Define papel base e território padrão (pode ser sobrescrito abaixo)
       applyUserRole(user);
+      window._visitorMenusLiberados = null; // sem restrição de menu — é usuária "de verdade"
+      applyVisitorMenuRestrictions(null);
+      if (menuAutorizar) menuAutorizar.style.display = (user.email === ADMIN_EMAIL) ? 'flex' : 'none';
+      if (user.email === ADMIN_EMAIL) atualizarBadgeSolicitacoesPendentes();
 
       if (cfg.canSwitchTerritory) {
         // Usuária que pode alternar entre territórios (a "master"): entra direto
@@ -4232,10 +4319,13 @@ function initFirebaseAuth() {
 
     } else {
       // Não logado — mostra tela de login
+      if (loginCard) loginCard.style.display = '';
+      pendingCard.style.display = 'none';
       overlay.classList.remove('hidden');
       loading.style.display = 'none';
       badge.style.display = 'none';
       if (picker) picker.style.display = 'none';
+      if (menuAutorizar) menuAutorizar.style.display = 'none';
       currentUser = null;
       isAdmin = false;
     }
@@ -4253,11 +4343,99 @@ function initFirebaseAuth() {
     }
   };
 
+  // Botão "Sair" da tela de aguardando aprovação
+  const btnPendingSair = document.getElementById('btnPendingSair');
+  if (btnPendingSair) btnPendingSair.onclick = () => { if (visitorUnsubscribe) { visitorUnsubscribe(); visitorUnsubscribe = null; } window._fb.signOut(auth); };
+
   // Botões da tela de escolha de território
   const btnIvete = document.getElementById('btnPickIvete');
   const btnConceicao = document.getElementById('btnPickConceicao');
   if (btnIvete) btnIvete.onclick = () => proceedWithTerritory('jardim-ivete');
   if (btnConceicao) btnConceicao.onclick = () => proceedWithTerritory('jardim-conceicao');
+}
+
+// ══════════════════════════════════════════════
+// TELA DE ADMIN: AUTORIZAR ACESSOS
+// ══════════════════════════════════════════════
+async function atualizarBadgeSolicitacoesPendentes() {
+  try {
+    const snap = await window._fb.getDocs(window._fb.collection(window._fb.db, 'solicitacoes_acesso'));
+    let pendentes = 0;
+    snap.forEach(d => { if (d.data().status === 'pendente') pendentes++; });
+    const el = document.getElementById('smiAutorizarBadge');
+    if (el) el.textContent = pendentes ? String(pendentes) : '';
+  } catch (e) { /* silencioso — não é crítico */ }
+}
+
+function openAutorizarOverlay() {
+  if (currentUser && currentUser.email !== window._fb.ADMIN_EMAIL) { showSnack('❌ Apenas o administrador principal pode autorizar acessos'); return; }
+  document.getElementById('autorizarOverlay').classList.add('show');
+  renderAutorizarLista();
+}
+function closeAutorizarOverlay() { document.getElementById('autorizarOverlay').classList.remove('show'); }
+
+async function renderAutorizarLista() {
+  const box = document.getElementById('autorizarResults');
+  box.innerHTML = '<div class="empty-msg">Carregando…</div>';
+  let docs = [];
+  try {
+    const snap = await window._fb.getDocs(window._fb.collection(window._fb.db, 'solicitacoes_acesso'));
+    snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+  } catch (e) {
+    box.innerHTML = '<div class="empty-msg">❌ Não foi possível carregar as solicitações</div>';
+    return;
+  }
+  if (!docs.length) { box.innerHTML = '<div class="empty-msg"><strong>🔐</strong>Nenhuma solicitação de acesso ainda</div>'; return; }
+
+  docs.sort((a, b) => (a.status === 'pendente' ? -1 : 1) - (b.status === 'pendente' ? -1 : 1));
+  const pendentes = docs.filter(d => d.status === 'pendente');
+  const aprovados = docs.filter(d => d.status === 'aprovado');
+
+  const menuChkHTML = (d) => (window._fb.ACCESS_MENUS || []).map(m =>
+    `<label class="autz-menu-chk"><input type="checkbox" class="autz-chk" data-menu="${m.key}" ${d.menus && d.menus.includes(m.key) ? 'checked' : ''}> ${m.label}</label>`
+  ).join('');
+
+  const cardHTML = (d) => `
+    <div class="autz-card" data-email="${escapeHtml(d.id)}">
+      <div class="autz-head">
+        <span class="autz-email">${escapeHtml(d.nome || d.id)}</span>
+        <span class="autz-status ${d.status}">${d.status === 'aprovado' ? '✅ Aprovado' : '⏳ Pendente'}</span>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text2);margin-bottom:4px;">${escapeHtml(d.id)}</div>
+      <div style="font-size:0.7rem;color:var(--text2);margin-bottom:2px;">Menus liberados:</div>
+      <div class="autz-menus">${menuChkHTML(d)}</div>
+      <div class="autz-actions">
+        <button class="tp-btn-sm btn-autz-salvar" style="flex:1;text-align:center;">💾 Salvar menus${d.status === 'pendente' ? ' e aprovar' : ''}</button>
+        <button class="tp-btn-sm btn-autz-remover" style="flex:1;text-align:center;color:var(--error);">🗑 Remover acesso</button>
+      </div>
+    </div>`;
+
+  let html = '';
+  if (pendentes.length) html += '<div class="autz-section-title">Pendentes</div>' + pendentes.map(cardHTML).join('');
+  if (aprovados.length) html += '<div class="autz-section-title">Aprovados</div>' + aprovados.map(cardHTML).join('');
+  box.innerHTML = html;
+
+  box.querySelectorAll('.autz-card').forEach(card => {
+    const email = card.dataset.email;
+    card.querySelector('.btn-autz-salvar').onclick = async () => {
+      const menus = Array.from(card.querySelectorAll('.autz-chk:checked')).map(c => c.dataset.menu);
+      try {
+        await window._fb.setDoc(solicitacaoDocRef(email), { status: 'aprovado', menus, aprovadoEm: window._fb.serverTimestamp() }, { merge: true });
+        showSnack('✓ Acesso salvo e liberado para ' + email);
+        renderAutorizarLista();
+        atualizarBadgeSolicitacoesPendentes();
+      } catch (e) { showSnack('❌ Erro ao salvar: ' + e.message); }
+    };
+    card.querySelector('.btn-autz-remover').onclick = async () => {
+      if (!confirm('Remover completamente o acesso de ' + email + '? A pessoa poderá solicitar de novo ao entrar.')) return;
+      try {
+        await window._fb.deleteDoc(solicitacaoDocRef(email));
+        showSnack('🗑 Acesso removido');
+        renderAutorizarLista();
+        atualizarBadgeSolicitacoesPendentes();
+      } catch (e) { showSnack('❌ Erro ao remover: ' + e.message); }
+    };
+  });
 }
 
 // ── MULTI-TERRITÓRIO: POLÍGONOS ADICIONAIS ──
