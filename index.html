@@ -1476,7 +1476,7 @@ function renderReport() {
       <div class="report-stat-card"><div class="num">${d.pendentes}</div><div class="lbl">Quadras pendentes</div></div>
       <div class="report-stat-card"><div class="num">${d.atrasadas.length}</div><div class="lbl">Atrasadas (+90 dias)</div></div>
       <div class="report-stat-card"><div class="num">${d.ult30}</div><div class="lbl">Cobertas nos últimos 30 dias</div></div>
-      <div class="report-stat-card"><div class="num">${d.semGrupo}</div><div class="lbl">Sem grupo atribuído</div></div>
+      <div class="report-stat-card"><div class="num">${d.semGrupo}</div><div class="lbl">Território da congregação</div></div>
     </div>
     <div class="report-section">
       <div class="report-section-title">📅 Previsão de conclusão do ciclo</div>
@@ -1520,7 +1520,7 @@ async function baixarRelatorioImagem() {
 // ── SELO DE PRIORIDADE POR QUADRA ──
 // Deriva a prioridade automaticamente da cobertura + tempo sem trabalhar (sem precisar de campo manual)
 function prioridadeQuadra(qd) {
-  if (!qd.grupo) return { tag: '🟡', label: 'Sem grupo', cor: 'var(--warning)', bg: '#fff7e6' };
+  if (!qd.grupo) return { tag: '🟡', label: 'Congregação', cor: 'var(--warning)', bg: '#fff7e6' };
   if (qd.coberta) return { tag: '🟢', label: 'Coberta', cor: 'var(--success)', bg: '#e6f4ea' };
   const d = diasDesde(qd.ultimaCobertura);
   if (d === null || d > 180) return { tag: '🔴', label: 'Urgente', cor: 'var(--error)', bg: '#fce8e6' };
@@ -1568,7 +1568,7 @@ function renderAtencaoPanel() {
 
   const cards = [
     { count: atrasadas.length, dot: 'var(--error)', title: 'Há mais de 6 meses sem trabalho', sub: atrasadas.length ? atrasadas.slice(0,4).map(q=>'Mapa '+q.mapa).join(', ') + (atrasadas.length>4?'...':'') : 'Nenhuma — ótimo trabalho!', filtro: () => irParaQuadrasFiltradas(atrasadas) },
-    { count: semGrupo.length, dot: 'var(--warning)', title: 'Sem grupo designado', sub: semGrupo.length ? semGrupo.slice(0,4).map(q=>'Mapa '+q.mapa).join(', ') + (semGrupo.length>4?'...':'') : 'Todas já têm grupo', filtro: () => irParaQuadrasFiltradas(semGrupo) },
+    { count: semGrupo.length, dot: 'var(--warning)', title: 'Território da congregação', sub: semGrupo.length ? semGrupo.slice(0,4).map(q=>'Mapa '+q.mapa).join(', ') + (semGrupo.length>4?'...':'') : 'Todas já têm grupo', filtro: () => irParaQuadrasFiltradas(semGrupo) },
     { count: prontas.length, dot: 'var(--success)', title: 'Prontas para trabalhar', sub: prontas.length ? 'Designadas e em dia' : 'Nenhuma no momento', filtro: () => irParaQuadrasFiltradas(prontas) },
   ];
 
@@ -1634,12 +1634,12 @@ function closeAnaliseQuadraOverlay() { document.getElementById('analiseQuadraOve
 // como variável de ambiente no Vercel — nunca exposta aqui no front-end).
 function buildResumoTerritorioParaIA() {
   const d = computeReportData();
-  let txt = `Território "Jardim Ivete". ${d.total} quadras no total, ${d.cobertas} cobertas (${d.pct}%), ${d.pendentes} pendentes, ${d.semGrupo} sem grupo designado.\n`;
+  let txt = `Território "Jardim Ivete". ${d.total} quadras no total, ${d.cobertas} cobertas (${d.pct}%), ${d.pendentes} pendentes, ${d.semGrupo} são território da congregação (sem grupo designado).\n`;
   txt += `Ritmo recente: ${d.ult30} quadras cobertas nos últimos 30 dias.\n`;
   if (d.porGrupo.length) txt += `Por grupo: ` + d.porGrupo.map(g => `${g.grupo} (${g.cobertas}/${g.total} cobertas, ${g.publicadores} publicadores)`).join('; ') + '.\n';
-  if (d.atrasadas.length) txt += `Quadras atrasadas (+90 dias ou nunca cobertas): ` + d.atrasadas.slice(0,25).map(a => `Mapa ${a.qd.mapa}${a.qd.grupo?' (grupo '+a.qd.grupo+')':' (sem grupo)'}${a.dias!==null?' — '+a.dias+' dias':' — nunca coberta'}`).join('; ') + '.\n';
+  if (d.atrasadas.length) txt += `Quadras atrasadas (+90 dias ou nunca cobertas): ` + d.atrasadas.slice(0,25).map(a => `Mapa ${a.qd.mapa}${a.qd.grupo?' (grupo '+a.qd.grupo+')':' (congregação)'}${a.dias!==null?' — '+a.dias+' dias':' — nunca coberta'}`).join('; ') + '.\n';
   const semGrupoList = quadrasData.filter(q => !q.grupo);
-  if (semGrupoList.length) txt += `Quadras sem grupo: ` + semGrupoList.slice(0,25).map(q => 'Mapa '+q.mapa).join(', ') + '.\n';
+  if (semGrupoList.length) txt += `Quadras da congregação (sem grupo): ` + semGrupoList.slice(0,25).map(q => 'Mapa '+q.mapa).join(', ') + '.\n';
   txt += `Comércios: ${d.comercios}, Condomínios: ${d.condominios}, Publicadores: ${d.publicadores}.`;
   return txt;
 }
@@ -2854,7 +2854,7 @@ function renderQuadras() {
     } else {
       cor = qd.cor || getColorForMapa(qd.mapa);
       isFiltered = !!(activeMapaFilter || activeQuadraGrupoFilter);
-      match = activeMapaFilter ? qd.mapa===activeMapaFilter : (activeQuadraGrupoFilter ? qd.grupo===activeQuadraGrupoFilter : true);
+      match = activeMapaFilter ? qd.mapa===activeMapaFilter : (activeQuadraGrupoFilter ? (activeQuadraGrupoFilter==='__sem__' ? !qd.grupo : qd.grupo===activeQuadraGrupoFilter) : true);
       fillOpacity = isFiltered?(match?0.55:0.06):0.32;
       borderOpacity = isFiltered?(match?1:0.25):0.9;
       weight = (match||!isFiltered)?baseWeight:Math.max(1,baseWeight-2);
@@ -3326,9 +3326,9 @@ function updateLegend() {
       if (!quadrasData.length) html+='<div style="font-size:0.7rem;color:#9aa0a6;margin-top:4px">Nenhuma quadra ainda</div>';
       else {
         Object.entries(groupColors).forEach(([g,c])=>html+=`<div class="legend-item-click" data-legend-grp="${escapeHtml(g)}" style="cursor:pointer;${activeQuadraGrupoFilter&&activeQuadraGrupoFilter!==g?'opacity:0.3':''}"><span class="dot" style="background:${c}"></span>${g}</div>`);
-        if (semGrupo) html+=`<div class="legend-item-click" data-legend-grp="__sem__" style="cursor:pointer;${activeQuadraGrupoFilter&&activeQuadraGrupoFilter!=='__sem__'?'opacity:0.3':''}"><span class="dot" style="background:#9aa0a6"></span>Sem grupo</div>`;
+        if (semGrupo) html+=`<div class="legend-item-click" data-legend-grp="__sem__" style="cursor:pointer;${activeQuadraGrupoFilter&&activeQuadraGrupoFilter!=='__sem__'?'opacity:0.3':''}"><span class="dot" style="background:#9aa0a6"></span>Congregação</div>`;
       }
-      if (activeQuadraGrupoFilter) html+=`<div class="legend-item-click" data-legend-grp="" style="margin-top:4px;font-size:0.68rem;color:#5f6368;cursor:pointer;text-decoration:underline">Filtro: ${activeQuadraGrupoFilter==='__sem__'?'Sem grupo':escapeHtml(activeQuadraGrupoFilter)} · toque para limpar</div>`;
+      if (activeQuadraGrupoFilter) html+=`<div class="legend-item-click" data-legend-grp="" style="margin-top:4px;font-size:0.68rem;color:#5f6368;cursor:pointer;text-decoration:underline">Filtro: ${activeQuadraGrupoFilter==='__sem__'?'Congregação':escapeHtml(activeQuadraGrupoFilter)} · toque para limpar</div>`;
     } else if (quadraCatMode==='cobertura') {
       const total = quadrasData.length;
       const feitas = quadrasData.filter(qd=>qd.coberta).length;
@@ -3595,7 +3595,7 @@ function renderSaudeTerritorio() {
   labelEl.textContent = '💚 Saúde do território: ' + s.label;
   const partes = [];
   if (s.atrasadas) partes.push(s.atrasadas + ' atrasada' + (s.atrasadas===1?'':'s'));
-  if (s.semGrupo) partes.push(s.semGrupo + ' sem grupo');
+  if (s.semGrupo) partes.push(s.semGrupo + ' da congregação');
   subEl.textContent = partes.length ? partes.join(' · ') : 'Tudo em dia — ótimo trabalho!';
   barEl.style.width = s.score + '%'; barEl.style.background = s.cor;
 }
@@ -3663,7 +3663,7 @@ function renderCatbar() {
       html += `<button class="cat-chip${activeQuadraGrupoFilter?'':' active'}" data-grp="">Todos <span class="count">${quadrasData.length}</span></button>`;
       Object.keys(groupColors).forEach(g=>{const count=quadrasData.filter(qd=>qd.grupo===g).length; html+=`<button class="cat-chip${activeQuadraGrupoFilter===g?' active':''}" data-grp="${g}"><span class="dot" style="background:${groupColors[g]};width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px"></span>${g} <span class="count">${count}</span></button>`;});
       const semGrupo = quadrasData.filter(qd=>!qd.grupo).length;
-      if (semGrupo) html += `<button class="cat-chip${activeQuadraGrupoFilter==='__sem__'?' active':''}" data-grp="__sem__">Sem grupo <span class="count">${semGrupo}</span></button>`;
+      if (semGrupo) html += `<button class="cat-chip${activeQuadraGrupoFilter==='__sem__'?' active':''}" data-grp="__sem__">Congregação <span class="count">${semGrupo}</span></button>`;
     } else if (quadraCatMode==='cobertura') {
       const feitas = quadrasData.filter(qd=>qd.coberta).length;
       html += `<button class="cat-chip${activeCoberturaFilter?'':' active'}" data-cob="">Todos <span class="count">${quadrasData.length}</span></button>`;
@@ -3953,7 +3953,7 @@ function renderList() {
       const historicoHTML = historicoBaixa.length ? `<details class="quadra-historico"><summary>📜 Linha do tempo (${historicoBaixa.length})</summary>${historicoBaixa.slice(0,10).map(h=>`<div class="hist-item">${formatarDataBR(h.data)} — ${h.acao}${h.usuario?' — '+h.usuario:''}</div>`).join('')}<button type="button" class="btn-limpar-historico" data-idx="${idxQd}" style="margin-top:6px;background:none;border:none;color:var(--error);font-size:0.72rem;font-weight:700;cursor:pointer;padding:2px 0">🗑 Limpar histórico</button></details>` : '';
       const estMin = estimativaTempoQuadra(qd);
       const estimativaHTML = estMin ? ` — ⏱ ~${formatMinutos(estMin)} (${qd.casas} casas)` : '';
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${escapeHtml(qd.mapa)}</div><div class="card-sub">${escapeHtml(qd.nome||'Sem nome')} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+escapeHtml(qd.grupo):''}${estimativaHTML}</div></div></div>${coberturaBadge}${prioBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${escapeHtml(qd.mapa)}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${escapeHtml(qd.nome||'')}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Sem grupo atribuído</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button><button class="btn-action btn-baixar-cartao" style="background:#e8f0fe;color:#1967d2">⬇️ Baixar cartão</button></div><div class="card-actions"><button class="btn-action btn-analisar-quadra" style="background:#e0f2f1;color:#00695c">🔍 Analisar quadra</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20;border:2px solid ${cor}"><span style="font-size:18px">🧩</span></div><div><div class="card-name">Mapa ${escapeHtml(qd.mapa)}</div><div class="card-sub">${escapeHtml(qd.nome||'Sem nome')} — ${qd.coords.length} pontos — 📏 ~${calcPerimetroQuadra(qd)}m${qd.grupo?' — 👥 '+escapeHtml(qd.grupo):''}${estimativaHTML}</div></div></div>${coberturaBadge}${prioBadge}${historicoHTML}${cartaoBlockHTML(qd)}<div class="card-label">Número do mapa</div><div class="card-row"><input type="text" data-f="mapa" value="${escapeHtml(qd.mapa)}"></div><div class="card-label">Nome/observação</div><div class="card-row"><input type="text" data-f="nome" value="${escapeHtml(qd.nome||'')}"></div><div class="card-label">Número de casas (estimativa: 5 min/casa)</div><div class="card-row"><input type="number" data-f="casas" min="0" value="${qd.casas||''}" placeholder="Ex: 12"></div><div class="card-label">Grupo responsável</div><div class="card-row"><select data-f="grupo"><option value="">Congregação (sem grupo)</option>${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===qd.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Cor</div><div class="card-row"><input type="color" data-f="cor" value="${cor}" style="flex:0 0 48px;height:38px;padding:2px;cursor:pointer"><button type="button" class="btn-cor-auto">🎨 Auto</button></div><div class="card-label">Espessura</div><div class="card-row"><input type="number" data-f="weight" min="1" max="12" value="${weight}"></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button class="btn-action btn-cobertura-toggle" style="background:${qd.coberta?'var(--md-surface-variant)':'#e6f4ea'};color:${qd.coberta?'#5f6368':'#1e8e3e'}">${qd.coberta?'↺ Desfazer baixa':'✓ Dar baixa'}</button></div><div class="card-actions"><button class="btn-action btn-share-quadra" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button><button class="btn-action btn-baixar-cartao" style="background:#e8f0fe;color:#1967d2">⬇️ Baixar cartão</button></div><div class="card-actions"><button class="btn-action btn-analisar-quadra" style="background:#e0f2f1;color:#00695c">🔍 Analisar quadra</button></div>`;
       wireDirty(card);
       wireCartaoBlock(card,qd,renderQuadras);
       card.querySelector('.btn-baixar-cartao').onclick=()=>baixarCartaoQuadra(qd);
