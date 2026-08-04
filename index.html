@@ -939,7 +939,7 @@ body.no-anim .leaflet-zoom-animated{
       <div class="acao-icon" style="background:#f3e8fd;">🧩</div>
       <span class="acao-label">Nova Quadra</span>
     </button>
-    <button class="acao-btn" onclick="document.getElementById('importFile').click()">
+    <button class="acao-btn" id="nav-importar" onclick="abrirImportarDados()">
       <div class="acao-icon" style="background:#e6f4ea;">📥</div>
       <span class="acao-label">Importar Dados</span>
     </button>
@@ -1134,7 +1134,6 @@ body.no-anim .leaflet-zoom-animated{
     <button class="side-menu-item" id="sideMenuSwitchTerritory" style="display:none" onclick="switchTerritoryPrompt()"><span class="smi-icon">🔁</span> Trocar território</button>
     <button class="side-menu-item" id="sideMenuAutorizar" style="display:none" onclick="closeSideMenu();openAutorizarOverlay()"><span class="smi-icon">🔐</span> Autorizar acessos<span class="smi-state" id="smiAutorizarBadge"></span></button>
     <button class="side-menu-item" id="sideMenuDistribuir" style="display:none" onclick="closeSideMenu();openDistribOverlay()"><span class="smi-icon">🧭</span> Distribuir quadras por grupo</button>
-    <button class="side-menu-item" id="sideMenuFixPublicadores" style="display:none" onclick="closeSideMenu();aplicarCorrecaoPublicadores()"><span class="smi-icon">🛠️</span> Aplicar correção de publicadores (temporário)</button>
     <button class="side-menu-item" onclick="closeSideMenu();openReportOverlay()"><span class="smi-icon">📊</span> Relatório e métricas</button>
     <button class="side-menu-item" onclick="closeSideMenu();openIaOverlay()"><span class="smi-icon">🤖</span> Analisar território com IA</button>
     <div class="side-menu-sep"></div>
@@ -1142,7 +1141,7 @@ body.no-anim .leaflet-zoom-animated{
     <button class="side-menu-item" onclick="closeSideMenu();openCartasOverlay()"><span class="smi-icon">✉️</span> Controle de cartas</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
-    <button class="side-menu-item" onclick="closeSideMenu();document.getElementById('importFile').click()"><span class="smi-icon">📥</span> Importar dados</button>
+    <button class="side-menu-item" id="sideMenuImportar" onclick="closeSideMenu();abrirImportarDados()"><span class="smi-icon">📥</span> Importar dados</button>
     <button class="side-menu-item" onclick="closeSideMenu();showMoreMenu()"><span class="smi-icon">🧹</span> Limpar cache</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();togglePresentationMode()"><span class="smi-icon">🖥</span> Modo apresentação</button>
@@ -1247,7 +1246,8 @@ body.no-anim .leaflet-zoom-animated{
     { key: "ia",           label: "Analisar com IA" },
     { key: "exportar",     label: "Exportar dados", subItems: [
         { key: "exportar_completo", label: "Pode exportar dados completos (endereços e contatos)" }
-      ] }
+      ] },
+    { key: "importar",     label: "Importar dados (⚠️ substitui tudo)" }
   ];
 
   const app = initializeApp(firebaseConfig);
@@ -1807,8 +1807,6 @@ function updateSideMenuState() {
   if (switchBtn) switchBtn.style.display = (currentTerritoryConfig && currentTerritoryConfig.canSwitchTerritory) ? 'flex' : 'none';
   const distribBtn = document.getElementById('sideMenuDistribuir');
   if (distribBtn) distribBtn.style.display = isAdmin ? 'flex' : 'none';
-  const fixPubBtn = document.getElementById('sideMenuFixPublicadores');
-  if (fixPubBtn) fixPubBtn.style.display = isAdmin ? 'flex' : 'none';
 }
 function switchTerritoryPrompt() {
   if (!currentTerritoryConfig || !currentTerritoryConfig.canSwitchTerritory) return;
@@ -4018,8 +4016,18 @@ function exportData() {
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   showSnack('💾 Exportado com sucesso');
 }
+// Quem pode importar: a administradora, OU um visitante aprovado que
+// tenha o item "Importar dados" marcado na tela de Autorizar acessos.
+// (Contas fixas não-admin de território continuam sem poder, igual antes.)
+function podeImportarDados() {
+  return isAdmin || !!(window._visitorMenusLiberados && window._visitorMenusLiberados.has('importar'));
+}
+function abrirImportarDados() {
+  if (!podeImportarDados()) { showSnack('❌ Você não tem acesso liberado para importar dados'); return; }
+  document.getElementById('importFile').click();
+}
 function importData(event) {
-  if (!isAdmin) { showSnack('❌ Apenas o administrador pode importar dados'); return; }
+  if (!podeImportarDados()) { showSnack('❌ Você não tem acesso liberado para importar dados'); return; }
   const file=event.target.files[0]; if (!file) return;
   const reader=new FileReader(); reader.onload=async ()=>{
     try {
@@ -4267,7 +4275,8 @@ function applyVisitorMenuRestrictions(menus) {
     cartas:     null,
     atividade:  null,
     ia:         null,
-    exportar:   null
+    exportar:   null,
+    importar:   ['nav-importar', 'sideMenuImportar']
   };
   (window._fb.ACCESS_MENUS || []).forEach(m => {
     (map[m.key] || []).forEach(id => {
