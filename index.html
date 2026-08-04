@@ -98,6 +98,15 @@ body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-conten
 .tp-part-bottom{display:flex;align-items:center;gap:10px;padding-left:2px;}
 .tp-part-bottom select{flex:0 1 140px;font-size:0.8rem;padding:7px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
 .tp-part-bottom .tp-part-chklabel{display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text2);}
+.tp-disponibilidade{margin-top:10px;padding:10px 10px 8px;background:var(--md-surface-variant);border-radius:10px;}
+.tp-disp-label{font-size:0.72rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:6px;}
+.tp-disp-dia{margin-bottom:4px;}
+.tp-disp-dia > .tp-part-chklabel{font-size:0.8rem;font-weight:600;color:var(--text);}
+.tp-disp-horarios{display:flex;flex-wrap:wrap;gap:6px 10px;padding:6px 0 4px 26px;}
+.tp-disp-horario-chk{display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--text2);white-space:nowrap;}
+.tp-disp-maxvezes{display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+.tp-disp-maxvezes label{font-size:0.76rem;color:var(--text2);}
+.tp-disp-maxvezes input{flex:0 0 90px;font-size:0.78rem;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
 .tp-chk{width:20px;height:20px;flex-shrink:0;}
 .tp-btn-sm{background:var(--md-primary-light);color:var(--purple);border-radius:8px;padding:7px 11px;font-size:0.76rem;font-weight:700;white-space:nowrap;border:none;}
 .tp-btn-edit{color:var(--purple);font-size:0.95rem;padding:4px 6px;flex-shrink:0;border:none;background:none;}
@@ -4925,21 +4934,23 @@ async function seedConceicaoComerciosCondominios() {
 // TESTEMUNHO PÚBLICO (pontos de carrinho + escala mensal)
 // ══════════════════════════════════════════════
 
-// Garante/sincroniza os detalhes individuais (sexo, participa) de cada membro
-// da família, mantendo a lista em dia com o array `membros` (nomes).
+// Garante/sincroniza os detalhes individuais (sexo, participa, disponibilidade,
+// limite de vezes no mês) de cada membro da família, mantendo a lista em dia
+// com o array `membros` (nomes).
 function getMembrosDetalhe(p) {
   if (!Array.isArray(p.membrosDetalhe)) p.membrosDetalhe = [];
   const det = (p.membros || []).map(nome => {
     const existente = p.membrosDetalhe.find(m => m.nome === nome);
-    return existente || { nome, sexo: '', participa: false };
+    return existente || { nome, sexo: '', participa: false, disponibilidade: [], maxVezesMes: null };
   });
+  det.forEach(m => { if (!Array.isArray(m.disponibilidade)) m.disponibilidade = []; if (m.maxVezesMes === undefined) m.maxVezesMes = null; });
   p.membrosDetalhe = det;
   return det;
 }
 function listaParticipantesTestemunho() {
   const lista = [];
   publicadoresData.forEach(p => {
-    getMembrosDetalhe(p).forEach(m => { if (m.participa) lista.push({ nome: m.nome, sexo: m.sexo || '', grupo: p.grupo }); });
+    getMembrosDetalhe(p).forEach(m => { if (m.participa) lista.push({ nome: m.nome, sexo: m.sexo || '', grupo: p.grupo, disponibilidade: m.disponibilidade || [], maxVezesMes: m.maxVezesMes }); });
   });
   return lista;
 }
@@ -5041,10 +5052,77 @@ function renderTestemunhoParticipantes() {
           </select>
           <label class="tp-part-chklabel"><input type="checkbox" class="tp-chk" data-pi="${pi}" data-mi="${mi}" ${m.participa ? 'checked' : ''} onchange="onToggleParticipaTestemunho(this)"> Participa</label>
         </div>
+        ${m.participa ? renderDisponibilidadeHTML(p, pi, m, mi) : ''}
       </div>`;
     });
   });
   box.innerHTML = html;
+}
+// Painel de disponibilidade (dias da semana + horário) e limite de vezes no
+// mês para o publicador — usado pela geração automática de escala.
+function renderDisponibilidadeHTML(p, pi, m, mi) {
+  const slots = horarioSlots();
+  const disp = m.disponibilidade || [];
+  const diasHTML = DIAS_SEMANA.map(dia => {
+    const slotsDoDia = slots.filter(h => disp.some(d => d.dia === dia && d.horario === h));
+    const aberto = disp.some(d => d.dia === dia);
+    return `<div class="tp-disp-dia">
+      <label class="tp-part-chklabel"><input type="checkbox" class="tp-disp-dia-chk" data-pi="${pi}" data-mi="${mi}" data-dia="${escapeHtml(dia)}" ${aberto ? 'checked' : ''} onchange="onToggleDispDia(this)"> ${escapeHtml(dia)}</label>
+      ${aberto ? `<div class="tp-disp-horarios">${slots.map(h => `
+        <label class="tp-disp-horario-chk"><input type="checkbox" data-pi="${pi}" data-mi="${mi}" data-dia="${escapeHtml(dia)}" data-horario="${escapeHtml(h)}" ${disp.some(d=>d.dia===dia&&d.horario===h) ? 'checked' : ''} onchange="onToggleDispHorario(this)"> ${h}</label>`).join('')}</div>` : ''}
+    </div>`;
+  }).join('');
+  return `<div class="tp-disponibilidade">
+    <div class="tp-disp-label">🗓️ Disponibilidade no carrinho</div>
+    ${diasHTML}
+    <div class="tp-disp-maxvezes">
+      <label>Máx. de vezes no mês:</label>
+      <input type="number" min="0" placeholder="Sem limite" value="${m.maxVezesMes ?? ''}" data-pi="${pi}" data-mi="${mi}" onchange="onChangeMaxVezes(this)">
+    </div>
+  </div>`;
+}
+function onToggleDispDia(el) {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar esta lista'); renderTestemunhoParticipantes(); return; }
+  const p = publicadoresData[parseInt(el.dataset.pi, 10)];
+  if (!p) return;
+  const m = getMembrosDetalhe(p)[parseInt(el.dataset.mi, 10)];
+  if (!m) return;
+  const dia = el.dataset.dia;
+  if (el.checked) {
+    // marca o primeiro horário do dia como ponto de partida
+    if (!m.disponibilidade.some(d => d.dia === dia)) m.disponibilidade.push({ dia, horario: horarioSlots()[0] });
+  } else {
+    m.disponibilidade = m.disponibilidade.filter(d => d.dia !== dia);
+  }
+  saveState();
+  renderTestemunhoParticipantes();
+}
+function onToggleDispHorario(el) {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar esta lista'); renderTestemunhoParticipantes(); return; }
+  const p = publicadoresData[parseInt(el.dataset.pi, 10)];
+  if (!p) return;
+  const m = getMembrosDetalhe(p)[parseInt(el.dataset.mi, 10)];
+  if (!m) return;
+  const dia = el.dataset.dia, horario = el.dataset.horario;
+  if (el.checked) {
+    if (!m.disponibilidade.some(d => d.dia === dia && d.horario === horario)) m.disponibilidade.push({ dia, horario });
+  } else {
+    m.disponibilidade = m.disponibilidade.filter(d => !(d.dia === dia && d.horario === horario));
+    // se não sobrou nenhum horário nesse dia, também desmarca o dia
+    if (!m.disponibilidade.some(d => d.dia === dia)) { /* dia já sem horários — checkbox do dia é recalculado no próximo render */ }
+  }
+  saveState();
+  renderTestemunhoParticipantes();
+}
+function onChangeMaxVezes(el) {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar esta lista'); renderTestemunhoParticipantes(); return; }
+  const p = publicadoresData[parseInt(el.dataset.pi, 10)];
+  if (!p) return;
+  const m = getMembrosDetalhe(p)[parseInt(el.dataset.mi, 10)];
+  if (!m) return;
+  const v = el.value.trim();
+  m.maxVezesMes = v === '' ? null : Math.max(0, parseInt(v, 10) || 0);
+  saveState();
 }
 function onChangeSexoPublicador(el) {
   if (!isAdmin) {
@@ -5225,18 +5303,57 @@ function gerarDuplasAutomaticas() {
   });
   return { duplas, solos };
 }
+// Verifica se o participante está disponível no dia/horário do slot (sem
+// disponibilidade cadastrada = considera disponível em qualquer horário).
+function pessoaDisponivelNoSlot(pessoa, dia, horario) {
+  if (!pessoa.disponibilidade || !pessoa.disponibilidade.length) return true;
+  return pessoa.disponibilidade.some(d => d.dia === dia && d.horario === horario);
+}
 function gerarDesignacaoAutomatica() {
   if (!isAdmin) { showSnack('❌ Apenas o administrador pode gerar a designação'); return; }
   const itens = designacoesData.filter(d => d.mesAno === _tpMesAno);
   if (!itens.length) { showSnack('Cadastre os horários deste mês primeiro'); return; }
   const { duplas, solos } = gerarDuplasAutomaticas();
-  const pool = [...duplas.map(d => [d[0].nome, d[1].nome]), ...solos.map(s => [s.nome, ''])];
+  const pool = [...duplas.map(d => [d[0], d[1]]), ...solos.map(s => [s, null])];
   if (!pool.length) { showSnack('Marque publicadores como participantes (com sexo definido) primeiro'); return; }
-  let i = 0;
-  itens.forEach(d => { const dupla = pool[i % pool.length]; d.pessoa1 = dupla[0]; d.pessoa2 = dupla[1]; i++; });
+
+  // Conta quantas vezes cada pessoa já foi escalada neste mês (independe da
+  // ordem dos itens — respeita designações manuais já existentes também).
+  const vezesUsadas = {};
+  itens.forEach(d => { [d.pessoa1, d.pessoa2].forEach(n => { if (n) vezesUsadas[n] = (vezesUsadas[n] || 0) + 1; }); });
+
+  const nomeMaxVezes = {};
+  [...duplas.flat(), ...solos].forEach(p => { if (p.maxVezesMes !== null && p.maxVezesMes !== undefined) nomeMaxVezes[p.nome] = p.maxVezesMes; });
+  const excedeuLimite = nome => nomeMaxVezes[nome] !== undefined && (vezesUsadas[nome] || 0) >= nomeMaxVezes[nome];
+  const disponivelParaDupla = (dupla, dia, horario) => dupla.every(p => p && pessoaDisponivelNoSlot(p, dia, horario) && !excedeuLimite(p.nome));
+
+  let ocupados = 0, semHorarioCompativel = 0;
+  // Itens sem horário/dia definido não têm como checar disponibilidade — ficam por último
+  const itensOrdenados = itens.slice().sort((a, b) => (a.dia && a.horario ? 0 : 1) - (b.dia && b.horario ? 0 : 1));
+  const filaPool = pool.slice();
+
+  itensOrdenados.forEach(d => {
+    // procura a próxima dupla da fila que esteja disponível nesse dia/horário e dentro do limite de vezes
+    let escolhidoIdx = -1;
+    for (let i = 0; i < filaPool.length; i++) {
+      const dupla = filaPool[i].filter(Boolean);
+      if (disponivelParaDupla(dupla, d.dia, d.horario)) { escolhidoIdx = i; break; }
+    }
+    if (escolhidoIdx === -1) { semHorarioCompativel++; return; }
+    const [p1, p2] = filaPool.splice(escolhidoIdx, 1)[0];
+    d.pessoa1 = p1 ? p1.nome : '';
+    d.pessoa2 = p2 ? p2.nome : '';
+    if (p1) vezesUsadas[p1.nome] = (vezesUsadas[p1.nome] || 0) + 1;
+    if (p2) vezesUsadas[p2.nome] = (vezesUsadas[p2.nome] || 0) + 1;
+    filaPool.push([p1, p2]); // reaproveita a mesma dupla em outros horários, se ainda couber no limite
+    ocupados++;
+  });
+
   renderTestemunhoEscala(); saveState();
   logActivity('🤖 gerou designação automática do testemunho público (' + _tpMesAno + ')');
-  showSnack(`✓ Designação gerada — ${duplas.length} dupla(s)${solos.length ? ', ' + solos.length + ' sozinho(s) por falta de par' : ''}`);
+  let msg = `✓ Designação gerada — ${ocupados} horário(s) preenchido(s)`;
+  if (semHorarioCompativel) msg += `, ${semHorarioCompativel} sem dupla compatível (disponibilidade/limite)`;
+  showSnack(msg);
 }
 async function baixarTestemunhoImagem() {
   if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') { showSnack('❌ Recurso de PDF não carregado. Verifique sua internet.'); return; }
