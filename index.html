@@ -61,6 +61,15 @@ body.dark-mode{
   --text:#eaeaf0; --text2:#9a9aa8;
   --purple-light:#2a2035; --md-primary-light:#2a2035; --md-surface-variant:#26262f;
 }
+/* transição suave entre modo claro/escuro em toda a UI */
+body,.home-view,.list-view,.surface,.resumo-card,.cobertura-card,.atencao-card,
+.side-menu,.search-overlay,.nav-bar,.bottom-nav,.card,.acao-btn{
+  transition:background-color .25s ease, color .25s ease, border-color .25s ease;
+}
+@media (prefers-reduced-motion: reduce){
+  body,.home-view,.list-view,.surface,.resumo-card,.cobertura-card,.atencao-card,
+  .side-menu,.search-overlay,.nav-bar,.bottom-nav,.card,.acao-btn{transition:none!important;}
+}
 body.dark-mode #map .leaflet-tile-pane{filter:invert(92%) hue-rotate(180deg) brightness(0.92) contrast(0.92);}
 body.dark-mode.sat-mode #map .leaflet-tile-pane{filter:none;}
 body.dark-mode .search-overlay{background:var(--bg);}
@@ -326,10 +335,38 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 }
 .home-view.show{display:block;}
 
+/* ── TRANSIÇÕES ENTRE TELAS (home / mapa / lista) ── */
+.home-view,.list-view,#map{
+  opacity:0;transform:translateY(6px) scale(0.99);
+  transition:opacity .22s cubic-bezier(.4,0,.2,1), transform .22s cubic-bezier(.4,0,.2,1);
+}
+.home-view.show,.list-view.show,#map.show-anim{
+  opacity:1;transform:translateY(0) scale(1);
+}
+@media (prefers-reduced-motion: reduce){
+  .home-view,.list-view,#map{transition:none!important;transform:none!important;}
+}
+/* leve destaque animado no ícone da aba ativa */
+.nav-item .nav-icon{transition:background .18s ease, transform .18s ease;}
+.nav-item.active .nav-icon{transform:scale(1.06);}
+/* micro-interação nos cards */
+.atencao-card,.resumo-card,.cobertura-card,.acao-btn{transition:transform .12s ease, box-shadow .12s ease;}
+
 /* header roxo da home */
 .home-header{
-  background:var(--grad);padding:calc(var(--top-h) + 16px) 20px 28px;
-  position:relative;
+  background:var(--grad);background-size:200% 200%;padding:calc(var(--top-h) + 16px) 20px 28px;
+  position:relative;overflow:hidden;
+  animation:headerGradientShift 12s ease infinite;
+}
+.home-header::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 85% -10%, rgba(255,255,255,0.10), transparent 55%);
+}
+@keyframes headerGradientShift{
+  0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;}
+}
+@media (prefers-reduced-motion: reduce){
+  .home-header{animation:none;}
 }
 .home-greeting{font-size:1.3rem;font-weight:700;color:#fff;margin-bottom:2px;}
 .home-sub{font-size:0.82rem;color:rgba(255,255,255,0.75);}
@@ -1045,6 +1082,15 @@ body.no-anim .leaflet-zoom-animated{
   <div class="search-overlay-results" id="reportResults" style="background:var(--bg)"></div>
 </div>
 
+<!-- ROTA OTIMIZADA -->
+<div class="search-overlay" id="rotaOverlay">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="closeRotaOverlay()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;flex:1;">🧭 Rota sugerida</div>
+  </div>
+  <div class="search-overlay-results" id="rotaResults" style="background:var(--bg)"></div>
+</div>
+
 <!-- QR de repasse de quadra (handoff entre publicadores) -->
 <div class="search-overlay" id="qrOverlay">
   <div class="search-overlay-header">
@@ -1123,6 +1169,7 @@ body.no-anim .leaflet-zoom-animated{
     <button class="side-menu-item" id="sideMenuAutorizar" style="display:none" onclick="closeSideMenu();openAutorizarOverlay()"><span class="smi-icon">🔐</span> Autorizar acessos<span class="smi-state" id="smiAutorizarBadge"></span></button>
     <button class="side-menu-item" id="sideMenuDistribuir" style="display:none" onclick="closeSideMenu();openDistribOverlay()"><span class="smi-icon">🧭</span> Distribuir quadras por grupo</button>
     <button class="side-menu-item" onclick="closeSideMenu();openReportOverlay()"><span class="smi-icon">📊</span> Relatório e métricas</button>
+    <button class="side-menu-item" onclick="abrirSeletorRota()"><span class="smi-icon">🧭</span> Rota sugerida por grupo</button>
     <button class="side-menu-item" onclick="closeSideMenu();openIaOverlay()"><span class="smi-icon">🤖</span> Analisar território com IA</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();openTestemunhoOverlay()"><span class="smi-icon">🛒</span> Testemunho público</button>
@@ -1427,6 +1474,62 @@ async function aplicarDistribSugestoes() {
   showSnack(`✓ ${count} quadra(s) atualizada(s)`);
 }
 
+// ── SUGESTÃO DE ROTA OTIMIZADA (nearest-neighbor por proximidade) ──
+// Dado um grupo de quadras (normalmente as de um mesmo grupo/publicador), sugere
+// a ordem de visita que minimiza o deslocamento total entre centróides.
+function calcularRotaOtimizada(lista, partidaLatLng) {
+  const pontos = lista.map(qd => ({ qd, c: centroideQuadra(qd) })).filter(p => p.c);
+  if (!pontos.length) return [];
+  const restantes = pontos.slice();
+  const rota = [];
+  let atual = partidaLatLng;
+  while (restantes.length) {
+    let melhorIdx = 0, melhorDist = Infinity;
+    restantes.forEach((p, i) => {
+      const d = atual ? haversineMeters(atual[0], atual[1], p.c[0], p.c[1]) : 0;
+      if (d < melhorDist) { melhorDist = d; melhorIdx = i; }
+    });
+    const escolhido = restantes.splice(melhorIdx, 1)[0];
+    rota.push({ qd: escolhido.qd, distDoAnterior: Math.round(melhorDist) });
+    atual = escolhido.c;
+  }
+  return rota;
+}
+function abrirRotaOtimizada(lista, tituloGrupo) {
+  const listaValida = (lista || []).filter(qd => !qd.coberta);
+  if (listaValida.length < 2) { showSnack('Selecione um grupo com pelo menos 2 quadras pendentes'); return; }
+  const rota = calcularRotaOtimizada(listaValida, null);
+  const distTotal = rota.reduce((s, r) => s + r.distDoAnterior, 0);
+  const box = document.getElementById('rotaResults');
+  box.innerHTML = `
+    <div class="report-hero" style="padding:16px;">
+      <div class="pct" style="font-size:1.6rem;">~${(distTotal/1000).toFixed(1)} km</div>
+      <div class="lbl">deslocamento total estimado — ${rota.length} quadras${tituloGrupo ? ' — ' + escapeHtml(tituloGrupo) : ''}</div>
+    </div>
+    <div class="report-section">
+      ${rota.map((r, i) => `
+        <div class="report-alert-item">
+          <span><b>${i+1}.</b> 🧩 Mapa ${escapeHtml(r.qd.mapa)}${r.qd.nome ? ' — ' + escapeHtml(r.qd.nome) : ''}</span>
+          <span style="color:var(--text2);font-size:0.76rem;">${i===0 ? 'início' : '+' + (r.distDoAnterior/1000).toFixed(2) + ' km'}</span>
+        </div>`).join('')}
+    </div>
+    <div style="font-size:0.7rem;color:var(--text2);text-align:center;margin-top:4px;">Ordem sugerida por proximidade entre quadras (linha reta, não considera ruas)</div>
+  `;
+  document.getElementById('rotaOverlay').classList.add('show');
+}
+function closeRotaOverlay() { document.getElementById('rotaOverlay').classList.remove('show'); }
+function abrirSeletorRota() {
+  const grupos = Object.keys(groupColors).filter(g => quadrasData.some(q => q.grupo === g && !q.coberta));
+  if (!grupos.length) { showSnack('Nenhum grupo com quadras pendentes no momento'); return; }
+  const opcoes = grupos.map(g => `${g} (${quadrasData.filter(q=>q.grupo===g && !q.coberta).length} pendentes)`).join('\n');
+  const escolha = prompt(`Gerar rota sugerida para qual grupo?\n\n${opcoes}\n\nDigite o nome do grupo:`);
+  if (!escolha) return;
+  const gEscolhido = grupos.find(g => g.toLowerCase() === escolha.trim().toLowerCase());
+  if (!gEscolhido) { showSnack('❌ Grupo não encontrado'); return; }
+  closeSideMenu();
+  abrirRotaOtimizada(quadrasData.filter(q => q.grupo === gEscolhido), gEscolhido);
+}
+
 // ── RELATÓRIO E MÉTRICAS DO TERRITÓRIO ──
 function computeReportData() {
   const total = quadrasData.length;
@@ -1466,7 +1569,26 @@ function computeReportData() {
     .map(q => ({ qd: q, dias: diasDesde(q.ultimaCobertura) }))
     .sort((a, b) => (b.dias ?? 99999) - (a.dias ?? 99999));
 
-  return { total, cobertas, pendentes, pct, semGrupo, porGrupo, ult30, ult90, ritmoMensal, previsaoTxt, atrasadas,
+  // Prestes a atrasar: cobertas há entre 61 e 90 dias — vão virar "atrasadas" em breve
+  const prestesAtrasar = quadrasData.filter(q => {
+    const d = diasDesde(q.ultimaCobertura);
+    return !q.coberta && d !== null && d > 60 && d <= 90;
+  }).map(q => ({ qd: q, dias: diasDesde(q.ultimaCobertura), faltam: 91 - diasDesde(q.ultimaCobertura) }))
+    .sort((a, b) => a.faltam - b.faltam);
+
+  // Comparativo mês a mês: quadras cobertas por mês, últimos 6 meses
+  const hoje = new Date();
+  const mesesLabels = [];
+  const mesesCounts = [];
+  for (let i = 5; i >= 0; i--) {
+    const ref = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    const ano = ref.getFullYear(), mes = ref.getMonth();
+    const count = eventos.filter(e => { const d = new Date(e); return d.getFullYear() === ano && d.getMonth() === mes; }).length;
+    mesesLabels.push(ref.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''));
+    mesesCounts.push(count);
+  }
+
+  return { total, cobertas, pendentes, pct, semGrupo, porGrupo, ult30, ult90, ritmoMensal, previsaoTxt, atrasadas, prestesAtrasar, mesesLabels, mesesCounts,
     comercios: comerciosData.length, condominios: condominiosData.length, publicadores: publicadoresData.length,
     pessoasTotal: publicadoresData.reduce((sum, p) => sum + (p.membros ? p.membros.length : 0), 0),
     grupos: saidasData.filter(s=>s.grupo).length };
@@ -1510,6 +1632,26 @@ function renderReport() {
       <div class="report-section-title">📅 Previsão de conclusão do ciclo</div>
       <div style="font-size:0.85rem;color:var(--text)">${d.previsaoTxt}</div>
     </div>
+    <div class="report-section">
+      <div class="report-section-title">📈 Cobertura nos últimos 6 meses</div>
+      <div style="display:flex;align-items:flex-end;gap:8px;height:90px;padding:8px 4px 0;">
+        ${(() => { const max = Math.max(1, ...d.mesesCounts); return d.mesesCounts.map((c,i) => `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <div style="font-size:0.68rem;font-weight:700;color:var(--purple)">${c}</div>
+            <div style="width:100%;background:var(--purple);border-radius:4px 4px 0 0;height:${Math.max(4, c/max*54)}px;opacity:${i===d.mesesCounts.length-1?1:0.55}"></div>
+            <div style="font-size:0.62rem;color:var(--text2);text-transform:capitalize;">${d.mesesLabels[i]}</div>
+          </div>`).join(''); })()}
+      </div>
+    </div>
+    ${d.prestesAtrasar.length ? `
+    <div class="report-section">
+      <div class="report-section-title">⏳ Vão atrasar em breve</div>
+      ${d.prestesAtrasar.slice(0, 10).map(a => `
+        <div class="report-alert-item">
+          <span>🧩 Mapa ${escapeHtml(a.qd.mapa)}${a.qd.nome ? ' — ' + escapeHtml(a.qd.nome) : ''}${a.qd.grupo ? ' <span style="color:var(--text2)">(' + escapeHtml(a.qd.grupo) + ')</span>' : ''}</span>
+          <span style="color:var(--orange);font-weight:700;">em ${a.faltam}d</span>
+        </div>`).join('')}
+    </div>` : ''}
     <div class="report-section">
       <div class="report-section-title">👥 Progresso por grupo</div>
       ${barraGrupos}
@@ -3505,6 +3647,7 @@ function setViewMode(mode) {
 
   // esconde tudo
   document.getElementById('homeView').classList.remove('show');
+  document.getElementById('map').classList.remove('show-anim');
   document.getElementById('map').style.display = 'none';
   document.getElementById('legendBox').style.display = 'none';
   document.querySelectorAll('.locate-fab').forEach(b=>b.style.display='none');
@@ -3540,6 +3683,7 @@ function setViewMode(mode) {
     document.getElementById('legendBox').style.display = 'block';
     document.querySelectorAll('.locate-fab').forEach(b=>b.style.display='flex');
     if (editMode) document.getElementById('fabBtn').style.display = 'flex';
+    requestAnimationFrame(()=>document.getElementById('map').classList.add('show-anim'));
     setTimeout(()=>{
       map.invalidateSize();
       if (!mapFitted) { map.fitBounds(currentBoundaryPoly.getBounds(), { padding: [20, 20] }); mapFitted = true; }
