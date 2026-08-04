@@ -734,8 +734,10 @@ body.no-anim .leaflet-zoom-animated{
 .autz-status{font-size:0.68rem;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;}
 .autz-status.pendente{background:#fff3cd;color:#8a6500;}
 .autz-status.aprovado{background:#d3f9d8;color:#1e6b2e;}
-.autz-menus{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0;}
+.autz-menus{display:flex;flex-direction:column;gap:6px;margin:10px 0;}
 .autz-menu-chk{display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text);}
+.autz-submenu{margin-left:24px;font-size:0.74rem;color:var(--text2);}
+.autz-import-box textarea{margin:0 14px;width:calc(100% - 28px);min-height:90px;border:1px solid var(--border);border-radius:10px;padding:8px;font-size:0.8rem;font-family:inherit;resize:vertical;}
 .autz-actions{display:flex;gap:8px;margin-top:8px;}
 .autz-section-title{font-size:0.72rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.03em;padding:12px 14px 2px;}
 </style>
@@ -1096,6 +1098,20 @@ body.no-anim .leaflet-zoom-animated{
   <div class="search-overlay-header">
     <button class="icon-btn" onclick="closeAutorizarOverlay()" style="color:var(--text);">←</button>
     <div style="font-weight:700;font-size:0.95rem;flex:1;">🔐 Autorizar acessos</div>
+    <button class="icon-btn" onclick="toggleAutzImportBox()" title="Importar lista de e-mails" style="color:var(--text);">📥</button>
+  </div>
+  <div class="autz-import-box" id="autzImportBox" style="display:none;background:var(--bg);">
+    <div style="font-size:0.72rem;color:var(--text2);padding:10px 14px 4px;">Cole uma pessoa por linha: <b>email</b> ou <b>email, nome</b>.</div>
+    <textarea id="autzImportText" placeholder="joao@gmail.com, João Silva&#10;maria@gmail.com, Maria Souza"></textarea>
+    <div style="padding:6px 14px 0;display:flex;flex-direction:column;gap:6px;font-size:0.78rem;">
+      <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="autzImportModo" value="pendente" checked> ➕ Adicionar como pendente (aguardando aprovação)</label>
+      <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="autzImportModo" value="aprovado"> ✅ Ativar acesso (aprova direto, sem esperar)</label>
+      <label style="display:flex;align-items:center;gap:6px;"><input type="radio" name="autzImportModo" value="desativar"> 🚫 Desativar acesso (volta pra pendente, sem apagar)</label>
+    </div>
+    <div style="display:flex;gap:8px;padding:10px 14px 12px;">
+      <button class="tp-btn-sm" style="flex:1;text-align:center;" onclick="importarSolicitacoes()">Aplicar à lista</button>
+      <button class="tp-btn-sm" style="text-align:center;color:var(--text2);" onclick="toggleAutzImportBox(false)">Cancelar</button>
+    </div>
   </div>
   <div class="search-overlay-results" id="autorizarResults" style="background:var(--bg)"></div>
 </div>
@@ -1209,15 +1225,28 @@ body.no-anim .leaflet-zoom-animated{
 
   // ── MENUS QUE O ADMIN PODE LIBERAR PARA UM VISITANTE APROVADO ──
   // key = identificador salvo no Firestore; label = texto mostrado na tela de autorização.
+  // Itens com "subItems" ganham checkboxes aninhadas na tela de autorização
+  // (só aparecem/ficam marcáveis se o item principal estiver marcado).
+  // Pra criar mais, é só adicionar subItems:[{key:'...',label:'...'}] em qualquer item.
   const ACCESS_MENUS = [
-    { key: "mapa",         label: "Mapa" },
-    { key: "lista",        label: "Lista" },
+    { key: "mapa",         label: "Mapa", subItems: [
+        { key: "mapa_editar", label: "Pode editar quadras (não só visualizar)" }
+      ] },
+    { key: "lista",        label: "Lista", subItems: [
+        { key: "lista_editar", label: "Pode editar itens (não só visualizar)" }
+      ] },
     { key: "relatorio",    label: "Relatório e métricas" },
-    { key: "testemunho",   label: "Testemunho público" },
-    { key: "cartas",       label: "Controle de cartas" },
+    { key: "testemunho",   label: "Testemunho público", subItems: [
+        { key: "testemunho_editar", label: "Pode editar escalas, duplas e carrinho" }
+      ] },
+    { key: "cartas",       label: "Controle de cartas", subItems: [
+        { key: "cartas_editar", label: "Pode editar status/observação das cartas" }
+      ] },
     { key: "atividade",    label: "Atividade recente" },
     { key: "ia",           label: "Analisar com IA" },
-    { key: "exportar",     label: "Exportar dados" }
+    { key: "exportar",     label: "Exportar dados", subItems: [
+        { key: "exportar_completo", label: "Pode exportar dados completos (endereços e contatos)" }
+      ] }
   ];
 
   const app = initializeApp(firebaseConfig);
@@ -4409,9 +4438,71 @@ async function atualizarBadgeSolicitacoesPendentes() {
 function openAutorizarOverlay() {
   if (currentUser && currentUser.email !== window._fb.ADMIN_EMAIL) { showSnack('❌ Apenas o administrador principal pode autorizar acessos'); return; }
   document.getElementById('autorizarOverlay').classList.add('show');
+  toggleAutzImportBox(false);
   renderAutorizarLista();
 }
 function closeAutorizarOverlay() { document.getElementById('autorizarOverlay').classList.remove('show'); }
+
+function toggleAutzImportBox(force) {
+  const box = document.getElementById('autzImportBox');
+  const show = force !== undefined ? force : box.style.display === 'none';
+  box.style.display = show ? 'block' : 'none';
+  if (show) document.getElementById('autzImportText').focus();
+}
+
+// Aplica a lista colada (email ou "email, nome" por linha) segundo o modo escolhido:
+// - pendente: cria como pendente quem ainda não existe (não mexe em quem já existe)
+// - aprovado: ativa acesso — cria já aprovado, ou aprova quem já existia
+// - desativar: quem já existe volta pra "pendente" (perde acesso mas não é apagado,
+//   os menus marcados continuam salvos pra quando reativar)
+async function importarSolicitacoes() {
+  if (currentUser && currentUser.email !== window._fb.ADMIN_EMAIL) { showSnack('❌ Apenas o administrador principal pode importar'); return; }
+  const raw = document.getElementById('autzImportText').value;
+  const linhas = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!linhas.length) { showSnack('Cole ao menos um e-mail'); return; }
+  const modo = (document.querySelector('input[name="autzImportModo"]:checked') || {}).value || 'pendente';
+
+  let criados = 0, atualizados = 0, jaExistia = 0, naoEncontrado = 0, invalido = 0;
+  for (const linha of linhas) {
+    const [emailRaw, ...restoNome] = linha.split(',');
+    const email = (emailRaw || '').trim().toLowerCase();
+    const nome = restoNome.join(',').trim();
+    if (!email || !email.includes('@')) { invalido++; continue; }
+    try {
+      const ref = solicitacaoDocRef(email);
+      const snap = await window._fb.getDoc(ref);
+      if (modo === 'pendente') {
+        if (snap.exists()) { jaExistia++; continue; }
+        await window._fb.setDoc(ref, { nome: nome || email, status: 'pendente', menus: [], criadoEm: window._fb.serverTimestamp() });
+        criados++;
+      } else if (modo === 'aprovado') {
+        if (snap.exists()) {
+          await window._fb.setDoc(ref, { status: 'aprovado', aprovadoEm: window._fb.serverTimestamp() }, { merge: true });
+          atualizados++;
+        } else {
+          await window._fb.setDoc(ref, { nome: nome || email, status: 'aprovado', menus: [], criadoEm: window._fb.serverTimestamp(), aprovadoEm: window._fb.serverTimestamp() });
+          criados++;
+        }
+      } else if (modo === 'desativar') {
+        if (!snap.exists()) { naoEncontrado++; continue; }
+        await window._fb.setDoc(ref, { status: 'pendente' }, { merge: true });
+        atualizados++;
+      }
+    } catch (e) { invalido++; }
+  }
+
+  const partes = [];
+  if (criados) partes.push(`${criados} criado${criados === 1 ? '' : 's'}`);
+  if (atualizados) partes.push(`${atualizados} atualizado${atualizados === 1 ? '' : 's'}`);
+  if (jaExistia) partes.push(`${jaExistia} já existia${jaExistia === 1 ? '' : 'm'}`);
+  if (naoEncontrado) partes.push(`${naoEncontrado} não encontrado${naoEncontrado === 1 ? '' : 's'}`);
+  if (invalido) partes.push(`${invalido} inválido${invalido === 1 ? '' : 's'}`);
+  showSnack('✓ ' + (partes.join(' · ') || 'nada a fazer'), 4000);
+  document.getElementById('autzImportText').value = '';
+  toggleAutzImportBox(false);
+  renderAutorizarLista();
+  atualizarBadgeSolicitacoesPendentes();
+}
 
 async function renderAutorizarLista() {
   const box = document.getElementById('autorizarResults');
@@ -4430,9 +4521,14 @@ async function renderAutorizarLista() {
   const pendentes = docs.filter(d => d.status === 'pendente');
   const aprovados = docs.filter(d => d.status === 'aprovado');
 
-  const menuChkHTML = (d) => (window._fb.ACCESS_MENUS || []).map(m =>
-    `<label class="autz-menu-chk"><input type="checkbox" class="autz-chk" data-menu="${m.key}" ${d.menus && d.menus.includes(m.key) ? 'checked' : ''}> ${m.label}</label>`
-  ).join('');
+  const menuChkHTML = (d) => (window._fb.ACCESS_MENUS || []).map(m => {
+    const marcado = !!(d.menus && d.menus.includes(m.key));
+    const pai = `<label class="autz-menu-chk"><input type="checkbox" class="autz-chk autz-parentchk" data-menu="${m.key}" ${marcado ? 'checked' : ''}> ${m.label}</label>`;
+    const subs = (m.subItems || []).map(s =>
+      `<label class="autz-menu-chk autz-submenu" data-parent="${m.key}" style="${marcado ? '' : 'display:none;'}"><input type="checkbox" class="autz-chk autz-subchk" data-menu="${s.key}" ${d.menus && d.menus.includes(s.key) ? 'checked' : ''}> ${s.label}</label>`
+    ).join('');
+    return pai + subs;
+  }).join('');
 
   const cardHTML = (d) => `
     <div class="autz-card" data-email="${escapeHtml(d.id)}">
@@ -4456,6 +4552,15 @@ async function renderAutorizarLista() {
 
   box.querySelectorAll('.autz-card').forEach(card => {
     const email = card.dataset.email;
+    // Item principal desmarcado → esconde e desmarca seus subitens
+    card.querySelectorAll('.autz-parentchk').forEach(chk => {
+      chk.onchange = () => {
+        card.querySelectorAll(`.autz-submenu[data-parent="${chk.dataset.menu}"]`).forEach(sub => {
+          sub.style.display = chk.checked ? 'flex' : 'none';
+          if (!chk.checked) sub.querySelector('input').checked = false;
+        });
+      };
+    });
     card.querySelector('.btn-autz-salvar').onclick = async () => {
       const menus = Array.from(card.querySelectorAll('.autz-chk:checked')).map(c => c.dataset.menu);
       try {
