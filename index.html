@@ -1579,15 +1579,17 @@ function heatmapLabelDias(qd) {
 }
 
 // ── PAINEL "TERRITÓRIOS QUE PRECISAM DE ATENÇÃO" (home) ──
-// 🟥 sem cobertura há mais de 6 meses (ou nunca cobertas) — trabalhar com urgência
-// 🟨 sem grupo designado — precisa ser atribuída antes de poder ser trabalhada
-// 🟩 prontas — têm grupo e estão em dia, disponíveis pra trabalhar no ritmo normal
+// 🟥 sem cobertura há mais de 6 meses (ou nunca cobertas) — trabalhar com urgência (todas as quadras, com ou sem grupo)
+// 🟨 sem grupo designado — território da congregação, precisa ser atribuída antes de poder ser trabalhada
+// 🟦 com grupo designado — território de grupos
+// 🟩 prontas — não cobertas há até 90 dias, disponíveis pra trabalhar no ritmo normal (todas as quadras, com ou sem grupo)
 function renderAtencaoPanel() {
   const box = document.getElementById('atencaoPanel');
   if (!box) return;
   const semGrupo = quadrasData.filter(q => !q.grupo);
-  const atrasadas = quadrasData.filter(q => q.grupo && !q.coberta && (diasDesde(q.ultimaCobertura) === null || diasDesde(q.ultimaCobertura) > 180));
-  const prontas = quadrasData.filter(q => q.grupo && !q.coberta && !atrasadas.includes(q));
+  const comGrupo = quadrasData.filter(q => !!q.grupo);
+  const atrasadas = quadrasData.filter(q => !q.coberta && (diasDesde(q.ultimaCobertura) === null || diasDesde(q.ultimaCobertura) > 180));
+  const prontas = quadrasData.filter(q => !q.coberta && !atrasadas.includes(q) && diasDesde(q.ultimaCobertura) !== null && diasDesde(q.ultimaCobertura) <= 90);
 
   if (!quadrasData.length) {
     box.innerHTML = '<div class="atencao-card empty"><span>🗺️</span><div class="txt"><div class="title">Nenhuma quadra cadastrada ainda</div></div></div>';
@@ -1597,7 +1599,8 @@ function renderAtencaoPanel() {
   const cards = [
     { count: atrasadas.length, dot: 'var(--error)', title: 'Há mais de 6 meses sem trabalho', sub: atrasadas.length ? atrasadas.slice(0,4).map(q=>'Mapa '+q.mapa).join(', ') + (atrasadas.length>4?'...':'') : 'Nenhuma — ótimo trabalho!', filtro: () => irParaQuadrasFiltradas(atrasadas) },
     { count: semGrupo.length, dot: 'var(--warning)', title: 'Território da congregação', sub: semGrupo.length ? semGrupo.slice(0,4).map(q=>'Mapa '+q.mapa).join(', ') + (semGrupo.length>4?'...':'') : 'Todas já têm grupo', filtro: () => irParaQuadrasFiltradas(semGrupo) },
-    { count: prontas.length, dot: 'var(--success)', title: 'Prontas para trabalhar', sub: prontas.length ? 'Designadas e em dia' : 'Nenhuma no momento', filtro: () => irParaQuadrasFiltradas(prontas) },
+    { count: comGrupo.length, dot: 'var(--blue)', title: 'Território de grupos', sub: comGrupo.length ? comGrupo.slice(0,4).map(q=>'Mapa '+q.mapa).join(', ') + (comGrupo.length>4?'...':'') : 'Nenhuma designada', filtro: () => irParaQuadrasFiltradas(comGrupo) },
+    { count: prontas.length, dot: 'var(--success)', title: 'Prontas para trabalhar', sub: prontas.length ? 'Cobertas há até 90 dias' : 'Nenhuma no momento', filtro: () => irParaQuadrasFiltradas(prontas) },
   ];
 
   box.innerHTML = cards.map(c => `
