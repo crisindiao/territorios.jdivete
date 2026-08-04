@@ -1451,7 +1451,9 @@ function computeReportData() {
   const porGrupo = grupos.map(g => {
     const qs = quadrasData.filter(q => q.grupo === g);
     const cob = qs.filter(q => q.coberta).length;
-    return { grupo: g, cor: groupColors[g], total: qs.length, cobertas: cob, publicadores: publicadoresData.filter(p => p.grupo === g).length };
+    const familias = publicadoresData.filter(p => p.grupo === g);
+    const pessoas = familias.reduce((sum, p) => sum + (p.membros ? p.membros.length : 0), 0);
+    return { grupo: g, cor: groupColors[g], total: qs.length, cobertas: cob, publicadores: familias.length, pessoas };
   }).filter(x => x.total > 0 || x.publicadores > 0);
 
   // Ritmo: eventos de "marcada como coberta" no histórico de cada quadra
@@ -1477,7 +1479,9 @@ function computeReportData() {
     .sort((a, b) => (b.dias ?? 99999) - (a.dias ?? 99999));
 
   return { total, cobertas, pendentes, pct, semGrupo, porGrupo, ult30, ult90, ritmoMensal, previsaoTxt, atrasadas,
-    comercios: comerciosData.length, condominios: condominiosData.length, publicadores: publicadoresData.length, grupos: saidasData.filter(s=>s.grupo).length };
+    comercios: comerciosData.length, condominios: condominiosData.length, publicadores: publicadoresData.length,
+    pessoasTotal: publicadoresData.reduce((sum, p) => sum + (p.membros ? p.membros.length : 0), 0),
+    grupos: saidasData.filter(s=>s.grupo).length };
 }
 function openReportOverlay() {
   if (!checarMenuLiberado('relatorio')) return;
@@ -1491,7 +1495,7 @@ function renderReport() {
   const barraGrupos = d.porGrupo.length ? d.porGrupo.map(g => {
     const pctG = g.total ? Math.round(g.cobertas / g.total * 100) : 0;
     return `<div class="report-bar-row">
-      <div class="report-bar-head"><span>${escapeHtml(g.grupo)} <span style="color:var(--text2)">— ${g.publicadores} publicador(es)</span></span><span><b>${g.cobertas}/${g.total}</b> (${pctG}%)</span></div>
+      <div class="report-bar-head"><span>${escapeHtml(g.grupo)} <span style="color:var(--text2)">— 🏠 ${g.publicadores} família${g.publicadores===1?'':'s'} · 👥 ${g.pessoas} pessoa${g.pessoas===1?'':'s'}</span></span><span><b>${g.cobertas}/${g.total}</b> (${pctG}%)</span></div>
       <div class="report-bar-track"><div class="report-bar-fill" style="width:${pctG}%;background:${g.cor}"></div></div>
     </div>`;
   }).join('') : '<div style="font-size:0.82rem;color:var(--text2)">Nenhuma quadra atribuída a grupos ainda.</div>';
@@ -1529,7 +1533,7 @@ function renderReport() {
     <div class="report-section">
       <div class="report-section-title">📋 Resumo geral</div>
       <div class="report-bar-row"><div class="report-bar-head"><span>Grupos ativos</span><span><b>${d.grupos}</b></span></div></div>
-      <div class="report-bar-row"><div class="report-bar-head"><span>Publicadores cadastrados</span><span><b>${d.publicadores}</b></span></div></div>
+      <div class="report-bar-row"><div class="report-bar-head"><span>Publicadores cadastrados</span><span><b>🏠 ${d.publicadores} famílias · 👥 ${d.pessoasTotal} pessoas</b></span></div></div>
       <div class="report-bar-row"><div class="report-bar-head"><span>Comércios</span><span><b>${d.comercios}</b></span></div></div>
       <div class="report-bar-row"><div class="report-bar-head"><span>Condomínios/prédios</span><span><b>${d.condominios}</b></span></div></div>
     </div>
@@ -3677,10 +3681,12 @@ function goFocusHome(tabName) {
 function renderCatbar() {
   const box = document.getElementById('catbarInner'); if (!box) return;
   if (activeTab==='grupos') {
-    let html = `<button class="cat-chip${activeSaidaGrupoFilter?'':' active'}" data-sgrp="">Todos <span class="count">${saidasData.length}</span></button>`;
+    const totalPessoasGeral = publicadoresData.reduce((sum,p)=>sum+(p.membros?p.membros.length:0),0);
+    let html = `<button class="cat-chip${activeSaidaGrupoFilter?'':' active'}" data-sgrp="">Todos <span class="count">👥 ${totalPessoasGeral} · 🏠 ${publicadoresData.length}</span></button>`;
     Object.keys(groupColors).forEach(g=>{
-      const countPessoas = publicadoresData.filter(p=>p.grupo===g).reduce((sum,p)=>sum+(p.membros?p.membros.length:0),0);
-      html += `<button class="cat-chip${activeSaidaGrupoFilter===g?' active':''}" data-sgrp="${g}"><span class="dot" style="background:${groupColors[g]};width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px"></span>${g} <span class="count">👥 ${countPessoas}</span></button>`;
+      const familiasGrupo = publicadoresData.filter(p=>p.grupo===g);
+      const countPessoas = familiasGrupo.reduce((sum,p)=>sum+(p.membros?p.membros.length:0),0);
+      html += `<button class="cat-chip${activeSaidaGrupoFilter===g?' active':''}" data-sgrp="${g}"><span class="dot" style="background:${groupColors[g]};width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px"></span>${g} <span class="count">👥 ${countPessoas} · 🏠 ${familiasGrupo.length}</span></button>`;
     });
     box.innerHTML = html;
     box.querySelectorAll('.cat-chip').forEach(btn=>{btn.onclick=()=>{
@@ -3720,8 +3726,13 @@ function renderCatbar() {
     return;
   }
   if (activeTab==='publicadores') {
-    let html=`<button class="cat-chip${activeGroupFilter?'':' active'}" data-grp="">Todos <span class="count">${publicadoresData.length}</span></button>`;
-    Object.keys(groupColors).forEach(g=>{const count=publicadoresData.filter(p=>p.grupo===g).length; html+=`<button class="cat-chip${activeGroupFilter===g?' active':''}" data-grp="${g}"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${groupColors[g]};margin-right:4px"></span>${g} <span class="count">${count}</span></button>`;});
+    const totalPessoasPub = publicadoresData.reduce((sum,p)=>sum+(p.membros?p.membros.length:0),0);
+    let html=`<button class="cat-chip${activeGroupFilter?'':' active'}" data-grp="">Todos <span class="count">👥 ${totalPessoasPub} · 🏠 ${publicadoresData.length}</span></button>`;
+    Object.keys(groupColors).forEach(g=>{
+      const familiasGrupo = publicadoresData.filter(p=>p.grupo===g);
+      const pessoasGrupo = familiasGrupo.reduce((sum,p)=>sum+(p.membros?p.membros.length:0),0);
+      html += `<button class="cat-chip${activeGroupFilter===g?' active':''}" data-grp="${g}"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${groupColors[g]};margin-right:4px"></span>${g} <span class="count">👥 ${pessoasGrupo} · 🏠 ${familiasGrupo.length}</span></button>`;
+    });
     box.innerHTML=html;
     box.querySelectorAll('.cat-chip').forEach(btn=>{btn.onclick=()=>{activeGroupFilter=btn.dataset.grp||null; renderCatbar(); renderPublicadores(); if(viewMode==='lista') renderList();};});
     return;
@@ -3954,7 +3965,8 @@ function renderList() {
     items.forEach(p=>{
       const cor=groupColors[p.grupo]||'#868e96';
       const card=document.createElement('div'); card.className='card'; card.style.borderLeftColor=cor;
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20">${avatarHTML(p,'🏠')}</div><div><div class="card-name">${escapeHtml(p.membros[0]||'Família')}</div><div class="card-sub">Grupo ${escapeHtml(p.grupo)} — ${p.membros.length} membro(s)</div></div></div>${photoBlockHTML(p)}<div class="card-label">Membros</div><div class="card-row"><input type="text" data-f="membros" value="${escapeHtml(p.membros.join(', '))}"></div><div class="card-label">Grupo</div><div class="card-row"><select data-f="grupo">${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===p.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${escapeHtml(p.endereco||'')}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button type="button" class="btn-action btn-share-familia" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20">${avatarHTML(p,'🏠')}</div><div><div class="card-name">${escapeHtml(p.membros[0]||'Família')}</div><div class="card-sub pub-toggle-membros" style="cursor:pointer;">Grupo ${escapeHtml(p.grupo)} — ${p.membros.length} membro(s) <span class="pub-toggle-arrow">▾</span></div></div></div><div class="pub-membros-list" style="display:none;padding:2px 0 8px 54px;font-size:0.8rem;color:var(--text2);">${p.membros.map(m=>`<div>• ${escapeHtml(m)}</div>`).join('')}</div>${photoBlockHTML(p)}<div class="card-label">Membros</div><div class="card-row"><input type="text" data-f="membros" value="${escapeHtml(p.membros.join(', '))}"></div><div class="card-label">Grupo</div><div class="card-row"><select data-f="grupo">${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===p.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${escapeHtml(p.endereco||'')}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button type="button" class="btn-action btn-share-familia" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button></div>`;
+      card.querySelector('.pub-toggle-membros').onclick=()=>{ const lst=card.querySelector('.pub-membros-list'); const escondido=lst.style.display==='none'; lst.style.display=escondido?'block':'none'; card.querySelector('.pub-toggle-arrow').textContent=escondido?'▴':'▾'; };
       wireDirty(card);
       wirePhotoBlock(card,p,renderPublicadores);
       wireStreetView(card,p);
