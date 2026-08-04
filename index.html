@@ -2047,6 +2047,13 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
       localStorage.setItem(getDataStorageKey(), JSON.stringify(payload, jsonReplacer));
     } catch(e) {}
 
+    // Só usuários com permissão de edição podem escrever no Firestore. Checamos
+    // isso ANTES da fila de pendências offline: um visitante sem permissão de
+    // escrita nunca vai conseguir sincronizar mesmo quando a internet voltar,
+    // então não faz sentido entrar na fila — senão o aviso "X edições
+    // pendentes" fica preso na tela dele pra sempre (ver flushPendingSync).
+    if (!currentUser || !isAdmin) return { ok: false, reason: isAdmin ? 'no-user' : 'not-admin' };
+
     // Sem internet: guarda a edição na fila pendente e mostra o indicador offline.
     // A sincronização automática dispara sozinha assim que a conexão voltar (ver flushPendingSync).
     if (!navigator.onLine) {
@@ -2057,8 +2064,6 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
       return { ok: false, reason: 'offline' };
     }
 
-    // Só usuários com permissão de edição podem escrever no Firestore
-    if (!currentUser || !isAdmin) return { ok: false, reason: isAdmin ? 'no-user' : 'not-admin' };
     try {
       await migrateBase64Photos();
       const payload = JSON.parse(JSON.stringify({ saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, carrinhosData, designacoesData, activityLog, savedAt: new Date().toISOString() }, jsonReplacer));
@@ -3054,17 +3059,6 @@ async function montarCartaoTemplate(qd, mapCanvas) {
   ctx.strokeStyle = '#c9c9c9'; ctx.lineWidth = 1.5;
   ctx.strokeRect(mapMarginX, mapY, mapW, mapH);
 
-  // ── Marca de depuração (temporária) — versão do build + dados da quadra
-  // usados pra gerar este cartão. Ajuda a confirmar se o app está rodando o
-  // código atualizado e exatamente quais coordenadas foram usadas. ──
-  ctx.save();
-  ctx.textAlign = 'left';
-  ctx.font = '600 12px monospace';
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  const primeiroPonto = (qd.coords && qd.coords[0]) ? qd.coords[0] : null;
-  const debugTxt = `build:2026-07-25-r-sharper id:${qd.id||'?'} pts:${(qd.coords||[]).length} p0:${primeiroPonto?primeiroPonto[0].toFixed(5)+','+primeiroPonto[1].toFixed(5):'-'}`;
-  ctx.fillText(debugTxt, mapMarginX + 4, mapY + mapH - 6);
-  ctx.restore();
   let y = mapY + mapH + 34;
   ctx.textAlign = 'center';
   ctx.font = '700 15px Arial, sans-serif';
@@ -3319,28 +3313,9 @@ function showHint(msg) { const el=document.getElementById('hintToast'); el.textC
 function hideHint() { document.getElementById('hintToast').classList.remove('show'); }
 
 // ── SWITCHES ──
-function switchTab(name, btn) {
-  stopDrawing(); activeTab = name;
-  const targetBtn = btn || document.querySelector('.stat-card[data-layer="'+name+'"]');
-  document.querySelectorAll('.stat-card').forEach(b => b.classList.toggle('active', b===targetBtn));
-  Object.keys(layerGroups).forEach(k => {
-    if (k===name) { if (!map.hasLayer(layerGroups[k])) map.addLayer(layerGroups[k]); }
-    else { if (map.hasLayer(layerGroups[k])) map.removeLayer(layerGroups[k]); }
-  });
-  document.body.classList.toggle('show-catbar', name==='comercios'||name==='publicadores'||name==='quadras');
-  refreshHintForTab();
-  if (name==='comercios') { renderCatbar(); renderComercios(); }
-  if (name==='condominios') { renderCondominios(); }
-  if (name==='publicadores') { renderCatbar(); renderPublicadores(); }
-  if (name==='quadras') { renderCatbar(); renderQuadras(); }
-  updateLegend(); renderList();
-  document.getElementById('topbar-subtitle').textContent = {
-    grupos:'Grupos de Campo', comercios:'Comércios e Lugares',
-    condominios:'Condomínios e Prédios', publicadores:'Publicadores', quadras:'Quadras por Mapa'
-  }[name] || 'Gestão de Território';
-}
-
-// (setViewMode definitivo está mais abaixo, após switchTabChip)
+// (switchTab "real" está definida mais abaixo, logo após switchTabChip —
+// esta versão antiga foi removida por ser código morto: a segunda definição
+// sempre sobrescrevia esta primeira, então ela nunca chegava a rodar.)
 
 // ── LEGEND ──
 function updateLegend() {
@@ -4746,12 +4721,22 @@ function renderTestemunhoParticipantes() {
   box.innerHTML = html;
 }
 function onChangeSexoPublicador(el) {
+  if (!isAdmin) {
+    showSnack('❌ Apenas o administrador pode editar esta lista');
+    renderTestemunhoParticipantes(); // desfaz a mudança visual no <select>
+    return;
+  }
   const p = publicadoresData[parseInt(el.dataset.pi, 10)];
   if (!p) return;
   getMembrosDetalhe(p)[parseInt(el.dataset.mi, 10)].sexo = el.value;
   saveState();
 }
 function onToggleParticipaTestemunho(el) {
+  if (!isAdmin) {
+    showSnack('❌ Apenas o administrador pode editar esta lista');
+    renderTestemunhoParticipantes(); // desfaz a mudança visual no checkbox
+    return;
+  }
   const p = publicadoresData[parseInt(el.dataset.pi, 10)];
   if (!p) return;
   getMembrosDetalhe(p)[parseInt(el.dataset.mi, 10)].participa = el.checked;
@@ -4881,6 +4866,11 @@ function renderTestemunhoEscala() {
   </div>`;
 }
 function setDesignacaoPessoa(idx, qual, valor) {
+  if (!isAdmin) {
+    showSnack('❌ Apenas o administrador pode editar a escala');
+    renderTestemunhoEscala(); // desfaz a mudança visual no <select>
+    return;
+  }
   if (!designacoesData[idx]) return;
   designacoesData[idx]['pessoa' + qual] = valor;
   saveState();
