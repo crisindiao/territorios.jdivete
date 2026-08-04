@@ -79,6 +79,9 @@ body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-conten
 .tp-row:last-child{border-bottom:none;}
 .tp-row .tp-name{flex:1;min-width:0;}
 .tp-row select, .tp-row input[type=text]{font-size:0.8rem;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);}
+.tp-group-header{display:flex;align-items:center;justify-content:space-between;font-size:0.76rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.03em;background:var(--md-surface-variant);border-left:4px solid var(--purple);border-radius:6px;padding:6px 10px;margin:12px 0 4px;}
+.tp-group-header:first-child{margin-top:0;}
+.tp-group-header span{font-weight:700;color:var(--purple);text-transform:none;letter-spacing:0;}
 .tp-part-row{padding:10px 0;border-bottom:1px solid var(--border);}
 .tp-part-row:last-child{border-bottom:none;}
 .tp-part-top{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
@@ -109,6 +112,8 @@ body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-conten
 .tp-table th,.tp-table td{border:1px solid var(--border);padding:8px 9px;text-align:left;vertical-align:top;}
 .tp-table th{background:var(--md-primary-light);color:var(--purple-dark);font-size:0.72rem;text-transform:uppercase;letter-spacing:0.02em;}
 .tp-table tbody tr:nth-child(even){background:var(--md-surface-variant);}
+.tp-table .tp-pessoa-info{margin-top:4px;}
+.tp-table .tp-pessoa-info:first-child{margin-top:0;}
 .tp-table .tp-pessoa-nome{font-weight:600;}
 .tp-table .tp-pessoa-grupo{display:block;font-size:0.68rem;color:var(--text2);margin-top:1px;}
 .tp-table select{width:100%;}
@@ -4704,14 +4709,24 @@ function renderTestemunhoParticipantes() {
   const box = document.getElementById('tpParticipantes');
   if (!box) return;
   if (!publicadoresData.length) { box.innerHTML = '<div class="tp-empty">Nenhum publicador cadastrado ainda. Cadastre pela aba Publicadores.</div>'; return; }
-  let html = '';
-  let visiveis = 0;
+  // Sempre atualiza a lista com o estado atual de cada publicador/grupo
+  // (nomes novos, removidos ou movidos de grupo aparecem automaticamente).
+  const porGrupo = {};
   publicadoresData.forEach((p, pi) => {
     if (_tpFiltroGrupo && p.grupo !== _tpFiltroGrupo) return;
-    const cor = groupColors[p.grupo] || '#868e96';
     getMembrosDetalhe(p).forEach((m, mi) => {
       if (_tpFiltroSexo && m.sexo !== _tpFiltroSexo) return;
-      visiveis++;
+      const g = p.grupo || 'Sem grupo';
+      (porGrupo[g] = porGrupo[g] || []).push({ p, pi, m, mi });
+    });
+  });
+  const grupos = Object.keys(porGrupo).sort();
+  if (!grupos.length) { box.innerHTML = '<div class="tp-empty">Nenhum publicador encontrado com esse filtro.</div>'; return; }
+  let html = '';
+  grupos.forEach(g => {
+    const cor = groupColors[g] || '#868e96';
+    html += `<div class="tp-group-header" style="border-left-color:${cor}">Grupo ${escapeHtml(g)} <span>${porGrupo[g].length}</span></div>`;
+    porGrupo[g].forEach(({ p, pi, m, mi }) => {
       html += `<div class="tp-part-row">
         <div class="tp-part-top">
           <span class="tp-badge-grupo" style="background:${cor}">${escapeHtml(p.grupo || '')}</span>
@@ -4728,7 +4743,7 @@ function renderTestemunhoParticipantes() {
       </div>`;
     });
   });
-  box.innerHTML = html || '<div class="tp-empty">Nenhum publicador encontrado com esse filtro.</div>';
+  box.innerHTML = html;
 }
 function onChangeSexoPublicador(el) {
   const p = publicadoresData[parseInt(el.dataset.pi, 10)];
@@ -4835,7 +4850,7 @@ function renderTestemunhoEscala() {
   const participantes = listaParticipantesTestemunho();
   const grupoPorNome = {}; participantes.forEach(p => grupoPorNome[p.nome] = p.grupo);
   const opcoesPessoas = nomeAtual => `<option value="">—</option>` + participantes.map(p => `<option value="${escapeHtml(p.nome)}" ${p.nome === nomeAtual ? 'selected' : ''}>${escapeHtml(p.nome)}</option>`).join('');
-  const pessoaCell = (nome, grupo) => nome ? `<span class="tp-pessoa-nome">${escapeHtml(nome)}</span><span class="tp-pessoa-grupo">Grupo ${escapeHtml(grupo || '—')}</span>` : '';
+  const pessoaCell = (nome, grupo) => nome ? `<div class="tp-pessoa-info"><span class="tp-pessoa-nome">${escapeHtml(nome)}</span><span class="tp-pessoa-grupo">Grupo ${escapeHtml(grupo || '—')}</span></div>` : '';
   wrap.innerHTML = `<div class="tp-report-card" id="tpRelatorioCard">
     <div class="tp-report-head">
       <div class="tp-report-title">🛒 Testemunho Público</div>
@@ -4852,9 +4867,9 @@ function renderTestemunhoEscala() {
             <td>${escapeHtml(d.dia)}</td>
             <td>${escapeHtml(d.horario)}</td>
             <td>
-              <select onchange="setDesignacaoPessoa(${idx},1,this.value)">${opcoesPessoas(d.pessoa1)}</select>
+              <select class="no-print" onchange="setDesignacaoPessoa(${idx},1,this.value)">${opcoesPessoas(d.pessoa1)}</select>
               ${pessoaCell(d.pessoa1, grupoPorNome[d.pessoa1])}
-              <select style="margin-top:6px;" onchange="setDesignacaoPessoa(${idx},2,this.value)">${opcoesPessoas(d.pessoa2)}</select>
+              <select class="no-print" style="margin-top:6px;" onchange="setDesignacaoPessoa(${idx},2,this.value)">${opcoesPessoas(d.pessoa2)}</select>
               ${pessoaCell(d.pessoa2, grupoPorNome[d.pessoa2])}
             </td>
             <td class="no-print"><button class="tp-btn-del" onclick="removerDesignacao(${idx})">🗑</button></td>
@@ -4877,21 +4892,21 @@ function removerDesignacao(idx) {
   renderTestemunhoEscala(); renderCarrinhos(); saveState();
 }
 
-// Monta duplas: mesmo grupo + mesmo sexo primeiro; sobras do mesmo sexo entre
-// grupos diferentes em seguida; o que sobrar (sexo não informado, ou ímpar) vai sozinho.
+// Monta duplas seguindo SEMPRE a regra: mesmo grupo + mesmo sexo (irmã com
+// irmã, irmão com irmão). Nunca mistura grupos diferentes nem sexos
+// diferentes numa dupla. Quem sobrar sem par dentro do próprio grupo/sexo
+// (sexo não informado, ou número ímpar naquele grupo) vai sozinho na escala.
 function gerarDuplasAutomaticas() {
   const participantes = listaParticipantesTestemunho();
   const buckets = {};
   participantes.forEach(p => { const key = p.grupo + '|' + (p.sexo || '?'); (buckets[key] = buckets[key] || []).push(p); });
   const duplas = [];
-  const sobras = { M: [], F: [], '?': [] };
+  const solos = [];
   Object.values(buckets).forEach(lista => {
     const arr = lista.slice();
     while (arr.length >= 2) duplas.push([arr.pop(), arr.pop()]);
-    if (arr.length === 1) sobras[arr[0].sexo || '?'].push(arr[0]);
+    if (arr.length === 1) solos.push(arr[0]);
   });
-  ['M', 'F'].forEach(sx => { while (sobras[sx].length >= 2) duplas.push([sobras[sx].pop(), sobras[sx].pop()]); });
-  const solos = [...sobras.M, ...sobras.F, ...sobras['?']];
   return { duplas, solos };
 }
 function gerarDesignacaoAutomatica() {
