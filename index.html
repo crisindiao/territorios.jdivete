@@ -1734,7 +1734,13 @@ async function aplicarCorrecaoPublicadores() {
   listaCorrigida.forEach(f => publicadoresData.push(f));
   renderPublicadores();
   renderList();
-  await saveState();
+  const resultado = await saveState();
+  if (!resultado || resultado.ok === false) {
+    const motivo = resultado ? resultado.reason : 'desconhecido';
+    showSnack('❌ NÃO salvou (motivo: ' + motivo + '). Feche o app, abra de novo e tente outra vez.', 10000);
+    console.error('Falha ao salvar correção de publicadores:', resultado);
+    return;
+  }
   logActivity("🛠️ aplicou a correção da lista de publicadores (PDF 21/07/2026)");
   showSnack("✓ Lista de publicadores atualizada e salva — " + totalPessoas + " pessoas");
 }
