@@ -737,6 +737,7 @@ body.no-anim .leaflet-zoom-animated{
 .autz-menus{display:flex;flex-direction:column;gap:6px;margin:10px 0;}
 .autz-menu-chk{display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text);}
 .autz-submenu{margin-left:24px;font-size:0.74rem;color:var(--text2);}
+.autz-submenu.autz-submenu-off{opacity:0.45;}
 .autz-import-box textarea{margin:0 14px;width:calc(100% - 28px);min-height:90px;border:1px solid var(--border);border-radius:10px;padding:8px;font-size:0.8rem;font-family:inherit;resize:vertical;}
 .autz-actions{display:flex;gap:8px;margin-top:8px;}
 .autz-section-title{font-size:0.72rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.03em;padding:12px 14px 2px;}
@@ -1098,7 +1099,7 @@ body.no-anim .leaflet-zoom-animated{
   <div class="search-overlay-header">
     <button class="icon-btn" onclick="closeAutorizarOverlay()" style="color:var(--text);">←</button>
     <div style="font-weight:700;font-size:0.95rem;flex:1;">🔐 Autorizar acessos</div>
-    <button class="icon-btn" onclick="toggleAutzImportBox()" title="Importar lista de e-mails" style="color:var(--text);">📥</button>
+    <button class="icon-btn" onclick="toggleAutzImportBox()" title="Importar lista de e-mails" style="color:var(--text);display:flex;align-items:center;gap:4px;width:auto;padding:0 10px;font-size:0.78rem;font-weight:700;">📥 Importar</button>
   </div>
   <div class="autz-import-box" id="autzImportBox" style="display:none;background:var(--bg);">
     <div style="font-size:0.72rem;color:var(--text2);padding:10px 14px 4px;">Cole uma pessoa por linha: <b>email</b> ou <b>email, nome</b>.</div>
@@ -4525,7 +4526,7 @@ async function renderAutorizarLista() {
     const marcado = !!(d.menus && d.menus.includes(m.key));
     const pai = `<label class="autz-menu-chk"><input type="checkbox" class="autz-chk autz-parentchk" data-menu="${m.key}" ${marcado ? 'checked' : ''}> ${m.label}</label>`;
     const subs = (m.subItems || []).map(s =>
-      `<label class="autz-menu-chk autz-submenu" data-parent="${m.key}" style="${marcado ? '' : 'display:none;'}"><input type="checkbox" class="autz-chk autz-subchk" data-menu="${s.key}" ${d.menus && d.menus.includes(s.key) ? 'checked' : ''}> ${s.label}</label>`
+      `<label class="autz-menu-chk autz-submenu${marcado ? '' : ' autz-submenu-off'}" data-parent="${m.key}"><input type="checkbox" class="autz-chk autz-subchk" data-menu="${s.key}" ${d.menus && d.menus.includes(s.key) ? 'checked' : ''} ${marcado ? '' : 'disabled'}> ${s.label}</label>`
     ).join('');
     return pai + subs;
   }).join('');
@@ -4556,8 +4557,10 @@ async function renderAutorizarLista() {
     card.querySelectorAll('.autz-parentchk').forEach(chk => {
       chk.onchange = () => {
         card.querySelectorAll(`.autz-submenu[data-parent="${chk.dataset.menu}"]`).forEach(sub => {
-          sub.style.display = chk.checked ? 'flex' : 'none';
-          if (!chk.checked) sub.querySelector('input').checked = false;
+          sub.classList.toggle('autz-submenu-off', !chk.checked);
+          const input = sub.querySelector('input');
+          input.disabled = !chk.checked;
+          if (!chk.checked) input.checked = false;
         });
       };
     });
