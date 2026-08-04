@@ -5145,6 +5145,7 @@ function onToggleParticipaTestemunho(el) {
   if (!p) return;
   getMembrosDetalhe(p)[parseInt(el.dataset.mi, 10)].participa = el.checked;
   saveState();
+  renderTestemunhoParticipantes();
   const contador = document.querySelector('#testemunhoResults .tp-section-title span');
   if (contador) contador.textContent = listaParticipantesTestemunho().length + ' marcados';
 }
