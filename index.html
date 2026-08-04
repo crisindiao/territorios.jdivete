@@ -3888,6 +3888,37 @@ function wireDirty(card) {
   const saveBtn=card.querySelector('.btn-save-card');
   card.querySelectorAll('input:not(.cartas-input-data):not(.cartas-input-qtd), select').forEach(inp=>{inp.addEventListener('input',()=>{card.classList.add('dirty'); saveBtn.disabled=false;}); inp.addEventListener('change',()=>{card.classList.add('dirty'); saveBtn.disabled=false;});});
 }
+// Liga os campos individuais de nome dentro do "▾ Ver membros" de um card de
+// publicador: cada linha marca o card como sujo ao digitar, o "✕" remove a
+// linha, e "+ Adicionar membro" cria uma nova linha em branco.
+function wirePubMembrosList(card) {
+  const lista = card.querySelector('.pub-membros-list');
+  const addBtn = card.querySelector('.btn-add-membro');
+  const saveBtn = card.querySelector('.btn-save-card');
+  if (!lista || !addBtn) return;
+  const marcarSujo = () => { card.classList.add('dirty'); saveBtn.disabled = false; };
+  const atualizarContagem = () => {
+    const n = lista.querySelectorAll('.pub-membro-input').length;
+    const cnt = card.querySelector('.pub-membro-count');
+    if (cnt) cnt.textContent = n;
+  };
+  const wireRow = (row) => {
+    row.querySelector('.pub-membro-input').addEventListener('input', marcarSujo);
+    row.querySelector('.btn-remove-membro').onclick = () => { row.remove(); marcarSujo(); atualizarContagem(); };
+  };
+  lista.querySelectorAll('.pub-membro-row').forEach(wireRow);
+  addBtn.onclick = () => {
+    const row = document.createElement('div');
+    row.className = 'pub-membro-row';
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;margin:4px 0;';
+    row.innerHTML = `<input type="text" class="pub-membro-input" placeholder="Nome" style="flex:1;"><button type="button" class="btn-remove-membro" style="border:none;background:none;color:var(--error);font-size:1rem;padding:4px 8px;">✕</button>`;
+    lista.insertBefore(row, addBtn);
+    wireRow(row);
+    row.querySelector('input').focus();
+    marcarSujo();
+    atualizarContagem();
+  };
+}
 function finishSave(card) { card.classList.remove('dirty'); const s=card.querySelector('.btn-save-card'); s.disabled=true; s.textContent='💾 Salvar'; showSnack('✓ Salvo'); }
 
 function renderList() {
@@ -3965,13 +3996,14 @@ function renderList() {
     items.forEach(p=>{
       const cor=groupColors[p.grupo]||'#868e96';
       const card=document.createElement('div'); card.className='card'; card.style.borderLeftColor=cor;
-      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20">${avatarHTML(p,'🏠')}</div><div><div class="card-name">${escapeHtml(p.membros[0]||'Família')}</div><div class="card-sub pub-toggle-membros" style="cursor:pointer;">Grupo ${escapeHtml(p.grupo)} — ${p.membros.length} membro(s) <span class="pub-toggle-arrow">▾</span></div></div></div><div class="pub-membros-list" style="display:none;padding:2px 0 8px 54px;font-size:0.8rem;color:var(--text2);">${p.membros.map(m=>`<div>• ${escapeHtml(m)}</div>`).join('')}</div>${photoBlockHTML(p)}<div class="card-label">Membros</div><div class="card-row"><input type="text" data-f="membros" value="${escapeHtml(p.membros.join(', '))}"></div><div class="card-label">Grupo</div><div class="card-row"><select data-f="grupo">${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===p.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${escapeHtml(p.endereco||'')}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button type="button" class="btn-action btn-share-familia" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button></div>`;
+      card.innerHTML=`<div class="card-header"><div class="card-avatar" style="background:${cor}20">${avatarHTML(p,'🏠')}</div><div><div class="card-name">${escapeHtml(p.membros[0]||'Família')}</div><div class="card-sub pub-toggle-membros" style="cursor:pointer;">Grupo ${escapeHtml(p.grupo)} — <span class="pub-membro-count">${p.membros.length}</span> membro(s) <span class="pub-toggle-arrow">▾</span></div></div></div><div class="pub-membros-list" style="display:none;padding:2px 0 8px 54px;">${p.membros.map(m=>`<div class="pub-membro-row" style="display:flex;gap:6px;align-items:center;margin:4px 0;"><input type="text" class="pub-membro-input" value="${escapeHtml(m)}" style="flex:1;"><button type="button" class="btn-remove-membro" style="border:none;background:none;color:var(--error);font-size:1rem;padding:4px 8px;">✕</button></div>`).join('')}<button type="button" class="btn-add-membro" style="background:none;border:none;color:var(--md-primary);font-weight:700;font-size:0.8rem;padding:4px 0;">+ Adicionar membro</button></div>${photoBlockHTML(p)}<div class="card-label">Grupo</div><div class="card-row"><select data-f="grupo">${Object.keys(groupColors).map(g=>`<option value="${g}" ${g===p.grupo?'selected':''}>${g}</option>`).join('')}</select></div><div class="card-label">Endereço</div><div class="card-row"><input type="text" data-f="endereco" value="${escapeHtml(p.endereco||'')}"></div><div class="geo-status" data-geo-status></div><div class="card-actions"><button class="btn-action btn-save-card" disabled>💾 Salvar</button><button class="btn-action btn-locate">🗺 Ver</button><button class="btn-action btn-remove">🗑</button></div><div class="card-actions"><button type="button" class="btn-action btn-share-familia" style="background:#e7f9ef;color:#128c4a">📤 WhatsApp</button></div>`;
       card.querySelector('.pub-toggle-membros').onclick=()=>{ const lst=card.querySelector('.pub-membros-list'); const escondido=lst.style.display==='none'; lst.style.display=escondido?'block':'none'; card.querySelector('.pub-toggle-arrow').textContent=escondido?'▴':'▾'; };
+      wirePubMembrosList(card);
       wireDirty(card);
       wirePhotoBlock(card,p,renderPublicadores);
       wireStreetView(card,p);
       card.querySelector('.btn-share-familia').onclick=()=>shareWhatsApp(p.membros.join(', '), p.lat, p.lng);
-      card.querySelector('.btn-save-card').onclick=async()=>{if(!isAdmin)return; const btn=card.querySelector('.btn-save-card'); const st=card.querySelector('[data-geo-status]'); btn.disabled=true; p.membros=card.querySelector('[data-f="membros"]').value.split(',').map(s=>s.trim()).filter(Boolean); p.grupo=card.querySelector('[data-f="grupo"]').value; const ne=card.querySelector('[data-f="endereco"]').value; if(ne&&ne!==p.endereco){btn.textContent='Localizando...'; const res=await geocode(ne); if(res){p.lat=res.lat;p.lng=res.lng;st.className='geo-status ok';st.textContent='✓ Localizado';} else{st.className='geo-status fail';st.textContent='✗ Não encontrado';}} else st.textContent=''; p.endereco=ne; renderPublicadores(); saveState(); finishSave(card);};
+      card.querySelector('.btn-save-card').onclick=async()=>{if(!isAdmin)return; const btn=card.querySelector('.btn-save-card'); const st=card.querySelector('[data-geo-status]'); const nomes=Array.from(card.querySelectorAll('.pub-membro-input')).map(i=>i.value.trim()).filter(Boolean); if(!nomes.length){showSnack('❌ Adicione ao menos um membro'); return;} btn.disabled=true; p.membros=nomes; p.grupo=card.querySelector('[data-f="grupo"]').value; const ne=card.querySelector('[data-f="endereco"]').value; if(ne&&ne!==p.endereco){btn.textContent='Localizando...'; const res=await geocode(ne); if(res){p.lat=res.lat;p.lng=res.lng;st.className='geo-status ok';st.textContent='✓ Localizado';} else{st.className='geo-status fail';st.textContent='✗ Não encontrado';}} else st.textContent=''; p.endereco=ne; renderPublicadores(); saveState(); finishSave(card);};
       card.querySelector('.btn-locate').onclick=()=>focusItem(p);
       card.querySelector('.btn-remove').onclick=()=>{if(!isAdmin)return; if(!confirm('Remover publicador?')) return; const idx=publicadoresData.indexOf(p); if(idx>-1){ publicadoresData.splice(idx,1); pushUndo({type:'publicador',data:p,index:idx,label:p.membros.join(', ')}); logActivity('🗑 removeu a família '+p.membros.join(', ')); } renderPublicadores(); renderList(); saveState(); showSnack('🗑 Família removida', 6000, undoLast);};
       box.appendChild(card);
