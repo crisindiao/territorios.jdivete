@@ -1077,18 +1077,9 @@ body.no-anim .leaflet-zoom-animated{
   <div class="search-overlay-header">
     <button class="icon-btn" onclick="closeReportOverlay()" style="color:var(--text);">←</button>
     <div style="font-weight:700;font-size:0.95rem;flex:1;">📊 Relatório do território</div>
-    <button class="icon-btn" onclick="baixarRelatorioImagem()" title="Baixar como imagem" style="color:var(--text);">⬇️</button>
+    <button class="icon-btn" onclick="baixarRelatorioImagem()" title="Baixar em PDF" style="color:var(--text);">⬇️</button>
   </div>
   <div class="search-overlay-results" id="reportResults" style="background:var(--bg)"></div>
-</div>
-
-<!-- ROTA OTIMIZADA -->
-<div class="search-overlay" id="rotaOverlay">
-  <div class="search-overlay-header">
-    <button class="icon-btn" onclick="closeRotaOverlay()" style="color:var(--text);">←</button>
-    <div style="font-weight:700;font-size:0.95rem;flex:1;">🧭 Rota sugerida</div>
-  </div>
-  <div class="search-overlay-results" id="rotaResults" style="background:var(--bg)"></div>
 </div>
 
 <!-- QR de repasse de quadra (handoff entre publicadores) -->
@@ -1169,7 +1160,6 @@ body.no-anim .leaflet-zoom-animated{
     <button class="side-menu-item" id="sideMenuAutorizar" style="display:none" onclick="closeSideMenu();openAutorizarOverlay()"><span class="smi-icon">🔐</span> Autorizar acessos<span class="smi-state" id="smiAutorizarBadge"></span></button>
     <button class="side-menu-item" id="sideMenuDistribuir" style="display:none" onclick="closeSideMenu();openDistribOverlay()"><span class="smi-icon">🧭</span> Distribuir quadras por grupo</button>
     <button class="side-menu-item" onclick="closeSideMenu();openReportOverlay()"><span class="smi-icon">📊</span> Relatório e métricas</button>
-    <button class="side-menu-item" onclick="abrirSeletorRota()"><span class="smi-icon">🧭</span> Rota sugerida por grupo</button>
     <button class="side-menu-item" onclick="closeSideMenu();openIaOverlay()"><span class="smi-icon">🤖</span> Analisar território com IA</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" onclick="closeSideMenu();openTestemunhoOverlay()"><span class="smi-icon">🛒</span> Testemunho público</button>
@@ -1474,62 +1464,6 @@ async function aplicarDistribSugestoes() {
   showSnack(`✓ ${count} quadra(s) atualizada(s)`);
 }
 
-// ── SUGESTÃO DE ROTA OTIMIZADA (nearest-neighbor por proximidade) ──
-// Dado um grupo de quadras (normalmente as de um mesmo grupo/publicador), sugere
-// a ordem de visita que minimiza o deslocamento total entre centróides.
-function calcularRotaOtimizada(lista, partidaLatLng) {
-  const pontos = lista.map(qd => ({ qd, c: centroideQuadra(qd) })).filter(p => p.c);
-  if (!pontos.length) return [];
-  const restantes = pontos.slice();
-  const rota = [];
-  let atual = partidaLatLng;
-  while (restantes.length) {
-    let melhorIdx = 0, melhorDist = Infinity;
-    restantes.forEach((p, i) => {
-      const d = atual ? haversineMeters(atual[0], atual[1], p.c[0], p.c[1]) : 0;
-      if (d < melhorDist) { melhorDist = d; melhorIdx = i; }
-    });
-    const escolhido = restantes.splice(melhorIdx, 1)[0];
-    rota.push({ qd: escolhido.qd, distDoAnterior: Math.round(melhorDist) });
-    atual = escolhido.c;
-  }
-  return rota;
-}
-function abrirRotaOtimizada(lista, tituloGrupo) {
-  const listaValida = (lista || []).filter(qd => !qd.coberta);
-  if (listaValida.length < 2) { showSnack('Selecione um grupo com pelo menos 2 quadras pendentes'); return; }
-  const rota = calcularRotaOtimizada(listaValida, null);
-  const distTotal = rota.reduce((s, r) => s + r.distDoAnterior, 0);
-  const box = document.getElementById('rotaResults');
-  box.innerHTML = `
-    <div class="report-hero" style="padding:16px;">
-      <div class="pct" style="font-size:1.6rem;">~${(distTotal/1000).toFixed(1)} km</div>
-      <div class="lbl">deslocamento total estimado — ${rota.length} quadras${tituloGrupo ? ' — ' + escapeHtml(tituloGrupo) : ''}</div>
-    </div>
-    <div class="report-section">
-      ${rota.map((r, i) => `
-        <div class="report-alert-item">
-          <span><b>${i+1}.</b> 🧩 Mapa ${escapeHtml(r.qd.mapa)}${r.qd.nome ? ' — ' + escapeHtml(r.qd.nome) : ''}</span>
-          <span style="color:var(--text2);font-size:0.76rem;">${i===0 ? 'início' : '+' + (r.distDoAnterior/1000).toFixed(2) + ' km'}</span>
-        </div>`).join('')}
-    </div>
-    <div style="font-size:0.7rem;color:var(--text2);text-align:center;margin-top:4px;">Ordem sugerida por proximidade entre quadras (linha reta, não considera ruas)</div>
-  `;
-  document.getElementById('rotaOverlay').classList.add('show');
-}
-function closeRotaOverlay() { document.getElementById('rotaOverlay').classList.remove('show'); }
-function abrirSeletorRota() {
-  const grupos = Object.keys(groupColors).filter(g => quadrasData.some(q => q.grupo === g && !q.coberta));
-  if (!grupos.length) { showSnack('Nenhum grupo com quadras pendentes no momento'); return; }
-  const opcoes = grupos.map(g => `${g} (${quadrasData.filter(q=>q.grupo===g && !q.coberta).length} pendentes)`).join('\n');
-  const escolha = prompt(`Gerar rota sugerida para qual grupo?\n\n${opcoes}\n\nDigite o nome do grupo:`);
-  if (!escolha) return;
-  const gEscolhido = grupos.find(g => g.toLowerCase() === escolha.trim().toLowerCase());
-  if (!gEscolhido) { showSnack('❌ Grupo não encontrado'); return; }
-  closeSideMenu();
-  abrirRotaOtimizada(quadrasData.filter(q => q.grupo === gEscolhido), gEscolhido);
-}
-
 // ── RELATÓRIO E MÉTRICAS DO TERRITÓRIO ──
 function computeReportData() {
   const total = quadrasData.length;
@@ -1671,19 +1605,115 @@ function renderReport() {
   `;
 }
 async function baixarRelatorioImagem() {
-  if (typeof html2canvas === 'undefined') { showSnack('❌ Recurso de captura não carregado. Verifique sua internet.'); return; }
-  const el = document.getElementById('reportResults');
-  showSnack('📊 Gerando imagem do relatório...', 6000);
+  if (typeof window.jspdf === 'undefined') { showSnack('❌ Recurso de PDF não carregado. Verifique sua internet.'); return; }
+  showSnack('📄 Gerando PDF do relatório...', 6000);
   try {
-    const canvas = await html2canvas(el, { backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg') || '#f5f5f7', useCORS: true, scale: 2 });
-    const dataUrl = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl; a.download = `relatorio-territorio-${new Date().toISOString().slice(0,10)}.png`;
-    document.body.appendChild(a); a.click(); a.remove();
-    showSnack('✓ Relatório baixado');
+    const d = computeReportData();
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const marginX = 16;
+    let y = 18;
+    const roxo = [91, 44, 131];
+    const cinza = [107, 114, 128];
+    const preto = [26, 26, 46];
+    const verde = [22, 163, 74];
+    const laranja = [217, 119, 6];
+    const vermelho = [217, 48, 37];
+
+    const checkPage = (need = 10) => { if (y + need > pageH - 14) { pdf.addPage(); y = 18; } };
+    const titulo = (txt, size = 13) => {
+      checkPage(12);
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(size); pdf.setTextColor(...roxo);
+      pdf.text(txt, marginX, y); y += size === 13 ? 8 : 6.5;
+      pdf.setDrawColor(230, 224, 240); pdf.setLineWidth(0.3);
+      pdf.line(marginX, y - 4, pageW - marginX, y - 4);
+    };
+    const linha = (label, valor, corValor = preto) => {
+      checkPage(7);
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(...cinza);
+      pdf.text(label, marginX, y);
+      pdf.setFont('helvetica', 'bold'); pdf.setTextColor(...corValor);
+      pdf.text(String(valor), pageW - marginX, y, { align: 'right' });
+      y += 6.2;
+    };
+    const paragrafo = (txt) => {
+      checkPage(8);
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10); pdf.setTextColor(...preto);
+      const linhas = pdf.splitTextToSize(txt, pageW - marginX * 2);
+      linhas.forEach(l => { checkPage(6); pdf.text(l, marginX, y); y += 5.2; });
+      y += 1.5;
+    };
+
+    // Cabeçalho
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(17); pdf.setTextColor(...roxo);
+    pdf.text('Relatório do Território', marginX, y); y += 7;
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9.5); pdf.setTextColor(...cinza);
+    pdf.text('Gerado em ' + new Date().toLocaleString('pt-BR'), marginX, y); y += 10;
+
+    // Visão geral
+    titulo('Visão geral do ciclo');
+    linha('Cobertura do ciclo', `${d.pct}% (${d.cobertas} de ${d.total} quadras)`, verde);
+    linha('Quadras pendentes', d.pendentes);
+    linha('Atrasadas (+90 dias)', d.atrasadas.length, d.atrasadas.length ? vermelho : verde);
+    linha('Cobertas nos últimos 30 dias', d.ult30, verde);
+    linha('Território da congregação (sem grupo)', d.semGrupo, laranja);
+    y += 2;
+
+    // Previsão
+    titulo('Previsão de conclusão do ciclo');
+    paragrafo(d.previsaoTxt);
+
+    // Comparativo mensal
+    titulo('Cobertura nos últimos 6 meses');
+    d.mesesLabels.forEach((lbl, i) => linha(lbl.charAt(0).toUpperCase() + lbl.slice(1), `${d.mesesCounts[i]} quadra${d.mesesCounts[i]===1?'':'s'}`));
+    y += 2;
+
+    // Prestes a atrasar
+    if (d.prestesAtrasar.length) {
+      titulo('Quadras que vão atrasar em breve');
+      d.prestesAtrasar.forEach(a => {
+        linha(`Mapa ${a.qd.mapa}${a.qd.nome ? ' — ' + a.qd.nome : ''}${a.qd.grupo ? ' (' + a.qd.grupo + ')' : ''}`, `em ${a.faltam}d`, laranja);
+      });
+      y += 2;
+    }
+
+    // Progresso por grupo
+    titulo('Progresso por grupo');
+    if (d.porGrupo.length) {
+      d.porGrupo.forEach(g => {
+        const pctG = g.total ? Math.round(g.cobertas / g.total * 100) : 0;
+        linha(`${g.grupo} — ${g.publicadores} família${g.publicadores===1?'':'s'}, ${g.pessoas} pessoa${g.pessoas===1?'':'s'}`, `${g.cobertas}/${g.total} (${pctG}%)`);
+      });
+    } else {
+      paragrafo('Nenhuma quadra atribuída a grupos ainda.');
+    }
+    y += 2;
+
+    // Quadras atrasadas (lista completa)
+    titulo('Quadras que precisam de atenção');
+    if (d.atrasadas.length) {
+      d.atrasadas.forEach(a => {
+        linha(`Mapa ${a.qd.mapa}${a.qd.nome ? ' — ' + a.qd.nome : ''}${a.qd.grupo ? ' (' + a.qd.grupo + ')' : ''}`, a.dias === null ? 'Nunca coberta' : a.dias + 'd', vermelho);
+      });
+    } else {
+      paragrafo('Nenhuma quadra atrasada — bom trabalho!');
+    }
+    y += 2;
+
+    // Resumo geral
+    titulo('Resumo geral');
+    linha('Grupos ativos', d.grupos);
+    linha('Publicadores cadastrados', `${d.publicadores} famílias · ${d.pessoasTotal} pessoas`);
+    linha('Comércios', d.comercios);
+    linha('Condomínios/prédios', d.condominios);
+
+    pdf.save(`relatorio-territorio-${new Date().toISOString().slice(0,10)}.pdf`);
+    showSnack('✓ PDF do relatório baixado');
   } catch (e) {
     console.error(e);
-    showSnack('❌ Não foi possível gerar a imagem do relatório');
+    showSnack('❌ Não foi possível gerar o PDF do relatório');
   }
 }
 
