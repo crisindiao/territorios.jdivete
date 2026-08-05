@@ -1164,18 +1164,18 @@ body.no-anim .leaflet-zoom-animated{
     </div>
   </div>
   <div class="side-menu-body">
-    <button class="side-menu-item" onclick="closeSideMenu();openGlobalSearch()"><span class="smi-icon">🔍</span> Buscar</button>
-    <button class="side-menu-item" onclick="closeSideMenu();showActivityLog()"><span class="smi-icon">📜</span> Atividade recente</button>
+    <button class="side-menu-item" id="sideMenuBuscar" onclick="closeSideMenu();openGlobalSearch()"><span class="smi-icon">🔍</span> Buscar</button>
+    <button class="side-menu-item" id="sideMenuAtividade" onclick="closeSideMenu();showActivityLog()"><span class="smi-icon">📜</span> Atividade recente</button>
     <button class="side-menu-item" id="sideMenuSwitchTerritory" style="display:none" onclick="switchTerritoryPrompt()"><span class="smi-icon">🔁</span> Trocar território</button>
     <button class="side-menu-item" id="sideMenuAutorizar" style="display:none" onclick="closeSideMenu();openAutorizarOverlay()"><span class="smi-icon">🔐</span> Autorizar acessos<span class="smi-state" id="smiAutorizarBadge"></span></button>
     <button class="side-menu-item" id="sideMenuDistribuir" style="display:none" onclick="closeSideMenu();openDistribOverlay()"><span class="smi-icon">🧭</span> Distribuir quadras por grupo</button>
-    <button class="side-menu-item" onclick="closeSideMenu();openReportOverlay()"><span class="smi-icon">📊</span> Relatório e métricas</button>
-    <button class="side-menu-item" onclick="closeSideMenu();openIaOverlay()"><span class="smi-icon">🤖</span> Analisar território com IA</button>
+    <button class="side-menu-item" id="sideMenuRelatorio" onclick="closeSideMenu();openReportOverlay()"><span class="smi-icon">📊</span> Relatório e métricas</button>
+    <button class="side-menu-item" id="sideMenuIa" onclick="closeSideMenu();openIaOverlay()"><span class="smi-icon">🤖</span> Analisar território com IA</button>
     <div class="side-menu-sep"></div>
-    <button class="side-menu-item" onclick="closeSideMenu();openTestemunhoOverlay()"><span class="smi-icon">🛒</span> Testemunho público</button>
-    <button class="side-menu-item" onclick="closeSideMenu();openCartasOverlay()"><span class="smi-icon">✉️</span> Controle de cartas</button>
+    <button class="side-menu-item" id="sideMenuTestemunho" onclick="closeSideMenu();openTestemunhoOverlay()"><span class="smi-icon">🛒</span> Testemunho público</button>
+    <button class="side-menu-item" id="sideMenuCartas" onclick="closeSideMenu();openCartasOverlay()"><span class="smi-icon">✉️</span> Controle de cartas</button>
     <div class="side-menu-sep"></div>
-    <button class="side-menu-item" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
+    <button class="side-menu-item" id="sideMenuExportar" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
     <button class="side-menu-item" id="sideMenuImportar" onclick="closeSideMenu();abrirImportarDados()"><span class="smi-icon">📥</span> Importar dados</button>
     <button class="side-menu-item" onclick="closeSideMenu();showMoreMenu()"><span class="smi-icon">🧹</span> Limpar cache</button>
     <div class="side-menu-sep"></div>
@@ -1276,6 +1276,7 @@ body.no-anim .leaflet-zoom-animated{
   // (só aparecem/ficam marcáveis se o item principal estiver marcado).
   // Pra criar mais, é só adicionar subItems:[{key:'...',label:'...'}] em qualquer item.
   const ACCESS_MENUS = [
+    { key: "buscar",       label: "Buscar" },
     { key: "mapa",         label: "Mapa", subItems: [
         { key: "mapa_editar", label: "Pode editar quadras (não só visualizar)" },
         ...TAB_ABAS.map(t => ({ key: "mapa_" + t.key, label: "Ver aba no mapa: " + t.label }))
@@ -3971,7 +3972,7 @@ function renderCatbar() {
 }
 
 // ── GLOBAL SEARCH ──
-function openGlobalSearch() { document.getElementById('searchOverlay').classList.add('show'); const inp=document.getElementById('globalSearchInput'); inp.value=''; renderGlobalSearch(); setTimeout(()=>inp.focus(),50); }
+function openGlobalSearch() { if (!checarMenuLiberado('buscar')) return; document.getElementById('searchOverlay').classList.add('show'); const inp=document.getElementById('globalSearchInput'); inp.value=''; renderGlobalSearch(); setTimeout(()=>inp.focus(),50); }
 function closeGlobalSearch() { document.getElementById('searchOverlay').classList.remove('show'); }
 function normalizeText(str) {
   return (str || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
@@ -4528,14 +4529,15 @@ function applyVisitorMenuRestrictions(menus) {
   const semRestricao = (menus === null);
   const liberados = new Set(menus || []);
   const map = {
+    buscar:     ['sideMenuBuscar'],
     mapa:       ['nav-mapa'],
     lista:      ['nav-lista'],
-    relatorio:  ['saudeCard'],
-    testemunho: null,
-    cartas:     null,
-    atividade:  null,
-    ia:         null,
-    exportar:   null,
+    relatorio:  ['saudeCard', 'sideMenuRelatorio'],
+    testemunho: ['sideMenuTestemunho'],
+    cartas:     ['sideMenuCartas'],
+    atividade:  ['sideMenuAtividade'],
+    ia:         ['sideMenuIa'],
+    exportar:   ['sideMenuExportar'],
     importar:   ['nav-importar', 'sideMenuImportar']
   };
   (window._fb.ACCESS_MENUS || []).forEach(m => {
