@@ -1258,6 +1258,18 @@ body.no-anim .leaflet-zoom-animated{
     "jardim-conceicao": { docId: "dados-jd-conceicao", label: "Jardim Conceição" }
   };
 
+  // Abas (chips) que existem tanto no Mapa quanto na Lista — usadas para
+  // gerar os checkboxes "quais abas o visitante pode ver" de cada um.
+  // key precisa bater com o data-layer dos botões .chip no HTML.
+  const TAB_ABAS = [
+    { key: "grupos",       label: "Grupos" },
+    { key: "comercios",    label: "Comércios" },
+    { key: "condominios",  label: "Condomínios" },
+    { key: "publicadores", label: "Publicadores" },
+    { key: "quadras",      label: "Quadras" },
+    { key: "carrinhos",    label: "Testemunho" }
+  ];
+
   // ── MENUS QUE O ADMIN PODE LIBERAR PARA UM VISITANTE APROVADO ──
   // key = identificador salvo no Firestore; label = texto mostrado na tela de autorização.
   // Itens com "subItems" ganham checkboxes aninhadas na tela de autorização
@@ -1265,10 +1277,12 @@ body.no-anim .leaflet-zoom-animated{
   // Pra criar mais, é só adicionar subItems:[{key:'...',label:'...'}] em qualquer item.
   const ACCESS_MENUS = [
     { key: "mapa",         label: "Mapa", subItems: [
-        { key: "mapa_editar", label: "Pode editar quadras (não só visualizar)" }
+        { key: "mapa_editar", label: "Pode editar quadras (não só visualizar)" },
+        ...TAB_ABAS.map(t => ({ key: "mapa_" + t.key, label: "Ver aba no mapa: " + t.label }))
       ] },
     { key: "lista",        label: "Lista", subItems: [
-        { key: "lista_editar", label: "Pode editar itens (não só visualizar)" }
+        { key: "lista_editar", label: "Pode editar itens (não só visualizar)" },
+        ...TAB_ABAS.map(t => ({ key: "lista_" + t.key, label: "Ver aba na lista: " + t.label }))
       ] },
     { key: "relatorio",    label: "Relatório e métricas" },
     { key: "testemunho",   label: "Testemunho público", subItems: [
@@ -1289,7 +1303,7 @@ body.no-anim .leaflet-zoom-animated{
   const auth = getAuth(app);
   const db = getFirestore(app);
   const provider = new GoogleAuthProvider();
-  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, ADMIN_EMAIL, TERRITORY_CONFIG, AVAILABLE_TERRITORIES, ACCESS_MENUS };
+  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, ADMIN_EMAIL, TERRITORY_CONFIG, AVAILABLE_TERRITORIES, ACCESS_MENUS, TAB_ABAS };
 </script>
 
 <script>
@@ -3679,11 +3693,38 @@ function switchTab(name, btn) {
   switchTabChip(name, btn || document.querySelector('.chip[data-layer="'+name+'"]'));
 }
 
+// Um visitante pode ver a aba `tabKey` (grupos/comercios/condominios/
+// publicadores/quadras/carrinhos) dentro do modo `mode` (mapa ou lista)?
+// Admin/território fixo (sem restrição) sempre pode ver tudo.
+function abaLiberada(mode, tabKey) {
+  if (isAdmin || !window._visitorMenusLiberados) return true;
+  return window._visitorMenusLiberados.has(mode + '_' + tabKey);
+}
+
+// Esconde no chipbar as abas que o visitante não tem liberadas para o modo
+// atual (mapa ou lista compartilham o mesmo chipbar, então isso é reaplicado
+// toda vez que o modo muda). Se a aba ativa não estiver mais visível, troca
+// automaticamente para a primeira aba permitida.
+function applyChipVisibility(mode) {
+  if (mode !== 'mapa' && mode !== 'lista') return;
+  let primeiraVisivel = null;
+  document.querySelectorAll('#chipbar .chip').forEach(chip => {
+    const tabKey = chip.dataset.layer;
+    const permitido = abaLiberada(mode, tabKey);
+    chip.style.display = permitido ? '' : 'none';
+    if (permitido && !primeiraVisivel) primeiraVisivel = tabKey;
+  });
+  if (primeiraVisivel && !abaLiberada(mode, activeTab)) {
+    switchTab(primeiraVisivel);
+  }
+}
+
 function setViewMode(mode) {
   // Trava central: nenhum atalho consegue abrir Mapa ou Lista se o visitante
   // não tiver esse menu liberado — não importa de onde a chamada veio.
   if ((mode === 'mapa' || mode === 'lista') && !checarMenuLiberado(mode, true)) { mode = 'home'; }
   viewMode = mode;
+  applyChipVisibility(mode);
 
   // esconde tudo
   document.getElementById('homeView').classList.remove('show');
