@@ -657,6 +657,25 @@ body.presentation-mode .presentation-exit-btn{display:flex;}
 .locate-fab{position:fixed;bottom:calc(var(--nav-h) + 16px);right:calc(52px + 20px);z-index:201;width:42px;height:42px;border-radius:50%;background:var(--surface);color:var(--purple);box-shadow:var(--sh2);display:flex;align-items:center;justify-content:center;font-size:19px;}
 .locate-fab:active{box-shadow:var(--sh1);}
 .locate-fab.active-loc{background:#1a73e8;color:#fff;}
+.presenca-fab{position:relative;}
+.presenca-fab .presenca-badge{position:absolute;top:-3px;right:-3px;background:#2e9e4e;color:#fff;font-size:0.6rem;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;box-shadow:0 0 0 2px var(--surface);}
+.presenca-marker{position:relative;width:34px;height:34px;}
+.presenca-marker .pm-dot{width:34px;height:34px;border-radius:50%;background:#fff;border:2.5px solid var(--purple,#5b2c83);box-shadow:0 1px 6px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:13px;font-weight:700;color:var(--purple,#5b2c83);}
+.presenca-marker .pm-dot img{width:100%;height:100%;object-fit:cover;}
+.presenca-marker .pm-pulse{position:absolute;bottom:-2px;right:-2px;width:11px;height:11px;border-radius:50%;background:#2e9e4e;border:2px solid #fff;}
+.presenca-panel-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:400;opacity:0;pointer-events:none;transition:opacity .2s;}
+.presenca-panel-backdrop.show{opacity:1;pointer-events:auto;}
+.presenca-panel{position:fixed;left:0;right:0;bottom:0;background:var(--surface);z-index:401;border-radius:16px 16px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,0.3);max-height:60vh;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .25s;}
+.presenca-panel.show{transform:translateY(0);}
+.presenca-panel-header{padding:14px 16px 8px;font-weight:700;font-size:0.95rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
+.presenca-panel-list{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 0 16px;}
+.presenca-panel-item{display:flex;align-items:center;gap:10px;padding:9px 16px;}
+.presenca-panel-item:active{background:var(--purple-light);}
+.presenca-panel-avatar{width:36px;height:36px;border-radius:50%;background:var(--purple-light);color:var(--purple,#5b2c83);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;overflow:hidden;flex-shrink:0;}
+.presenca-panel-avatar img{width:100%;height:100%;object-fit:cover;}
+.presenca-panel-name{font-size:0.87rem;font-weight:600;}
+.presenca-panel-sub{font-size:0.72rem;color:var(--text2);}
+.presenca-panel-empty{padding:24px 16px;text-align:center;color:var(--text2);font-size:0.85rem;}
 
 /* ── Menu de camada do mapa (ruas / satélite Esri / satélite Google) ── */
 .map-layer-menu{
@@ -1006,6 +1025,12 @@ body.no-anim .leaflet-zoom-animated{
 <button class="fab" id="fabBtn" onclick="startAddMode()">＋</button>
 <button class="locate-fab" id="myLocationBtn" onclick="toggleMyLocation()" title="Minha localização em tempo real" style="display:none;">📍</button>
 <button class="locate-fab" id="satelliteBtn" onclick="toggleMapLayerMenu()" title="Camada do mapa" style="display:none;right:calc(52px + 20px + 52px);">🛰️</button>
+<button class="locate-fab presenca-fab" id="presencaBtn" onclick="togglePresencaPanel()" title="Quem está online agora" style="display:none;right:calc(52px + 20px + 52px + 52px);">👥<span class="presenca-badge" id="presencaBadge" style="display:none;">0</span></button>
+<div class="presenca-panel-backdrop" id="presencaPanelBackdrop" onclick="togglePresencaPanel(false)"></div>
+<div class="presenca-panel" id="presencaPanel">
+  <div class="presenca-panel-header"><span>👥 Online agora</span><span style="cursor:pointer;font-size:1.1rem;" onclick="togglePresencaPanel(false)">✕</span></div>
+  <div class="presenca-panel-list" id="presencaPanelList"></div>
+</div>
 <div class="map-layer-menu" id="mapLayerMenu">
   <button data-layer="street" class="active" onclick="setMapLayer('street')">🗺️ Ruas (OpenStreetMap)</button>
   <button data-layer="esri" onclick="setMapLayer('esri')">🛰️ Satélite (Esri)</button>
@@ -2216,11 +2241,18 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
       document.body.classList.add('viewer-mode');
       if (editMode) toggleEditMode(); // garante que sai do modo edição
     }
+    // Liga o compartilhamento de localização em tempo real automaticamente ao logar.
+    const presencaBtn = document.getElementById('presencaBtn');
+    if (presencaBtn) presencaBtn.style.display = 'flex';
+    startPresenceSharing();
   }
 
   function handleSignOut() {
     if (!confirm('Sair da conta?')) return;
     if (firestoreUnsubscribe) { firestoreUnsubscribe(); firestoreUnsubscribe = null; }
+    stopPresenceSharing();
+    const presencaBtn = document.getElementById('presencaBtn');
+    if (presencaBtn) presencaBtn.style.display = 'none';
     window._fb.signOut(window._fb.auth).then(() => {
       document.getElementById('authOverlay').classList.remove('hidden');
       document.getElementById('userBadge').style.display = 'none';
@@ -2856,13 +2888,22 @@ let viewMode = 'mapa';
 let activeCategoryFilter = null;
 let activeGroupFilter = null;
 let activeSaidaGrupoFilter = null;
-const layerGroups = { grupos: L.layerGroup().addTo(map), comercios: L.layerGroup(), condominios: L.layerGroup(), publicadores: L.layerGroup(), quadras: L.layerGroup(), carrinhos: L.layerGroup() };
+const layerGroups = { grupos: L.layerGroup().addTo(map), comercios: L.layerGroup(), condominios: L.layerGroup(), publicadores: L.layerGroup(), quadras: L.layerGroup(), carrinhos: L.layerGroup(), presencas: L.layerGroup().addTo(map) };
 
 function makeDivIcon(color, letter) {
   return L.divIcon({ className: '', html: `<div class="saida-pin" style="background:${color}"><span>${letter}</span></div>`, iconSize: [28,28], iconAnchor: [14,28] });
 }
 function makeDotIcon(color) {
   return L.divIcon({ className: '', html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2.5px solid white;box-shadow:0 1px 5px rgba(0,0,0,0.4)"></div>`, iconSize:[16,16], iconAnchor:[8,8] });
+}
+function initialsFromName(nome) {
+  if (!nome) return '?';
+  const partes = nome.trim().split(/\s+/);
+  return ((partes[0]?.[0]||'') + (partes.length>1 ? partes[partes.length-1][0] : '')).toUpperCase();
+}
+function makePresenceIcon(nome, foto) {
+  const conteudo = foto ? `<img src="${escapeHtml(foto)}" alt="">` : escapeHtml(initialsFromName(nome));
+  return L.divIcon({ className: '', html: `<div class="presenca-marker"><div class="pm-dot">${conteudo}</div><div class="pm-pulse"></div></div>`, iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17] });
 }
 function makeCarrinhoIcon() {
   return L.divIcon({ className: '', html: `<div style="width:30px;height:30px;border-radius:50% 50% 50% 0;background:var(--purple, #5b2c83);transform:rotate(-45deg);box-shadow:0 1px 6px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);font-size:15px;">🛒</span></div>`, iconSize: [30,30], iconAnchor: [15,29] });
@@ -2948,6 +2989,158 @@ function onMyLocationError(err) {
 }
 // Se o usuário arrastar o mapa manualmente, para de seguir automaticamente (mas continua atualizando o ponto)
 map.on('dragstart', () => { myLocationFollowing = false; });
+
+// ── PRESENÇA EM TEMPO REAL (quem está online e onde) ──
+// Assim que a pessoa loga (com internet), começa a mandar sua posição pro Firestore
+// automaticamente, sem precisar apertar nada. Continua enquanto o app estiver aberto.
+// Cada usuário só escreve no PRÓPRIO documento (coleção "presencas", id = email
+// sanitizado); todos com acesso ao app leem a coleção inteira em tempo real.
+let presenceWatchId = null;
+let presenceUnsubscribe = null;
+let presenceLastWrite = 0;
+let presenceMarkers = {}; // id -> {marker, data}
+const PRESENCE_WRITE_INTERVAL_MS = 15000; // não escreve a cada posição, só a cada ~15s
+const PRESENCE_STALE_MS = 2 * 60 * 1000; // some do mapa dos outros se ficar 2min sem atualizar
+
+function presenceDocId(email) {
+  return (email || '').replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+function startPresenceSharing() {
+  if (!currentUser || !currentUser.email) return;
+  if (!navigator.geolocation) return;
+  if (presenceWatchId !== null) return; // já ativo
+  presenceWatchId = navigator.geolocation.watchPosition(onPresenceLocationUpdate, onPresenceLocationError, {
+    enableHighAccuracy: false, maximumAge: 20000, timeout: 20000
+  });
+  subscribePresences();
+}
+
+function stopPresenceSharing() {
+  if (presenceWatchId !== null) { navigator.geolocation.clearWatch(presenceWatchId); presenceWatchId = null; }
+  if (presenceUnsubscribe) { presenceUnsubscribe(); presenceUnsubscribe = null; }
+  removeOwnPresenceDoc();
+  layerGroups.presencas.clearLayers();
+  presenceMarkers = {};
+  renderPresencaPanel();
+}
+
+async function onPresenceLocationUpdate(pos) {
+  const now = Date.now();
+  if (now - presenceLastWrite < PRESENCE_WRITE_INTERVAL_MS) return;
+  presenceLastWrite = now;
+  await writePresence(pos.coords.latitude, pos.coords.longitude);
+}
+
+function onPresenceLocationError(err) {
+  // Falha silenciosa: não interrompe o uso do app, só não compartilha a localização.
+  console.warn('Presença em tempo real: não foi possível obter localização', err && err.code);
+}
+
+async function writePresence(lat, lng) {
+  if (!currentUser || !currentUser.email || !window._fb) return;
+  try {
+    const { db, doc, setDoc, serverTimestamp } = window._fb;
+    await setDoc(doc(db, 'presencas', presenceDocId(currentUser.email)), {
+      nome: currentUser.displayName || currentUser.email,
+      email: currentUser.email,
+      foto: currentUser.photoURL || null,
+      lat, lng,
+      atualizadoEm: serverTimestamp()
+    }, { merge: true });
+  } catch (e) {
+    console.warn('Falha ao gravar presença:', e);
+  }
+}
+
+async function removeOwnPresenceDoc() {
+  if (!currentUser || !currentUser.email || !window._fb) return;
+  try {
+    const { db, doc, deleteDoc } = window._fb;
+    await deleteDoc(doc(db, 'presencas', presenceDocId(currentUser.email)));
+  } catch (e) { /* melhor esforço; se falhar, o filtro de "stale" no cliente esconde depois */ }
+}
+
+function subscribePresences() {
+  if (presenceUnsubscribe || !window._fb) return;
+  const { db, collection, onSnapshot } = window._fb;
+  presenceUnsubscribe = onSnapshot(collection(db, 'presencas'), (snap) => {
+    const agora = Date.now();
+    const vistos = new Set();
+    snap.forEach(d => {
+      const data = d.data();
+      if (!data || typeof data.lat !== 'number' || typeof data.lng !== 'number') return;
+      const ts = data.atualizadoEm && data.atualizadoEm.toMillis ? data.atualizadoEm.toMillis() : agora;
+      if (agora - ts > PRESENCE_STALE_MS) return; // considera offline/travado, ignora
+      if (currentUser && data.email === currentUser.email) return; // não mostra a si mesmo na lista/mapa
+      vistos.add(d.id);
+      upsertPresenceMarker(d.id, data, ts);
+    });
+    // remove quem saiu ou ficou stale
+    Object.keys(presenceMarkers).forEach(id => {
+      if (!vistos.has(id)) {
+        layerGroups.presencas.removeLayer(presenceMarkers[id].marker);
+        delete presenceMarkers[id];
+      }
+    });
+    renderPresencaPanel();
+  }, (err) => console.warn('Falha ao escutar presenças:', err));
+}
+
+function upsertPresenceMarker(id, data, ts) {
+  const latlng = [data.lat, data.lng];
+  if (presenceMarkers[id]) {
+    presenceMarkers[id].marker.setLatLng(latlng);
+    presenceMarkers[id].data = data; presenceMarkers[id].ts = ts;
+  } else {
+    const marker = L.marker(latlng, { icon: makePresenceIcon(data.nome, data.foto), interactive: true, zIndexOffset: 900 });
+    marker.bindPopup(`<b>${escapeHtml(data.nome || 'Publicador')}</b><br><small style="color:#5f6368">📍 atualizado agora</small>`);
+    marker.addTo(layerGroups.presencas);
+    presenceMarkers[id] = { marker, data, ts };
+  }
+}
+
+function renderPresencaPanel() {
+  const badge = document.getElementById('presencaBadge');
+  const list = document.getElementById('presencaPanelList');
+  const ids = Object.keys(presenceMarkers);
+  if (badge) { badge.style.display = ids.length ? 'flex' : 'none'; badge.textContent = ids.length; }
+  if (!list) return;
+  if (!ids.length) { list.innerHTML = '<div class="presenca-panel-empty">Ninguém mais está online com o app aberto agora.</div>'; return; }
+  list.innerHTML = ids.map(id => {
+    const { data, ts } = presenceMarkers[id];
+    const seg = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    const tempo = seg < 60 ? 'há poucos segundos' : `há ${Math.floor(seg/60)} min`;
+    const avatar = data.foto ? `<img src="${escapeHtml(data.foto)}" alt="">` : escapeHtml(initialsFromName(data.nome));
+    return `<div class="presenca-panel-item" data-id="${id}"><div class="presenca-panel-avatar">${avatar}</div><div><div class="presenca-panel-name">${escapeHtml(data.nome||'Publicador')}</div><div class="presenca-panel-sub">📡 ${tempo}</div></div></div>`;
+  }).join('');
+  list.querySelectorAll('.presenca-panel-item').forEach(el => {
+    el.onclick = () => {
+      const info = presenceMarkers[el.dataset.id];
+      if (!info) return;
+      togglePresencaPanel(false);
+      setViewMode('mapa');
+      map.setView(info.marker.getLatLng(), 17, { animate: true });
+      info.marker.openPopup();
+    };
+  });
+}
+
+function togglePresencaPanel(force) {
+  const panel = document.getElementById('presencaPanel');
+  const backdrop = document.getElementById('presencaPanelBackdrop');
+  if (!panel || !backdrop) return;
+  const show = typeof force === 'boolean' ? force : !panel.classList.contains('show');
+  panel.classList.toggle('show', show);
+  backdrop.classList.toggle('show', show);
+}
+
+// Ao fechar/atualizar a aba, tenta apagar o próprio documento de presença (melhor esforço).
+window.addEventListener('pagehide', () => { removeOwnPresenceDoc(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') removeOwnPresenceDoc();
+  else if (document.visibilityState === 'visible' && currentUser && presenceWatchId !== null) presenceLastWrite = 0; // força reenvio ao voltar
+});
 
 // ── POPUPS ──
 function editSaidaPopup(marker, s) {
