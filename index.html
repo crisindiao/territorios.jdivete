@@ -3864,6 +3864,7 @@ function switchTabChip(name, btn) {
   _switchingForAtencaoFilter = false;
   document.querySelectorAll('.chip').forEach(b => b.classList.toggle('active', b===btn));
   Object.keys(layerGroups).forEach(k => {
+    if (k === 'presencas') return; // camada de presença fica sempre visível, independente da aba
     if (k===name) { if (!map.hasLayer(layerGroups[k])) map.addLayer(layerGroups[k]); }
     else { if (map.hasLayer(layerGroups[k])) map.removeLayer(layerGroups[k]); }
   });
