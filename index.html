@@ -703,13 +703,28 @@ body.presentation-mode .presentation-exit-btn{display:flex;}
 
 /* Balão de fala flutuando por cima do marcador no mapa */
 .map-chat-bubble{background:#fff;border-radius:12px;padding:6px 10px;font-size:0.78rem;color:#202124;box-shadow:0 2px 10px rgba(0,0,0,0.25);max-width:180px;white-space:normal;line-height:1.3;font-weight:500;}
+#chatMicBtn{background:transparent;color:var(--purple,#5b2c83);border:none;font-size:1.15rem;width:38px;height:38px;border-radius:50%;flex-shrink:0;touch-action:none;user-select:none;-webkit-user-select:none;}
+#chatMicBtn.recording{background:var(--error);color:#fff;animation:mic-pulse 1s infinite;}
+@keyframes mic-pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
+.chat-recording-bar{display:flex;align-items:center;gap:8px;padding:6px 16px 10px;font-size:0.76rem;color:var(--text2);}
+.chat-rec-dot{width:9px;height:9px;border-radius:50%;background:var(--error);animation:mic-pulse 1s infinite;flex-shrink:0;}
+.chat-rec-hint{margin-left:auto;font-size:0.7rem;opacity:0.8;}
+.chat-audio-msg{display:flex;align-items:center;gap:8px;min-width:170px;}
+.chat-audio-play{background:var(--purple,#5b2c83);color:#fff;border:none;width:30px;height:30px;border-radius:50%;flex-shrink:0;font-size:0.85rem;display:flex;align-items:center;justify-content:center;}
+.chat-msg.mine .chat-audio-play{background:#fff;color:var(--purple,#5b2c83);}
+.chat-audio-bar{flex:1;height:3px;background:rgba(0,0,0,0.15);border-radius:2px;position:relative;overflow:hidden;}
+.chat-msg.mine .chat-audio-bar{background:rgba(255,255,255,0.35);}
+.chat-audio-bar-fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--purple,#5b2c83);border-radius:2px;}
+.chat-msg.mine .chat-audio-bar-fill{background:#fff;}
+.chat-audio-time{font-size:0.68rem;opacity:0.85;flex-shrink:0;}
+.chat-audio-expired{font-size:0.78rem;font-style:italic;opacity:0.7;}
 .leaflet-tooltip.map-chat-bubble-wrap{background:transparent;border:none;box-shadow:none;padding:0;}
 .leaflet-tooltip.map-chat-bubble-wrap::before{display:none;}
 
 /* ── Menu de camada do mapa (ruas / satélite Esri / satélite Google) ── */
 .map-layer-menu{
   display:none;flex-direction:column;position:fixed;
-  bottom:calc(var(--nav-h) + 64px);right:calc(52px + 20px + 52px);
+  bottom:calc(var(--nav-h) + 16px + 58px + 50px);right:calc(52px + 20px);
   z-index:202;background:var(--surface);border-radius:12px;box-shadow:var(--sh2);
   overflow:hidden;min-width:200px;
 }
@@ -1053,15 +1068,21 @@ body.no-anim .leaflet-zoom-animated{
 </div>
 <button class="fab" id="fabBtn" onclick="startAddMode()">＋</button>
 <button class="locate-fab" id="myLocationBtn" onclick="toggleMyLocation()" title="Minha localização em tempo real" style="display:none;">📍</button>
-<button class="locate-fab" id="satelliteBtn" onclick="toggleMapLayerMenu()" title="Camada do mapa" style="display:none;right:calc(52px + 20px + 52px);">🛰️</button>
-<button class="locate-fab presenca-fab" id="presencaBtn" onclick="togglePresencaPanel()" title="Quem está online agora" style="display:none;right:calc(52px + 20px + 52px + 52px);">👥<span class="presenca-badge" id="presencaBadge" style="display:none;">0</span></button>
-<button class="locate-fab chat-fab" id="chatBtn" onclick="toggleChatPanel()" title="Chat geral" style="display:none;right:calc(52px + 20px + 52px + 52px + 52px);">💬<span class="chat-badge" id="chatBadge" style="display:none;"></span></button>
+<button class="locate-fab" id="satelliteBtn" onclick="toggleMapLayerMenu()" title="Camada do mapa" style="display:none;bottom:calc(var(--nav-h) + 16px + 58px);">🛰️</button>
+<button class="locate-fab presenca-fab" id="presencaBtn" onclick="togglePresencaPanel()" title="Quem está online agora" style="display:none;bottom:calc(var(--nav-h) + 16px + 116px);">👥<span class="presenca-badge" id="presencaBadge" style="display:none;">0</span></button>
+<button class="locate-fab chat-fab" id="chatBtn" onclick="toggleChatPanel()" title="Chat geral" style="display:none;bottom:calc(var(--nav-h) + 16px + 174px);">💬<span class="chat-badge" id="chatBadge" style="display:none;"></span></button>
 <div class="chat-panel" id="chatPanel">
   <div class="chat-panel-header"><span>💬 Chat geral</span><span style="cursor:pointer;font-size:1.1rem;" onclick="toggleChatPanel(false)">✕</span></div>
   <div class="chat-panel-messages" id="chatPanelMessages"></div>
-  <div class="chat-panel-inputrow">
+  <div class="chat-panel-inputrow" id="chatInputRow">
     <input type="text" id="chatInput" placeholder="Escreva uma mensagem..." maxlength="240" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}">
+    <button id="chatMicBtn" onmousedown="startAudioRecording()" ontouchstart="event.preventDefault();startAudioRecording()" onmouseup="stopAudioRecording(true)" onmouseleave="stopAudioRecording(false)" ontouchend="stopAudioRecording(true)" title="Segure para gravar um áudio">🎤</button>
     <button onclick="sendChatMessage()">➤</button>
+  </div>
+  <div class="chat-recording-bar" id="chatRecordingBar" style="display:none;">
+    <span class="chat-rec-dot"></span>
+    <span id="chatRecordingTime">0:00</span>
+    <span class="chat-rec-hint">Solte para enviar · arraste para cima para cancelar</span>
   </div>
 </div>
 <div class="presenca-panel-backdrop" id="presencaPanelBackdrop" onclick="togglePresencaPanel(false)"></div>
@@ -1281,6 +1302,7 @@ body.no-anim .leaflet-zoom-animated{
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, query, orderBy, limit, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
   const firebaseConfig = {
     apiKey: "AIzaSyDb3i6rxN7P2XB83_HkrorhdTZSVYEphFI",
     authDomain: "territorio-jardim-ivete.firebaseapp.com",
@@ -1366,8 +1388,9 @@ body.no-anim .leaflet-zoom-animated{
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
+  const storage = getStorage(app);
   const provider = new GoogleAuthProvider();
-  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, query, orderBy, limit, addDoc, ADMIN_EMAIL, TERRITORY_CONFIG, AVAILABLE_TERRITORIES, ACCESS_MENUS, TAB_ABAS };
+  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, query, orderBy, limit, addDoc, storage, ref, uploadBytes, getDownloadURL, deleteObject, ADMIN_EMAIL, TERRITORY_CONFIG, AVAILABLE_TERRITORIES, ACCESS_MENUS, TAB_ABAS };
 </script>
 
 <script>
@@ -3210,6 +3233,21 @@ let chatUnsubscribe = null;
 let chatMessages = [];
 const CHAT_MAX_MENSAGENS = 50;
 const CHAT_BOLHA_DURACAO_MS = 12000;
+// ── ÁUDIO NO CHAT ──
+// Áudios ficam no Firebase Storage (não no Firestore, que não é feito pra
+// arquivos binários). Toda vez que o chat carrega, apaga do Storage + do
+// Firestore qualquer áudio com mais de CHAT_AUDIO_TTL_MS, pra não acumular
+// espaço/custo no Storage. Sem backend/Cloud Functions: a limpeza roda no
+// cliente, então acontece sempre que alguém com o app aberto sincroniza o chat.
+const CHAT_AUDIO_TTL_MS = 2 * 24 * 60 * 60 * 1000; // 2 dias
+const CHAT_AUDIO_MAX_MS = 60 * 1000; // grava no máximo 60s por áudio
+let mediaRecorder = null;
+let audioChunks = [];
+let audioRecordStart = 0;
+let audioRecordTimerInterval = null;
+let audioRecordCancelled = false;
+let audioStream = null;
+let chatAudioCleanupDone = false;
 
 function startChatSync() {
   if (chatUnsubscribe || !window._fb || !currentUser) return;
@@ -3228,14 +3266,36 @@ function startChatSync() {
     if (!primeira) {
       novas.forEach(msg => {
         if (msg.autorEmail !== (currentUser && currentUser.email)) {
-          showMapChatBubble(msg.autorEmail, msg.texto);
+          if (msg.texto) showMapChatBubble(msg.autorEmail, msg.texto);
+          notificarMensagemChat(msg);
         }
       });
       updateChatBadge();
     } else {
       primeira = false;
+      limparAudiosAntigosChat();
     }
   }, (err) => console.warn('Falha ao escutar chat:', err));
+}
+
+// Notificação do sistema (via Service Worker) quando chega mensagem nova de outra
+// pessoa e o painel de chat não está aberto na tela. Mesmo padrão já usado pelos
+// lembretes de território — depende de o usuário ter ativado notificações no app.
+async function notificarMensagemChat(msg) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  if (localStorage.getItem('notif-ativas') !== '1') return;
+  if (!('serviceWorker' in navigator)) return;
+  const panel = document.getElementById('chatPanel');
+  if (panel && panel.classList.contains('show') && document.visibilityState === 'visible') return; // já está vendo o chat
+  const corpo = msg.audioUrl ? '🎤 Mensagem de voz' : (msg.texto || '');
+  if (!corpo) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    reg.showNotification(`💬 ${msg.autorNome || 'Publicador'}`, {
+      body: corpo.slice(0, 120),
+      icon: 'icon-180.png', badge: 'icon-180.png', tag: 'chat-msg-' + (msg.id || Date.now())
+    });
+  } catch (e) {}
 }
 
 function stopChatSync() {
@@ -3265,6 +3325,131 @@ async function sendChatMessage() {
   }
 }
 
+// ── Gravação de áudio (segurar o botão do microfone) ──
+async function startAudioRecording() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') return;
+  if (!currentUser) { showSnack('❌ Faça login para enviar áudio'); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showSnack('❌ Seu navegador não suporta gravação de áudio'); return;
+  }
+  try {
+    audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    showSnack('❌ Permissão de microfone negada'); return;
+  }
+  audioChunks = [];
+  audioRecordCancelled = false;
+  const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+  mediaRecorder = mime ? new MediaRecorder(audioStream, { mimeType: mime }) : new MediaRecorder(audioStream);
+  mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = onAudioRecordingStop;
+  mediaRecorder.start();
+  audioRecordStart = Date.now();
+  const micBtn = document.getElementById('chatMicBtn');
+  const bar = document.getElementById('chatRecordingBar');
+  if (micBtn) micBtn.classList.add('recording');
+  if (bar) bar.style.display = 'flex';
+  audioRecordTimerInterval = setInterval(() => {
+    const secs = Math.floor((Date.now() - audioRecordStart) / 1000);
+    const label = document.getElementById('chatRecordingTime');
+    if (label) label.textContent = Math.floor(secs/60) + ':' + String(secs%60).padStart(2,'0');
+    if (secs * 1000 >= CHAT_AUDIO_MAX_MS) stopAudioRecording(true); // corta no limite
+  }, 250);
+}
+
+function stopAudioRecording(send) {
+  if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+  audioRecordCancelled = !send;
+  mediaRecorder.stop();
+  clearInterval(audioRecordTimerInterval);
+  audioRecordTimerInterval = null;
+  const micBtn = document.getElementById('chatMicBtn');
+  const bar = document.getElementById('chatRecordingBar');
+  if (micBtn) micBtn.classList.remove('recording');
+  if (bar) bar.style.display = 'none';
+  if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
+}
+
+async function onAudioRecordingStop() {
+  const durationMs = Date.now() - audioRecordStart;
+  if (audioRecordCancelled || durationMs < 600) { audioChunks = []; return; } // toque muito curto = ignora
+  const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+  audioChunks = [];
+  await sendChatAudio(blob, Math.round(durationMs / 1000));
+}
+
+async function sendChatAudio(blob, durationSec) {
+  if (!currentUser || !window._fb) return;
+  showSnack('📤 Enviando áudio...');
+  try {
+    const { db, storage, ref, uploadBytes, getDownloadURL, collection, addDoc, serverTimestamp } = window._fb;
+    const ext = (blob.type.includes('mp4')) ? 'm4a' : 'webm';
+    const path = `chat_audios/${presenceDocId(currentUser.email)}_${Date.now()}.${ext}`;
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, blob, { contentType: blob.type });
+    const url = await getDownloadURL(storageRef);
+    await addDoc(collection(db, 'chat_mensagens'), {
+      autorEmail: currentUser.email,
+      autorNome: currentUser.displayName || currentUser.email,
+      autorFoto: currentUser.photoURL || null,
+      audioUrl: url,
+      audioPath: path,
+      audioDuracao: durationSec,
+      criadoEm: serverTimestamp()
+    });
+  } catch (e) {
+    console.warn('Falha ao enviar áudio:', e);
+    showSnack('❌ Não foi possível enviar o áudio');
+  }
+}
+
+function playChatAudio(btnEl, url) {
+  // Toca um áudio por vez: para qualquer outro que esteja tocando.
+  document.querySelectorAll('audio[data-chat-audio]').forEach(a => { if (a.src !== url) { a.pause(); } });
+  let audioEl = btnEl.parentElement.querySelector('audio[data-chat-audio]');
+  if (!audioEl) {
+    audioEl = document.createElement('audio');
+    audioEl.setAttribute('data-chat-audio', '1');
+    audioEl.src = url;
+    audioEl.style.display = 'none';
+    btnEl.parentElement.appendChild(audioEl);
+    const fill = btnEl.parentElement.querySelector('.chat-audio-bar-fill');
+    audioEl.addEventListener('timeupdate', () => {
+      if (fill && audioEl.duration) fill.style.width = (audioEl.currentTime / audioEl.duration * 100) + '%';
+    });
+    audioEl.addEventListener('ended', () => { btnEl.textContent = '▶'; if (fill) fill.style.width = '0%'; });
+  }
+  if (audioEl.paused) {
+    audioEl.play();
+    btnEl.textContent = '⏸';
+  } else {
+    audioEl.pause();
+    btnEl.textContent = '▶';
+  }
+}
+
+// Apaga do Storage + Firestore qualquer áudio com mais de CHAT_AUDIO_TTL_MS.
+// Roda uma vez por sessão, logo depois do primeiro carregamento do chat.
+async function limparAudiosAntigosChat() {
+  if (chatAudioCleanupDone || !window._fb || !currentUser) return;
+  chatAudioCleanupDone = true;
+  try {
+    const { db, storage, ref, deleteObject, doc, setDoc } = window._fb;
+    const agora = Date.now();
+    const expirados = chatMessages.filter(m => {
+      if (!m.audioUrl) return false;
+      const ts = m.criadoEm && m.criadoEm.toMillis ? m.criadoEm.toMillis() : null;
+      return ts && (agora - ts) > CHAT_AUDIO_TTL_MS;
+    });
+    for (const m of expirados) {
+      try { if (m.audioPath) await deleteObject(ref(storage, m.audioPath)); } catch(e) {}
+      try {
+        await setDoc(doc(db, 'chat_mensagens', m.id), { audioUrl: null, audioPath: null, audioExpirado: true }, { merge: true });
+      } catch(e) {}
+    }
+  } catch (e) { console.warn('Falha na limpeza de áudios antigos:', e); }
+}
+
 function renderChatPanel() {
   const box = document.getElementById('chatPanelMessages');
   if (!box) return;
@@ -3278,7 +3463,16 @@ function renderChatPanel() {
     const ts = m.criadoEm && m.criadoEm.toMillis ? m.criadoEm.toMillis() : Date.now();
     const hora = new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const avatar = m.autorFoto ? `<img src="${escapeHtml(m.autorFoto)}" alt="">` : escapeHtml(initialsFromName(m.autorNome));
-    return `<div class="chat-msg${mine?' mine':''}"><div class="chat-msg-avatar">${avatar}</div><div><div class="chat-msg-name">${escapeHtml(m.autorNome||'Publicador')}</div><div class="chat-msg-bubble">${escapeHtml(m.texto||'')}</div><div class="chat-msg-time">${hora}</div></div></div>`;
+    let bubbleInner;
+    if (m.audioUrl) {
+      const dur = m.audioDuracao ? (Math.floor(m.audioDuracao/60) + ':' + String(m.audioDuracao%60).padStart(2,'0')) : '';
+      bubbleInner = `<div class="chat-audio-msg"><button class="chat-audio-play" onclick="playChatAudio(this,'${escapeHtml(m.audioUrl)}')">▶</button><div class="chat-audio-bar"><div class="chat-audio-bar-fill"></div></div><span class="chat-audio-time">${dur}</span></div>`;
+    } else if (m.audioExpirado) {
+      bubbleInner = `<span class="chat-audio-expired">🎤 Áudio expirado (mais de 2 dias)</span>`;
+    } else {
+      bubbleInner = escapeHtml(m.texto||'');
+    }
+    return `<div class="chat-msg${mine?' mine':''}"><div class="chat-msg-avatar">${avatar}</div><div><div class="chat-msg-name">${escapeHtml(m.autorNome||'Publicador')}</div><div class="chat-msg-bubble">${bubbleInner}</div><div class="chat-msg-time">${hora}</div></div></div>`;
   }).join('');
   if (wasNearBottom) box.scrollTop = box.scrollHeight;
 }
