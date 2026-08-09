@@ -654,7 +654,7 @@ body.presentation-mode .presentation-exit-btn{display:flex;}
 .fab:active{transform:scale(0.94);}
 
 /* ── LOCATE ── */
-.locate-fab{position:fixed;bottom:calc(var(--nav-h) + 16px);right:calc(52px + 20px);z-index:201;width:42px;height:42px;border-radius:50%;background:var(--surface);color:var(--purple);box-shadow:var(--sh2);display:flex;align-items:center;justify-content:center;font-size:19px;}
+.locate-fab{position:fixed;bottom:calc(var(--nav-h) + 16px + 66px);right:16px;z-index:201;width:42px;height:42px;border-radius:50%;background:var(--surface);color:var(--purple);box-shadow:var(--sh2);display:flex;align-items:center;justify-content:center;font-size:19px;}
 .locate-fab:active{box-shadow:var(--sh1);}
 .locate-fab.active-loc{background:#1a73e8;color:#fff;}
 .presenca-fab .presenca-badge{position:absolute;top:-3px;right:-3px;background:#2e9e4e;color:#fff;font-size:0.6rem;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;box-shadow:0 0 0 2px var(--surface);}
@@ -1068,9 +1068,9 @@ body.no-anim .leaflet-zoom-animated{
 </div>
 <button class="fab" id="fabBtn" onclick="startAddMode()">＋</button>
 <button class="locate-fab" id="myLocationBtn" onclick="toggleMyLocation()" title="Minha localização em tempo real" style="display:none;">📍</button>
-<button class="locate-fab" id="satelliteBtn" onclick="toggleMapLayerMenu()" title="Camada do mapa" style="display:none;bottom:calc(var(--nav-h) + 16px + 58px);">🛰️</button>
-<button class="locate-fab presenca-fab" id="presencaBtn" onclick="togglePresencaPanel()" title="Quem está online agora" style="display:none;bottom:calc(var(--nav-h) + 16px + 116px);">👥<span class="presenca-badge" id="presencaBadge" style="display:none;">0</span></button>
-<button class="locate-fab chat-fab" id="chatBtn" onclick="toggleChatPanel()" title="Chat geral" style="display:none;bottom:calc(var(--nav-h) + 16px + 174px);">💬<span class="chat-badge" id="chatBadge" style="display:none;"></span></button>
+<button class="locate-fab" id="satelliteBtn" onclick="toggleMapLayerMenu()" title="Camada do mapa" style="display:none;bottom:calc(var(--nav-h) + 16px + 124px);">🛰️</button>
+<button class="locate-fab presenca-fab" id="presencaBtn" onclick="togglePresencaPanel()" title="Quem está online agora" style="display:none;bottom:calc(var(--nav-h) + 16px + 182px);">👥<span class="presenca-badge" id="presencaBadge" style="display:none;">0</span></button>
+<button class="locate-fab chat-fab" id="chatBtn" onclick="toggleChatPanel()" title="Chat geral" style="display:none;bottom:calc(var(--nav-h) + 16px + 240px);">💬<span class="chat-badge" id="chatBadge" style="display:none;"></span></button>
 <div class="chat-panel" id="chatPanel">
   <div class="chat-panel-header"><span>💬 Chat geral</span><span style="cursor:pointer;font-size:1.1rem;" onclick="toggleChatPanel(false)">✕</span></div>
   <div class="chat-panel-messages" id="chatPanelMessages"></div>
@@ -3397,9 +3397,11 @@ async function sendChatAudio(blob, durationSec) {
       audioDuracao: durationSec,
       criadoEm: serverTimestamp()
     });
+    showSnack('✅ Áudio enviado');
   } catch (e) {
     console.warn('Falha ao enviar áudio:', e);
-    showSnack('❌ Não foi possível enviar o áudio');
+    const permissao = e && (e.code === 'storage/unauthorized' || (e.message||'').includes('permission'));
+    showSnack(permissao ? '❌ Sem permissão para enviar áudio (fale com a Crysy)' : '❌ Não foi possível enviar o áudio — verifique sua internet', 4000);
   }
 }
 
