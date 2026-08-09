@@ -520,6 +520,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .btn-streetview{background:#f5f5f7;color:var(--text2);border:1px solid var(--border);}
 .streetview-box{margin-top:10px;border-radius:10px;overflow:hidden;border:1px solid var(--border);}
 .streetview-box iframe{width:100%;height:200px;border:0;display:block;}
+.streetview-box.streetview-box-lg iframe{height:300px;}
 .streetview-note{font-size:0.68rem;color:var(--text2);padding:6px 8px;background:#f5f5f7;}
 .card-name{font-weight:700;font-size:0.9rem;color:var(--text);}
 .card-sub{font-size:0.75rem;color:var(--text2);margin-top:1px;}
@@ -3170,7 +3171,7 @@ function subscribePresences() {
 function popupPresencaHtml(data, tempoTxt, online) {
   const nome = escapeHtml(data.nome || 'Publicador');
   const cor = online ? '#2e9e4e' : '#9aa0a6';
-  const svBtn = (data.lat && data.lng) ? `<button type="button" class="btn-action btn-streetview" style="margin-top:8px;" onclick="togglePresencaStreetView(this,${data.lat},${data.lng})">🌐 Ver rua (Street View)</button><div class="streetview-box" hidden></div>` : '';
+  const svBtn = (data.lat && data.lng) ? `<button type="button" class="btn-action btn-streetview" style="margin-top:8px;" onclick="togglePresencaStreetView(this,${data.lat},${data.lng})">🌐 Ver rua (Street View)</button><div class="streetview-box streetview-box-lg" hidden></div>` : '';
   return `<b>${nome}</b><br><small style="color:${cor}">📍 ${tempoTxt}</small>${svBtn}`;
 }
 function togglePresencaStreetView(btn, lat, lng) {
@@ -3192,7 +3193,7 @@ function upsertPresenceMarker(id, data, ts, online) {
     presenceMarkers[id].data = data; presenceMarkers[id].ts = ts; presenceMarkers[id].online = online;
   } else {
     const marker = L.marker(latlng, { icon: makePresenceIcon(data.nome, data.foto, online), interactive: true, zIndexOffset: online ? 900 : 800 });
-    marker.bindPopup(popupPresencaHtml(data, tempoTxt, online), { maxWidth: 240 });
+    marker.bindPopup(popupPresencaHtml(data, tempoTxt, online), { maxWidth: 300, minWidth: 260 });
     marker.addTo(layerGroups.presencas);
     presenceMarkers[id] = { marker, data, ts, online };
   }
