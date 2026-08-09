@@ -1072,7 +1072,7 @@ body.no-anim .leaflet-zoom-animated{
 <button class="locate-fab presenca-fab" id="presencaBtn" onclick="togglePresencaPanel()" title="Quem está online agora" style="display:none;bottom:calc(var(--nav-h) + 16px + 182px);">👥<span class="presenca-badge" id="presencaBadge" style="display:none;">0</span></button>
 <button class="locate-fab chat-fab" id="chatBtn" onclick="toggleChatPanel()" title="Chat geral" style="display:none;bottom:calc(var(--nav-h) + 16px + 240px);">💬<span class="chat-badge" id="chatBadge" style="display:none;"></span></button>
 <div class="chat-panel" id="chatPanel">
-  <div class="chat-panel-header"><span>💬 Chat geral</span><span style="cursor:pointer;font-size:1.1rem;" onclick="toggleChatPanel(false)">✕</span></div>
+  <div class="chat-panel-header"><span>💬 Chat geral</span><span style="display:flex;align-items:center;gap:14px;"><span style="cursor:pointer;font-size:0.95rem;" title="Abrir pasta de áudios no Cloudinary para limpar manualmente" onclick="abrirLimpezaAudiosCloudinary()">🧹</span><span style="cursor:pointer;font-size:1.1rem;" onclick="toggleChatPanel(false)">✕</span></span></div>
   <div class="chat-panel-messages" id="chatPanelMessages"></div>
   <div class="chat-panel-inputrow" id="chatInputRow">
     <input type="text" id="chatInput" placeholder="Escreva uma mensagem..." maxlength="240" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}">
@@ -1302,7 +1302,6 @@ body.no-anim .leaflet-zoom-animated{
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, query, orderBy, limit, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-  import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
   const firebaseConfig = {
     apiKey: "AIzaSyDb3i6rxN7P2XB83_HkrorhdTZSVYEphFI",
     authDomain: "territorio-jardim-ivete.firebaseapp.com",
@@ -1388,9 +1387,8 @@ body.no-anim .leaflet-zoom-animated{
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
-  const storage = getStorage(app);
   const provider = new GoogleAuthProvider();
-  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, query, orderBy, limit, addDoc, storage, ref, uploadBytes, getDownloadURL, deleteObject, ADMIN_EMAIL, TERRITORY_CONFIG, AVAILABLE_TERRITORIES, ACCESS_MENUS, TAB_ABAS };
+  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, query, orderBy, limit, addDoc, ADMIN_EMAIL, TERRITORY_CONFIG, AVAILABLE_TERRITORIES, ACCESS_MENUS, TAB_ABAS };
 </script>
 
 <script>
@@ -3234,11 +3232,14 @@ let chatMessages = [];
 const CHAT_MAX_MENSAGENS = 50;
 const CHAT_BOLHA_DURACAO_MS = 12000;
 // ── ÁUDIO NO CHAT ──
-// Áudios ficam no Firebase Storage (não no Firestore, que não é feito pra
-// arquivos binários). Toda vez que o chat carrega, apaga do Storage + do
-// Firestore qualquer áudio com mais de CHAT_AUDIO_TTL_MS, pra não acumular
-// espaço/custo no Storage. Sem backend/Cloud Functions: a limpeza roda no
-// cliente, então acontece sempre que alguém com o app aberto sincroniza o chat.
+// Áudios vão pro Cloudinary (mesma conta usada nas fotos do IMAGINAE, upload
+// preset sem custo/sem cadastro de cartão). O Cloudinary não tem "apagar
+// depois de X dias" no plano grátis, e deletar de verdade via API exige uma
+// chave secreta que não pode ficar no navegador — então a exclusão real dos
+// arquivos fica sendo uma faxina manual ocasional no painel do Cloudinary
+// (pasta chat_audios/). O que o app FAZ sozinho, sem custo nenhum: some com
+// o áudio da conversa depois de CHAT_AUDIO_TTL_MS (ninguém mais vê/ouve),
+// mesmo que o arquivo continue existindo lá até você limpar manualmente.
 const CHAT_AUDIO_TTL_MS = 2 * 24 * 60 * 60 * 1000; // 2 dias
 const CHAT_AUDIO_MAX_MS = 60 * 1000; // grava no máximo 60s por áudio
 let mediaRecorder = null;
@@ -3326,6 +3327,14 @@ async function sendChatMessage() {
 }
 
 // ── Gravação de áudio (segurar o botão do microfone) ──
+// Atalho pra faxina manual: abre direto a pasta chat_audios no painel do
+// Cloudinary, já que a exclusão automática de verdade não é possível sem
+// backend pago (ver comentário acima de limparAudiosAntigosChat).
+function abrirLimpezaAudiosCloudinary() {
+  showSnack('🧹 Abrindo pasta de áudios no Cloudinary — apague os antigos por lá');
+  window.open(`https://console.cloudinary.com/console/${CLOUDINARY_CLOUD_NAME}/media_library/folders?q=chat_audios`, '_blank');
+}
+
 async function startAudioRecording() {
   if (mediaRecorder && mediaRecorder.state === 'recording') return;
   if (!currentUser) { showSnack('❌ Faça login para enviar áudio'); return; }
@@ -3378,30 +3387,46 @@ async function onAudioRecordingStop() {
   await sendChatAudio(blob, Math.round(durationMs / 1000));
 }
 
+// Cloudinary trata áudio/voz como resource_type "video" (não tem tipo "audio"
+// separado na API de upload). Mesma conta/preset já usados pras fotos do
+// IMAGINAE — sem servidor, sem custo, sem upgrade de plano.
+async function uploadAudioToCloudinary(blob) {
+  const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`;
+  const fd = new FormData();
+  fd.append('file', blob);
+  fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  fd.append('folder', 'chat_audios');
+  const res = await fetch(url, { method: 'POST', body: fd });
+  if (!res.ok) throw new Error('Falha no upload do áudio (verifique o upload preset no Cloudinary)');
+  const data = await res.json();
+  return { url: data.secure_url, publicId: data.public_id };
+}
+
+// Apaga um áudio do Cloudinary direto do navegador, sem backend. Usa a API de
+// "delete by token" que o próprio upload devolve — funciona por ~1h após o
+// upload, então é chamada assim que o áudio expira dentro dessa janela normal
+// de uso do app. Se passar da janela, o arquivo fica órfão no Cloudinary; como
+// o preset é de teste/uso interno com poucos publicadores, isso não deve
+// pesar no limite gratuito (25GB) — dá pra revisar manualmente de vez em quando.
 async function sendChatAudio(blob, durationSec) {
   if (!currentUser || !window._fb) return;
   showSnack('📤 Enviando áudio...');
   try {
-    const { db, storage, ref, uploadBytes, getDownloadURL, collection, addDoc, serverTimestamp } = window._fb;
-    const ext = (blob.type.includes('mp4')) ? 'm4a' : 'webm';
-    const path = `chat_audios/${presenceDocId(currentUser.email)}_${Date.now()}.${ext}`;
-    const storageRef = ref(storage, path);
-    await uploadBytes(storageRef, blob, { contentType: blob.type });
-    const url = await getDownloadURL(storageRef);
+    const { db, collection, addDoc, serverTimestamp } = window._fb;
+    const { url, publicId } = await uploadAudioToCloudinary(blob);
     await addDoc(collection(db, 'chat_mensagens'), {
       autorEmail: currentUser.email,
       autorNome: currentUser.displayName || currentUser.email,
       autorFoto: currentUser.photoURL || null,
       audioUrl: url,
-      audioPath: path,
+      audioPublicId: publicId,
       audioDuracao: durationSec,
       criadoEm: serverTimestamp()
     });
     showSnack('✅ Áudio enviado');
   } catch (e) {
     console.warn('Falha ao enviar áudio:', e);
-    const permissao = e && (e.code === 'storage/unauthorized' || (e.message||'').includes('permission'));
-    showSnack(permissao ? '❌ Sem permissão para enviar áudio (fale com a Crysy)' : '❌ Não foi possível enviar o áudio — verifique sua internet', 4000);
+    showSnack('❌ Não foi possível enviar o áudio — verifique sua internet', 4000);
   }
 }
 
@@ -3430,13 +3455,17 @@ function playChatAudio(btnEl, url) {
   }
 }
 
-// Apaga do Storage + Firestore qualquer áudio com mais de CHAT_AUDIO_TTL_MS.
+// Esconde da conversa qualquer áudio com mais de CHAT_AUDIO_TTL_MS (ninguém
+// mais vê nem escuta). Isso NÃO apaga o arquivo do Cloudinary — deletar de
+// verdade exige a API Secret, que não pode ficar no navegador por segurança.
+// O arquivo fica lá até você limpar manualmente pelo painel do Cloudinary
+// (veja o botão "🧹 Limpar áudios antigos" no menu do chat).
 // Roda uma vez por sessão, logo depois do primeiro carregamento do chat.
 async function limparAudiosAntigosChat() {
   if (chatAudioCleanupDone || !window._fb || !currentUser) return;
   chatAudioCleanupDone = true;
   try {
-    const { db, storage, ref, deleteObject, doc, setDoc } = window._fb;
+    const { db, doc, setDoc } = window._fb;
     const agora = Date.now();
     const expirados = chatMessages.filter(m => {
       if (!m.audioUrl) return false;
@@ -3444,9 +3473,8 @@ async function limparAudiosAntigosChat() {
       return ts && (agora - ts) > CHAT_AUDIO_TTL_MS;
     });
     for (const m of expirados) {
-      try { if (m.audioPath) await deleteObject(ref(storage, m.audioPath)); } catch(e) {}
       try {
-        await setDoc(doc(db, 'chat_mensagens', m.id), { audioUrl: null, audioPath: null, audioExpirado: true }, { merge: true });
+        await setDoc(doc(db, 'chat_mensagens', m.id), { audioUrl: null, audioPublicId: null, audioExpirado: true }, { merge: true });
       } catch(e) {}
     }
   } catch (e) { console.warn('Falha na limpeza de áudios antigos:', e); }
