@@ -662,6 +662,10 @@ body.presentation-mode .presentation-exit-btn{display:flex;}
 .presenca-marker .pm-dot{width:34px;height:34px;border-radius:50%;background:#fff;border:2.5px solid var(--purple,#5b2c83);box-shadow:0 1px 6px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:13px;font-weight:700;color:var(--purple,#5b2c83);}
 .presenca-marker .pm-dot img{width:100%;height:100%;object-fit:cover;}
 .presenca-marker .pm-pulse{position:absolute;bottom:-2px;right:-2px;width:11px;height:11px;border-radius:50%;background:#2e9e4e;border:2px solid #fff;}
+.presenca-marker.offline .pm-dot{border-color:#9aa0a6;filter:grayscale(75%);opacity:0.72;}
+.presenca-marker.offline .pm-pulse{background:#9aa0a6;}
+.presenca-panel-item.offline .presenca-panel-avatar{filter:grayscale(75%);opacity:0.72;}
+.presenca-panel-item.offline .presenca-panel-sub{color:#9aa0a6;}
 .presenca-panel-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:400;opacity:0;pointer-events:none;transition:opacity .2s;}
 .presenca-panel-backdrop.show{opacity:1;pointer-events:auto;}
 .presenca-panel{position:fixed;left:0;right:0;bottom:0;background:var(--surface);z-index:401;border-radius:16px 16px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,0.3);max-height:60vh;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .25s;}
@@ -675,6 +679,32 @@ body.presentation-mode .presentation-exit-btn{display:flex;}
 .presenca-panel-name{font-size:0.87rem;font-weight:600;}
 .presenca-panel-sub{font-size:0.72rem;color:var(--text2);}
 .presenca-panel-empty{padding:24px 16px;text-align:center;color:var(--text2);font-size:0.85rem;}
+
+/* Chat geral */
+.chat-fab .chat-badge{position:absolute;top:0px;right:0px;background:#d93025;width:11px;height:11px;border-radius:50%;box-shadow:0 0 0 2px var(--surface);}
+.chat-panel{position:fixed;left:0;right:0;bottom:0;background:var(--surface);z-index:401;border-radius:16px 16px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,0.3);height:72vh;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .25s;}
+.chat-panel.show{transform:translateY(0);}
+.chat-panel-header{padding:14px 16px 8px;font-weight:700;font-size:0.95rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0;}
+.chat-panel-messages{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 4px;display:flex;flex-direction:column;gap:10px;}
+.chat-msg{display:flex;gap:8px;max-width:86%;}
+.chat-msg.mine{align-self:flex-end;flex-direction:row-reverse;}
+.chat-msg-avatar{width:28px;height:28px;border-radius:50%;background:var(--purple-light);color:var(--purple,#5b2c83);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.7rem;overflow:hidden;flex-shrink:0;}
+.chat-msg-avatar img{width:100%;height:100%;object-fit:cover;}
+.chat-msg-bubble{background:var(--md-surface-variant,#f1f0f4);border-radius:14px;padding:7px 11px;font-size:0.85rem;line-height:1.35;}
+.chat-msg.mine .chat-msg-bubble{background:var(--purple,#5b2c83);color:#fff;}
+.chat-msg-name{font-size:0.68rem;font-weight:700;color:var(--purple,#5b2c83);margin-bottom:2px;}
+.chat-msg.mine .chat-msg-name{display:none;}
+.chat-msg-time{font-size:0.62rem;color:var(--text2);margin-top:3px;opacity:0.75;}
+.chat-msg.mine .chat-msg-time{color:#e8e2f0;}
+.chat-panel-inputrow{display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--border);flex-shrink:0;}
+.chat-panel-inputrow input{flex:1;border:1px solid var(--border);border-radius:20px;padding:9px 14px;font-size:0.87rem;background:var(--surface2,var(--surface));color:var(--text);}
+.chat-panel-inputrow button{background:var(--purple,#5b2c83);color:#fff;border:none;width:38px;height:38px;border-radius:50%;font-size:1rem;flex-shrink:0;}
+.chat-panel-empty{padding:24px 16px;text-align:center;color:var(--text2);font-size:0.85rem;}
+
+/* Balão de fala flutuando por cima do marcador no mapa */
+.map-chat-bubble{background:#fff;border-radius:12px;padding:6px 10px;font-size:0.78rem;color:#202124;box-shadow:0 2px 10px rgba(0,0,0,0.25);max-width:180px;white-space:normal;line-height:1.3;font-weight:500;}
+.leaflet-tooltip.map-chat-bubble-wrap{background:transparent;border:none;box-shadow:none;padding:0;}
+.leaflet-tooltip.map-chat-bubble-wrap::before{display:none;}
 
 /* ── Menu de camada do mapa (ruas / satélite Esri / satélite Google) ── */
 .map-layer-menu{
@@ -1025,9 +1055,18 @@ body.no-anim .leaflet-zoom-animated{
 <button class="locate-fab" id="myLocationBtn" onclick="toggleMyLocation()" title="Minha localização em tempo real" style="display:none;">📍</button>
 <button class="locate-fab" id="satelliteBtn" onclick="toggleMapLayerMenu()" title="Camada do mapa" style="display:none;right:calc(52px + 20px + 52px);">🛰️</button>
 <button class="locate-fab presenca-fab" id="presencaBtn" onclick="togglePresencaPanel()" title="Quem está online agora" style="display:none;right:calc(52px + 20px + 52px + 52px);">👥<span class="presenca-badge" id="presencaBadge" style="display:none;">0</span></button>
+<button class="locate-fab chat-fab" id="chatBtn" onclick="toggleChatPanel()" title="Chat geral" style="display:none;right:calc(52px + 20px + 52px + 52px + 52px);">💬<span class="chat-badge" id="chatBadge" style="display:none;"></span></button>
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-panel-header"><span>💬 Chat geral</span><span style="cursor:pointer;font-size:1.1rem;" onclick="toggleChatPanel(false)">✕</span></div>
+  <div class="chat-panel-messages" id="chatPanelMessages"></div>
+  <div class="chat-panel-inputrow">
+    <input type="text" id="chatInput" placeholder="Escreva uma mensagem..." maxlength="240" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}">
+    <button onclick="sendChatMessage()">➤</button>
+  </div>
+</div>
 <div class="presenca-panel-backdrop" id="presencaPanelBackdrop" onclick="togglePresencaPanel(false)"></div>
 <div class="presenca-panel" id="presencaPanel">
-  <div class="presenca-panel-header"><span>👥 Online agora</span><span style="cursor:pointer;font-size:1.1rem;" onclick="togglePresencaPanel(false)">✕</span></div>
+  <div class="presenca-panel-header"><span>👥 Publicadores</span><span style="cursor:pointer;font-size:1.1rem;" onclick="togglePresencaPanel(false)">✕</span></div>
   <div class="presenca-panel-list" id="presencaPanelList"></div>
 </div>
 <div class="map-layer-menu" id="mapLayerMenu">
@@ -1241,7 +1280,7 @@ body.no-anim .leaflet-zoom-animated{
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, query, orderBy, limit, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   const firebaseConfig = {
     apiKey: "AIzaSyDb3i6rxN7P2XB83_HkrorhdTZSVYEphFI",
     authDomain: "territorio-jardim-ivete.firebaseapp.com",
@@ -1328,7 +1367,7 @@ body.no-anim .leaflet-zoom-animated{
   const auth = getAuth(app);
   const db = getFirestore(app);
   const provider = new GoogleAuthProvider();
-  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, ADMIN_EMAIL, TERRITORY_CONFIG, AVAILABLE_TERRITORIES, ACCESS_MENUS, TAB_ABAS };
+  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, query, orderBy, limit, addDoc, ADMIN_EMAIL, TERRITORY_CONFIG, AVAILABLE_TERRITORIES, ACCESS_MENUS, TAB_ABAS };
 </script>
 
 <script>
@@ -2244,14 +2283,20 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     const presencaBtn = document.getElementById('presencaBtn');
     if (presencaBtn) presencaBtn.style.display = 'flex';
     startPresenceSharing();
+    const chatBtn = document.getElementById('chatBtn');
+    if (chatBtn) chatBtn.style.display = 'flex';
+    startChatSync();
   }
 
   function handleSignOut() {
     if (!confirm('Sair da conta?')) return;
     if (firestoreUnsubscribe) { firestoreUnsubscribe(); firestoreUnsubscribe = null; }
     stopPresenceSharing();
+    stopChatSync();
     const presencaBtn = document.getElementById('presencaBtn');
     if (presencaBtn) presencaBtn.style.display = 'none';
+    const chatBtn = document.getElementById('chatBtn');
+    if (chatBtn) chatBtn.style.display = 'none';
     window._fb.signOut(window._fb.auth).then(() => {
       document.getElementById('authOverlay').classList.remove('hidden');
       document.getElementById('userBadge').style.display = 'none';
@@ -2900,9 +2945,16 @@ function initialsFromName(nome) {
   const partes = nome.trim().split(/\s+/);
   return ((partes[0]?.[0]||'') + (partes.length>1 ? partes[partes.length-1][0] : '')).toUpperCase();
 }
-function makePresenceIcon(nome, foto) {
+function makePresenceIcon(nome, foto, online) {
   const conteudo = foto ? `<img src="${escapeHtml(foto)}" alt="">` : escapeHtml(initialsFromName(nome));
-  return L.divIcon({ className: '', html: `<div class="presenca-marker"><div class="pm-dot">${conteudo}</div><div class="pm-pulse"></div></div>`, iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17] });
+  const cls = online ? 'presenca-marker' : 'presenca-marker offline';
+  return L.divIcon({ className: '', html: `<div class="${cls}"><div class="pm-dot">${conteudo}</div><div class="pm-pulse"></div></div>`, iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17] });
+}
+function formatTempoRelativo(seg) {
+  if (seg < 60) return 'agora';
+  if (seg < 3600) return `há ${Math.floor(seg/60)} min`;
+  if (seg < 86400) return `há ${Math.floor(seg/3600)}h`;
+  return `há ${Math.floor(seg/86400)}d`;
 }
 function makeCarrinhoIcon() {
   return L.divIcon({ className: '', html: `<div style="width:30px;height:30px;border-radius:50% 50% 50% 0;background:var(--purple, #5b2c83);transform:rotate(-45deg);box-shadow:0 1px 6px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);font-size:15px;">🛒</span></div>`, iconSize: [30,30], iconAnchor: [15,29] });
@@ -2999,7 +3051,8 @@ let presenceUnsubscribe = null;
 let presenceLastWrite = 0;
 let presenceMarkers = {}; // id -> {marker, data}
 const PRESENCE_WRITE_INTERVAL_MS = 15000; // não escreve a cada posição, só a cada ~15s
-const PRESENCE_STALE_MS = 2 * 60 * 1000; // some do mapa dos outros se ficar 2min sem atualizar
+const PRESENCE_ONLINE_MS = 2 * 60 * 1000; // até 2min sem atualizar ainda conta como "online"
+const PRESENCE_HIDE_MS = 7 * 24 * 60 * 60 * 1000; // some do mapa só depois de 7 dias sem nenhuma atualização
 
 function presenceDocId(email) {
   return (email || '').replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -3016,9 +3069,11 @@ function startPresenceSharing() {
 }
 
 function stopPresenceSharing() {
+  // Não apaga mais o documento de presença ao parar de compartilhar (ex.: logout).
+  // A ideia é que a ÚLTIMA localização conhecida continue visível pros outros
+  // (marcada como offline/cinza), em vez de sumir do mapa.
   if (presenceWatchId !== null) { navigator.geolocation.clearWatch(presenceWatchId); presenceWatchId = null; }
   if (presenceUnsubscribe) { presenceUnsubscribe(); presenceUnsubscribe = null; }
-  removeOwnPresenceDoc();
   layerGroups.presencas.clearLayers();
   presenceMarkers = {};
   renderPresencaPanel();
@@ -3070,12 +3125,13 @@ function subscribePresences() {
       const data = d.data();
       if (!data || typeof data.lat !== 'number' || typeof data.lng !== 'number') return;
       const ts = data.atualizadoEm && data.atualizadoEm.toMillis ? data.atualizadoEm.toMillis() : agora;
-      if (agora - ts > PRESENCE_STALE_MS) return; // considera offline/travado, ignora
+      if (agora - ts > PRESENCE_HIDE_MS) return; // ninguém atualiza isso há muito tempo (ex: conta antiga) — não mostra mais
       if (currentUser && data.email === currentUser.email) return; // não mostra a si mesmo na lista/mapa
       vistos.add(d.id);
-      upsertPresenceMarker(d.id, data, ts);
+      const online = (agora - ts) <= PRESENCE_ONLINE_MS;
+      upsertPresenceMarker(d.id, data, ts, online);
     });
-    // remove quem saiu ou ficou stale
+    // só remove quem realmente sumiu do banco (ex.: nunca existiu) ou passou de 7 dias
     Object.keys(presenceMarkers).forEach(id => {
       if (!vistos.has(id)) {
         layerGroups.presencas.removeLayer(presenceMarkers[id].marker);
@@ -3086,32 +3142,42 @@ function subscribePresences() {
   }, (err) => console.warn('Falha ao escutar presenças:', err));
 }
 
-function upsertPresenceMarker(id, data, ts) {
+function upsertPresenceMarker(id, data, ts, online) {
   const latlng = [data.lat, data.lng];
+  const tempoTxt = online ? 'atualizado agora' : `última vez visto ${formatTempoRelativo(Math.floor((Date.now()-ts)/1000))}`;
   if (presenceMarkers[id]) {
     presenceMarkers[id].marker.setLatLng(latlng);
-    presenceMarkers[id].data = data; presenceMarkers[id].ts = ts;
+    if (presenceMarkers[id].online !== online) {
+      presenceMarkers[id].marker.setIcon(makePresenceIcon(data.nome, data.foto, online));
+    }
+    presenceMarkers[id].marker.setPopupContent(`<b>${escapeHtml(data.nome || 'Publicador')}</b><br><small style="color:${online?'#2e9e4e':'#9aa0a6'}">📍 ${tempoTxt}</small>`);
+    presenceMarkers[id].data = data; presenceMarkers[id].ts = ts; presenceMarkers[id].online = online;
   } else {
-    const marker = L.marker(latlng, { icon: makePresenceIcon(data.nome, data.foto), interactive: true, zIndexOffset: 900 });
-    marker.bindPopup(`<b>${escapeHtml(data.nome || 'Publicador')}</b><br><small style="color:#5f6368">📍 atualizado agora</small>`);
+    const marker = L.marker(latlng, { icon: makePresenceIcon(data.nome, data.foto, online), interactive: true, zIndexOffset: online ? 900 : 800 });
+    marker.bindPopup(`<b>${escapeHtml(data.nome || 'Publicador')}</b><br><small style="color:${online?'#2e9e4e':'#9aa0a6'}">📍 ${tempoTxt}</small>`);
     marker.addTo(layerGroups.presencas);
-    presenceMarkers[id] = { marker, data, ts };
+    presenceMarkers[id] = { marker, data, ts, online };
   }
 }
 
 function renderPresencaPanel() {
   const badge = document.getElementById('presencaBadge');
   const list = document.getElementById('presencaPanelList');
-  const ids = Object.keys(presenceMarkers);
-  if (badge) { badge.style.display = ids.length ? 'flex' : 'none'; badge.textContent = ids.length; }
+  const ids = Object.keys(presenceMarkers).sort((a,b) => {
+    const A = presenceMarkers[a], B = presenceMarkers[b];
+    if (A.online !== B.online) return A.online ? -1 : 1; // online primeiro
+    return B.ts - A.ts; // mais recente primeiro dentro de cada grupo
+  });
+  const qtdOnline = ids.filter(id => presenceMarkers[id].online).length;
+  if (badge) { badge.style.display = ids.length ? 'flex' : 'none'; badge.textContent = qtdOnline; }
   if (!list) return;
-  if (!ids.length) { list.innerHTML = '<div class="presenca-panel-empty">Ninguém mais está online com o app aberto agora.</div>'; return; }
+  if (!ids.length) { list.innerHTML = '<div class="presenca-panel-empty">Ninguém mais compartilhou localização ainda.</div>'; return; }
   list.innerHTML = ids.map(id => {
-    const { data, ts } = presenceMarkers[id];
+    const { data, ts, online } = presenceMarkers[id];
     const seg = Math.max(0, Math.floor((Date.now() - ts) / 1000));
-    const tempo = seg < 60 ? 'há poucos segundos' : `há ${Math.floor(seg/60)} min`;
+    const tempo = online ? (seg < 60 ? 'agora' : `há ${Math.floor(seg/60)} min`) : `offline · última vez ${formatTempoRelativo(seg)}`;
     const avatar = data.foto ? `<img src="${escapeHtml(data.foto)}" alt="">` : escapeHtml(initialsFromName(data.nome));
-    return `<div class="presenca-panel-item" data-id="${id}"><div class="presenca-panel-avatar">${avatar}</div><div><div class="presenca-panel-name">${escapeHtml(data.nome||'Publicador')}</div><div class="presenca-panel-sub">📡 ${tempo}</div></div></div>`;
+    return `<div class="presenca-panel-item${online?'':' offline'}" data-id="${id}"><div class="presenca-panel-avatar">${avatar}</div><div><div class="presenca-panel-name">${escapeHtml(data.nome||'Publicador')}</div><div class="presenca-panel-sub">${online?'📡':'⏱️'} ${tempo}</div></div></div>`;
   }).join('');
   list.querySelectorAll('.presenca-panel-item').forEach(el => {
     el.onclick = () => {
@@ -3134,11 +3200,130 @@ function togglePresencaPanel(force) {
   backdrop.classList.toggle('show', show);
 }
 
+// ── CHAT GERAL (mensagens de texto entre publicadores) ──
+// Coleção "chat_mensagens": cada doc é uma mensagem { autorEmail, autorNome,
+// autorFoto, texto, criadoEm }. Lemos as últimas 50 em tempo real. Quando uma
+// mensagem nova chega, além de entrar no painel de chat, se o autor tiver um
+// marcador de presença visível no mapa, mostramos um balãozinho de fala em
+// cima dele por alguns segundos.
+let chatUnsubscribe = null;
+let chatMessages = [];
+const CHAT_MAX_MENSAGENS = 50;
+const CHAT_BOLHA_DURACAO_MS = 12000;
+
+function startChatSync() {
+  if (chatUnsubscribe || !window._fb || !currentUser) return;
+  const { db, collection, query, orderBy, limit, onSnapshot } = window._fb;
+  const q = query(collection(db, 'chat_mensagens'), orderBy('criadoEm', 'desc'), limit(CHAT_MAX_MENSAGENS));
+  let primeira = true;
+  chatUnsubscribe = onSnapshot(q, (snap) => {
+    const novas = [];
+    snap.docChanges().forEach(ch => {
+      if (ch.type === 'added') novas.push({ id: ch.doc.id, ...ch.doc.data() });
+    });
+    chatMessages = snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse(); // ordem cronológica
+    renderChatPanel();
+    // Balão no mapa + badge de "tem mensagem nova" só para mensagens realmente
+    // novas chegando ao vivo (não dispara pra todo o histórico no carregamento inicial).
+    if (!primeira) {
+      novas.forEach(msg => {
+        if (msg.autorEmail !== (currentUser && currentUser.email)) {
+          showMapChatBubble(msg.autorEmail, msg.texto);
+        }
+      });
+      updateChatBadge();
+    } else {
+      primeira = false;
+    }
+  }, (err) => console.warn('Falha ao escutar chat:', err));
+}
+
+function stopChatSync() {
+  if (chatUnsubscribe) { chatUnsubscribe(); chatUnsubscribe = null; }
+  chatMessages = [];
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById('chatInput');
+  if (!input) return;
+  const texto = input.value.trim();
+  if (!texto || !currentUser || !window._fb) return;
+  input.value = '';
+  try {
+    const { db, collection, addDoc, serverTimestamp } = window._fb;
+    await addDoc(collection(db, 'chat_mensagens'), {
+      autorEmail: currentUser.email,
+      autorNome: currentUser.displayName || currentUser.email,
+      autorFoto: currentUser.photoURL || null,
+      texto: texto.slice(0, 240),
+      criadoEm: serverTimestamp()
+    });
+  } catch (e) {
+    console.warn('Falha ao enviar mensagem:', e);
+    showSnack('❌ Não foi possível enviar a mensagem');
+    input.value = texto; // devolve o texto pro campo se falhar
+  }
+}
+
+function renderChatPanel() {
+  const box = document.getElementById('chatPanelMessages');
+  if (!box) return;
+  if (!chatMessages.length) {
+    box.innerHTML = '<div class="chat-panel-empty">Nenhuma mensagem ainda. Comece a conversa!</div>';
+    return;
+  }
+  const wasNearBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 60;
+  box.innerHTML = chatMessages.map(m => {
+    const mine = currentUser && m.autorEmail === currentUser.email;
+    const ts = m.criadoEm && m.criadoEm.toMillis ? m.criadoEm.toMillis() : Date.now();
+    const hora = new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const avatar = m.autorFoto ? `<img src="${escapeHtml(m.autorFoto)}" alt="">` : escapeHtml(initialsFromName(m.autorNome));
+    return `<div class="chat-msg${mine?' mine':''}"><div class="chat-msg-avatar">${avatar}</div><div><div class="chat-msg-name">${escapeHtml(m.autorNome||'Publicador')}</div><div class="chat-msg-bubble">${escapeHtml(m.texto||'')}</div><div class="chat-msg-time">${hora}</div></div></div>`;
+  }).join('');
+  if (wasNearBottom) box.scrollTop = box.scrollHeight;
+}
+
+function updateChatBadge() {
+  const badge = document.getElementById('chatBadge');
+  const panel = document.getElementById('chatPanel');
+  if (!badge) return;
+  const panelAberto = panel && panel.classList.contains('show');
+  badge.style.display = (!panelAberto && chatMessages.length) ? 'block' : 'none';
+}
+
+function toggleChatPanel(force) {
+  const panel = document.getElementById('chatPanel');
+  if (!panel) return;
+  const show = typeof force === 'boolean' ? force : !panel.classList.contains('show');
+  panel.classList.toggle('show', show);
+  if (show) {
+    updateChatBadge();
+    setTimeout(() => { const box = document.getElementById('chatPanelMessages'); if (box) box.scrollTop = box.scrollHeight; }, 50);
+  }
+}
+
+// Balão de fala temporário em cima do marcador de presença do autor da mensagem.
+const mapChatBubbleTimers = {};
+function showMapChatBubble(autorEmail, texto) {
+  if (!texto) return;
+  const id = presenceDocId(autorEmail);
+  const info = presenceMarkers[id];
+  if (!info || !info.marker) return; // pessoa não está com localização visível no mapa agora
+  const marker = info.marker;
+  if (mapChatBubbleTimers[id]) { clearTimeout(mapChatBubbleTimers[id]); marker.closeTooltip(); marker.unbindTooltip(); }
+  marker.bindTooltip(`<div class="map-chat-bubble">${escapeHtml(texto)}</div>`, {
+    permanent: true, direction: 'top', offset: [0, -20], className: 'map-chat-bubble-wrap', interactive: false
+  }).openTooltip();
+  mapChatBubbleTimers[id] = setTimeout(() => {
+    marker.closeTooltip(); marker.unbindTooltip(); delete mapChatBubbleTimers[id];
+  }, CHAT_BOLHA_DURACAO_MS);
+}
+
 // IMPORTANTE: não apagamos o documento de presença quando a aba só vai pra
 // segundo plano (trocar de app, apagar tela, checar outra aba) — isso é
 // normal e frequente, e apagar aqui faz a pessoa "sumir" do mapa dos outros
 // à toa. Quem detecta que alguém ficou realmente offline é o filtro de
-// "stale" (PRESENCE_STALE_MS) na leitura, em subscribePresences(). A única
+// "offline" (PRESENCE_ONLINE_MS) na leitura, em subscribePresences(). A única
 // exclusão explícita do próprio documento acontece no logout (handleSignOut).
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && currentUser && presenceWatchId !== null) presenceLastWrite = 0; // força reenvio ao voltar pro primeiro plano
