@@ -3167,6 +3167,19 @@ function subscribePresences() {
   }, (err) => console.warn('Falha ao escutar presenças:', err));
 }
 
+function popupPresencaHtml(data, tempoTxt, online) {
+  const nome = escapeHtml(data.nome || 'Publicador');
+  const cor = online ? '#2e9e4e' : '#9aa0a6';
+  const svBtn = (data.lat && data.lng) ? `<button type="button" class="btn-action btn-streetview" style="margin-top:8px;" onclick="togglePresencaStreetView(this,${data.lat},${data.lng})">🌐 Ver rua (Street View)</button><div class="streetview-box" hidden></div>` : '';
+  return `<b>${nome}</b><br><small style="color:${cor}">📍 ${tempoTxt}</small>${svBtn}`;
+}
+function togglePresencaStreetView(btn, lat, lng) {
+  const box = btn.nextElementSibling;
+  if (!box) return;
+  if (!box.hidden) { box.hidden = true; box.innerHTML = ''; btn.textContent = '🌐 Ver rua (Street View)'; return; }
+  box.innerHTML = `<iframe src="https://maps.google.com/maps?layer=c&cbll=${lat},${lng}&cbp=0,0,0,0,0&source=embed&output=svembed" loading="lazy" allowfullscreen></iframe><div class="streetview-note">Imagem do Google Street View — pode não haver cobertura para todas as ruas.</div>`;
+  box.hidden = false; btn.textContent = '🌐 Ocultar rua';
+}
 function upsertPresenceMarker(id, data, ts, online) {
   const latlng = [data.lat, data.lng];
   const tempoTxt = online ? 'atualizado agora' : `última vez visto ${formatTempoRelativo(Math.floor((Date.now()-ts)/1000))}`;
@@ -3175,11 +3188,11 @@ function upsertPresenceMarker(id, data, ts, online) {
     if (presenceMarkers[id].online !== online) {
       presenceMarkers[id].marker.setIcon(makePresenceIcon(data.nome, data.foto, online));
     }
-    presenceMarkers[id].marker.setPopupContent(`<b>${escapeHtml(data.nome || 'Publicador')}</b><br><small style="color:${online?'#2e9e4e':'#9aa0a6'}">📍 ${tempoTxt}</small>`);
+    presenceMarkers[id].marker.setPopupContent(popupPresencaHtml(data, tempoTxt, online));
     presenceMarkers[id].data = data; presenceMarkers[id].ts = ts; presenceMarkers[id].online = online;
   } else {
     const marker = L.marker(latlng, { icon: makePresenceIcon(data.nome, data.foto, online), interactive: true, zIndexOffset: online ? 900 : 800 });
-    marker.bindPopup(`<b>${escapeHtml(data.nome || 'Publicador')}</b><br><small style="color:${online?'#2e9e4e':'#9aa0a6'}">📍 ${tempoTxt}</small>`);
+    marker.bindPopup(popupPresencaHtml(data, tempoTxt, online), { maxWidth: 240 });
     marker.addTo(layerGroups.presencas);
     presenceMarkers[id] = { marker, data, ts, online };
   }
