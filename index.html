@@ -4209,7 +4209,7 @@ function updateLegend() {
   if (activeTab==='grupos') { html=`<span class="legend-title" ${toggleAttr}>Saídas de campo${arrow}</span>`; saidasData.forEach(s=>html+=`<div style="${activeSaidaGrupoFilter&&activeSaidaGrupoFilter!==s.grupo?'opacity:0.3':''}"><span class="dot" style="background:${s.cor}"></span>${escapeHtml(s.grupo)} — ${escapeHtml(s.nome)}</div>`); if (activeSaidaGrupoFilter) html+=`<div style="margin-top:4px;font-size:0.68rem;color:#5f6368">Filtro: ${escapeHtml(activeSaidaGrupoFilter)}</div>`; }
   if (activeTab==='publicadores') { html=`<span class="legend-title" ${toggleAttr}>Grupos${arrow}</span>`; Object.entries(groupColors).forEach(([g,c])=>html+=`<div style="${activeGroupFilter&&activeGroupFilter!==g?'opacity:0.3':''}"><span class="dot" style="background:${c}"></span>${g}</div>`); if (activeGroupFilter) html+=`<div style="margin-top:4px;font-size:0.68rem;color:#5f6368">Filtro: ${activeGroupFilter}</div>`; }
   if (activeTab==='comercios') { html=`<span class="legend-title" ${toggleAttr}>Comércios${arrow}</span><div style="font-size:0.7rem;color:#5f6368">Toque num ponto</div>`; }
-  if (activeTab==='condominios') { html=`<span class="legend-title" ${toggleAttr}>Condomínios${arrow}</span><div style="font-size:0.7rem;color:#5f6368">Toque num ponto</div>`; }
+  if (activeTab==='condominios') { html=`<span class="legend-title" ${toggleAttr}>Condomínios${arrow}</span><div style="font-size:0.7rem;color:#5f6368">Toque num ponto</div>${isAdmin ? `<div style="margin-top:8px;"><input type="file" id="condImportFile" accept="application/json,.json" style="display:none;" onchange="importarCondominiosDeArquivo(this)"><button class="tp-btn-sm" style="background:var(--orange);color:#fff;width:100%;text-align:center;padding:8px;font-size:0.72rem;" onclick="document.getElementById('condImportFile').click()">📥 Importar prédios (.json)</button></div>` : ''}`; }
   if (activeTab==='quadras') {
     if (quadraCatMode==='grupo') {
       html=`<span class="legend-title" ${toggleAttr}>Quadras por grupo${arrow}</span>`;
@@ -4321,6 +4321,62 @@ function addItemPrompt() {
   if (!isAdmin) { showSnack('❌ Apenas o administrador pode adicionar itens'); return; }
   if (activeTab==='quadras') { setViewMode('mapa'); if (!editMode) toggleEditMode(); startDrawQuadra(); return; }
   const c=map.getCenter(); addNewItem(activeTab, c.lat, c.lng);
+}
+
+// ══════════════════════════════════════════════
+// IMPORTAÇÃO DE ARQUIVO — condomínios/prédios (.json gerado sob pedido)
+// Formato esperado do arquivo (array de linhas):
+// [ ["Nome do condomínio", "Endereço completo"], ... ]
+// Cada endereço é geocodificado automaticamente (mesma função usada ao
+// cadastrar manualmente). Itens já existentes (mesmo nome) são pulados
+// para não duplicar em caso de reimportação.
+// ══════════════════════════════════════════════
+function importarCondominiosDeArquivo(inputEl) {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode importar prédios'); inputEl.value = ''; return; }
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    let linhas;
+    try {
+      linhas = JSON.parse(reader.result);
+      if (!Array.isArray(linhas)) throw new Error('formato inválido');
+    } catch (e) {
+      showSnack('❌ Arquivo inválido — não é um .json de prédios reconhecível');
+      inputEl.value = '';
+      return;
+    }
+    if (!linhas.length) { showSnack('⚠️ Arquivo vazio, nada para importar'); inputEl.value = ''; return; }
+    if (!confirm(`Importar ${linhas.length} prédio(s)/condomínio(s) deste arquivo? Cada endereço será localizado no mapa automaticamente. Isso pode levar alguns segundos.`)) { inputEl.value = ''; return; }
+
+    showSnack('📍 Localizando endereços, aguarde...', 6000);
+    let criados = 0, pulados = 0, semGeo = 0;
+    for (const linha of linhas) {
+      const nome = (linha[0] || '').trim();
+      const endereco = (linha[1] || '').trim();
+      if (!nome) continue;
+      const jaExiste = condominiosData.find(c => c.nome.trim().toLowerCase() === nome.toLowerCase());
+      if (jaExiste) { pulados++; continue; }
+      let pos = null;
+      if (endereco) pos = await geocode(endereco);
+      if (!pos) { semGeo++; continue; }
+      condominiosData.push({ nome, categoria: 'Condomínio/Prédio', endereco, cor: '#364fc7', lat: pos.lat, lng: pos.lng });
+      criados++;
+    }
+
+    renderCondominios(); updateLegend(); renderList(); saveState();
+    logActivity('📥 importou ' + criados + ' prédio(s)/condomínio(s) de arquivo');
+    inputEl.value = '';
+    alert(
+      '✓ Importação concluída!\n\n' +
+      'Cadastrados: ' + criados + '\n' +
+      'Já existiam (pulados): ' + pulados + '\n' +
+      'Sem localização encontrada: ' + semGeo
+    );
+    showSnack('✓ ' + criados + ' prédio(s) cadastrado(s)');
+  };
+  reader.onerror = () => { showSnack('❌ Não foi possível ler o arquivo'); inputEl.value = ''; };
+  reader.readAsText(file);
 }
 
 // ── LOCATE ──
