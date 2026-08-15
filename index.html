@@ -5717,6 +5717,9 @@ function renderTestemunho() {
       ${isAdmin ? `<div style="margin-top:8px;">
         <input type="file" id="tpImportFile" accept="application/json,.json" style="display:none;" onchange="importarEscalaDeArquivo(this)">
         <button class="tp-btn-sm" style="background:var(--orange);color:#fff;width:100%;text-align:center;padding:10px;" onclick="document.getElementById('tpImportFile').click()">📥 Importar arquivo de escala (.json)</button>
+      </div>
+      <div id="tpFixDatasWrap" style="margin-top:8px;">
+        <button class="tp-btn-sm" style="background:var(--blue);color:#fff;width:100%;text-align:center;padding:10px;" onclick="corrigirDatasEscalaAgostoOutubro()">🗓️ Preencher datas que faltam (importação de 12/08)</button>
       </div>` : ''}
     </div>
     <div id="tpEscalaWrap"></div>
@@ -6072,6 +6075,96 @@ function importarEscalaDeArquivo(inputEl) {
   };
   reader.onerror = () => { showSnack('❌ Não foi possível ler o arquivo'); inputEl.value = ''; };
   reader.readAsText(file);
+}
+
+// ══════════════════════════════════════════════
+// CORREÇÃO PONTUAL — preenche a data das 40 designações importadas em
+// 12/08/2026 (antes de o app ter campo de data). Casa cada designação já
+// existente por ponto + dia + horário + as duas pessoas, e só grava a
+// data — não cria, não duplica e não mexe em nada além da data. Item que
+// já tem data, ou que não bate 100% com nenhuma linha, não é alterado.
+// Botão some sozinho após rodar.
+// ══════════════════════════════════════════════
+function corrigirDatasEscalaAgostoOutubro() {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar a escala'); return; }
+  const linhas = [
+    ['2026-08-12','Quarta-feira','16:00 às 18:00','Andrea Cunha','Ivete Dias dos Santos','Ponto de Ônibus (Tokio)'],
+    ['2026-08-14','Sexta-feira','18:00 às 20:00','Claudenir Alves Dias','Pedro Palopoli Saraiva','Ponto de Ônibus (Tokio)'],
+    ['2026-08-15','Sábado','08:00 às 10:00','Juan Cunha','Luciano de Souza','Cemitério'],
+    ['2026-08-15','Sábado','08:00 às 10:00','Elisabete Ferreira da Silva Brito','Adriana Silva','Cemitério'],
+    ['2026-08-15','Sábado','10:00 às 12:00','Lucas Alex','Crystian Silva','Cemitério'],
+    ['2026-08-15','Sábado','10:00 às 12:00','José Costa da Silva','Simone Siova Souza','Cemitério'],
+    ['2026-08-16','Domingo','08:00 às 10:00','Mirian Ferreira Dias','Raquel Gaudencio Santos','Praça Jd Roberto'],
+    ['2026-08-16','Domingo','10:00 às 12:00','REVSON BERIGO','Ewerton Joaci Santos de França','Cemitério'],
+    ['2026-08-16','Domingo','10:00 às 12:00','Juliana Carvalho','Juliana Vitor','Cemitério'],
+    ['2026-08-17','Segunda-feira','08:00 às 10:00','Juarez Tolentino','Isabel Machado Dias Tolentino','Ponto de Ônibus (Tokio)'],
+    ['2026-08-18','Terça-feira','10:00 às 12:00','Bianca Cardoso','Eliana Nascimento Souza Cardoso','Ponto de Ônibus (Tokio)'],
+    ['2026-08-19','Quarta-feira','10:00 às 12:00','Maysa Camaforto','Cleonice Silva Gomes de Souza','Em frente à Everilda'],
+    ['2026-08-20','Quinta-feira','09:00 às 11:00','Ana Paula Silva Ferro','Ivete Dias dos Santos','Em frente à casa da Zulmira'],
+    ['2026-08-20','Quinta-feira','14:00 às 16:00','Fabio Danilo Tolentino','Daniel Ferreira dos Santos','Em frente à Everilda'],
+    ['2026-08-21','Sexta-feira','08:00 às 11:00','Lina Hitomi Saito','Vanessa Cabral Mendes de Souza','Ponto de Ônibus (Tokio)'],
+    ['2026-08-22','Sábado','08:00 às 10:00','Valdecir Dias','Claudiomar Santos','Praça Jd Roberto'],
+    ['2026-08-22','Sábado','10:00 às 12:00','Robson Domingos Noberto','Isac Carvalho Moreira dos Santos','Em frente à Everilda'],
+    ['2026-08-22','Sábado','10:00 às 12:00','Stella Dias','Graziela Gaudencio Santos','Praça Jd Roberto'],
+    ['2026-08-23','Domingo','10:00 às 12:00','Patrícia Brizzi de franca','Josivânia Santos','Ponto de Ônibus (Tokio)'],
+    ['2026-08-26','Quarta-feira','14:00 às 16:00','Isabel Camaforto','Cleonice Silva Gomes de Souza','Ponto de Ônibus (Tokio)'],
+    ['2026-08-29','Sábado','08:00 às 10:00','Romário Barbosa','Márcio Brito','Em frente à Everilda'],
+    ['2026-08-29','Sábado','10:00 às 12:00','Juliana Fernandes da Cruz Samuel','Rosana Berigo','Em frente à Everilda'],
+    ['2026-09-07','Segunda-feira','08:00 às 10:00','Juarez Tolentino','Isabel Machado Dias Tolentino','Ponto de Ônibus (Tokio)'],
+    ['2026-09-12','Sábado','10:00 às 12:00','Stella Dias','Patrícia Brizzi de franca','Praça Jd Roberto'],
+    ['2026-09-13','Domingo','10:00 às 12:00','Rosa Palopoli','Josivânia Santos','Ponto de Ônibus (Tokio)'],
+    ['2026-09-16','Quarta-feira','16:00 às 18:00','Ivete Dias dos Santos','Andrea Cunha','Ponto de Ônibus (Tokio)'],
+    ['2026-09-18','Sexta-feira','08:00 às 10:00','Bianca Cardoso','Vanessa Cabral Mendes de Souza','Ponto de Ônibus (Tokio)'],
+    ['2026-09-18','Sexta-feira','18:00 às 20:00','Claudenir Alves Dias','Pedro Palopoli Saraiva','Ponto de Ônibus (Tokio)'],
+    ['2026-09-19','Sábado','08:00 às 10:00','Adriana Silva','Juliana Vitor','Ponto de Ônibus (Tokio)'],
+    ['2026-09-19','Sábado','10:00 às 12:00','Juan Cunha','Lucas Alex','Em frente à Everilda'],
+    ['2026-09-26','Sábado','08:00 às 10:00','Elisabete Ferreira da Silva Brito','Juliana Carvalho','Em frente à Everilda'],
+    ['2026-09-26','Sábado','10:00 às 12:00','Robson Domingos Noberto','Crystian Silva','Cemitério'],
+    ['2026-09-26','Sábado','10:00 às 12:00','José Costa da Silva','Simone Siova Souza','Cemitério'],
+    ['2026-09-27','Domingo','08:00 às 10:00','Mirian Ferreira Dias','Raquel Gaudencio Santos','Praça Jd Roberto'],
+    ['2026-09-27','Domingo','10:00 às 12:00','Ewerton Joaci Santos de França','REVSON BERIGO','Em frente à Everilda'],
+    ['2026-09-28','Segunda-feira','08:00 às 10:00','Juarez Tolentino','Isabel Machado Dias Tolentino','Ponto de Ônibus (Tokio)'],
+    ['2026-10-03','Sábado','08:00 às 10:00','Claudiomar Santos','Luciano de Souza','Ponto de Ônibus (Tokio)'],
+    ['2026-10-03','Sábado','10:00 às 12:00','Valdecir Dias','Romário Barbosa','Cemitério'],
+    ['2026-10-03','Sábado','10:00 às 12:00','Graziela Gaudencio Santos','Patrícia Brizzi de franca','Cemitério'],
+    ['2026-10-04','Domingo','10:00 às 12:00','Josivânia Santos','Stella Dias','Praça Jd Roberto'],
+  ];
+
+  const norm = s => (s || '').trim().toLowerCase();
+  let corrigidas = 0, jaTinhamData = 0, naoEncontradas = 0;
+  const usados = new Set(); // evita casar a mesma designação existente duas vezes
+
+  linhas.forEach(([dataISO, dia, horario, pessoa1, pessoa2, local]) => {
+    const alvo = designacoesData.find((d, idx) =>
+      !usados.has(idx) &&
+      norm(d.ponto) === norm(local) &&
+      norm(d.dia) === norm(dia) &&
+      norm(d.horario) === norm(horario) &&
+      norm(d.pessoa1) === norm(pessoa1) &&
+      norm(d.pessoa2) === norm(pessoa2)
+    );
+    if (!alvo) { naoEncontradas++; return; }
+    const idx = designacoesData.indexOf(alvo);
+    usados.add(idx);
+    if (alvo.dataEscala) { jaTinhamData++; return; }
+    alvo.dataEscala = dataISO;
+    alvo.mesAno = dataISO.slice(0, 7);
+    corrigidas++;
+  });
+
+  renderTestemunhoEscala(); saveState();
+  logActivity('🗓️ preencheu datas de ' + corrigidas + ' designações da escala de 12/08');
+
+  const wrap = document.getElementById('tpFixDatasWrap');
+  if (wrap) wrap.remove();
+
+  alert(
+    '✓ Correção concluída!\n\n' +
+    'Datas preenchidas agora: ' + corrigidas + '\n' +
+    'Já tinham data (não alteradas): ' + jaTinhamData + '\n' +
+    'Não encontradas (confira manualmente): ' + naoEncontradas
+  );
+  showSnack('✓ Datas preenchidas: ' + corrigidas);
 }
 
 function renderTestemunhoEscala() {
