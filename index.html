@@ -440,6 +440,8 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .cobertura-legend b{color:var(--text);}
 .cobertura-bar-bg{background:#e0d5eb;border-radius:6px;height:8px;overflow:hidden;width:100%;}
 .cobertura-bar-fill{background:#1e8e3e;height:100%;transition:width .3s;}
+.cobertura-grid{display:flex;flex-direction:column;gap:10px;margin:0 16px;}
+.cobertura-grid .cobertura-card{margin:0;}
 
 /* acoes rapidas */
 .acoes-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 16px;}
@@ -973,16 +975,6 @@ body.no-anim .leaflet-zoom-animated{
     </div>
   </div>
 
-  <!-- Territórios que precisam de atenção -->
-  <div class="home-section">
-    <div class="home-section-head">
-      <span class="home-section-title">⚡ Precisam de atenção</span>
-    </div>
-  </div>
-  <div class="atencao-grid" id="atencaoPanel">
-    <!-- preenchido pelo JS -->
-  </div>
-
   <!-- Resumo do Território -->
   <div class="home-section">
     <div class="home-section-head">
@@ -1027,15 +1019,29 @@ body.no-anim .leaflet-zoom-animated{
       <span class="home-section-title">Cobertura de Território</span>
     </div>
   </div>
-  <div class="cobertura-card" onclick="goToCobertura()">
-    <div class="cobertura-top">
-      <div class="cobertura-pct" id="home-cob-pct">0%</div>
-      <div class="cobertura-legend">
-        <div><span class="dot" style="background:#1e8e3e"></span>Coberto: <b id="home-cob-feitas">0</b></div>
-        <div><span class="dot" style="background:#d93025"></span>Pendente: <b id="home-cob-pendentes">0</b></div>
+  <div class="cobertura-grid">
+    <div class="cobertura-card" onclick="goToCobertura()">
+      <div class="cobertura-top">
+        <div class="cobertura-pct" id="home-cob-pct">0%</div>
+        <div class="cobertura-legend">
+          <div style="font-weight:700;color:var(--text);margin-bottom:2px;">🚪 Casa em casa</div>
+          <div><span class="dot" style="background:#1e8e3e"></span>Coberto: <b id="home-cob-feitas">0</b></div>
+          <div><span class="dot" style="background:#d93025"></span>Pendente: <b id="home-cob-pendentes">0</b></div>
+        </div>
       </div>
+      <div class="cobertura-bar-bg"><div class="cobertura-bar-fill" id="home-cob-bar" style="width:0%"></div></div>
     </div>
-    <div class="cobertura-bar-bg"><div class="cobertura-bar-fill" id="home-cob-bar" style="width:0%"></div></div>
+    <div class="cobertura-card" onclick="openCartasOverlay()">
+      <div class="cobertura-top">
+        <div class="cobertura-pct" id="home-cob-cartas-pct">0%</div>
+        <div class="cobertura-legend">
+          <div style="font-weight:700;color:var(--text);margin-bottom:2px;">📇 Cartas em prédios</div>
+          <div><span class="dot" style="background:#1e8e3e"></span>Entregue: <b id="home-cob-cartas-feitas">0</b></div>
+          <div><span class="dot" style="background:#d93025"></span>Pendente: <b id="home-cob-cartas-pendentes">0</b></div>
+        </div>
+      </div>
+      <div class="cobertura-bar-bg"><div class="cobertura-bar-fill" id="home-cob-cartas-bar" style="width:0%"></div></div>
+    </div>
   </div>
 
   <!-- Ações Rápidas -->
@@ -4604,6 +4610,14 @@ function renderHomeStats() {
   document.getElementById('home-cob-feitas').textContent = feitas;
   document.getElementById('home-cob-pendentes').textContent = pendentes;
   document.getElementById('home-cob-bar').style.width = pct + '%';
+
+  const cartasEntregues = condominiosData.filter(c => ensureCarta(c).status === 'entregue').length;
+  const cartasPendentes = condominiosData.length - cartasEntregues;
+  const cartasPct = condominiosData.length ? Math.round(cartasEntregues/condominiosData.length*100) : 0;
+  document.getElementById('home-cob-cartas-pct').textContent = cartasPct + '%';
+  document.getElementById('home-cob-cartas-feitas').textContent = cartasEntregues;
+  document.getElementById('home-cob-cartas-pendentes').textContent = cartasPendentes;
+  document.getElementById('home-cob-cartas-bar').style.width = cartasPct + '%';
 
   renderSaudeTerritorio();
 }
