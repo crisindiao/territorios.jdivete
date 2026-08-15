@@ -6470,11 +6470,17 @@ function renderCartasList() {
   arr.forEach(x => {
     const c = ensureCarta(x.item);
     const gid = x.tipo + '_' + (x.tipo === 'comercio' ? comerciosData.indexOf(x.item) : condominiosData.indexOf(x.item));
+    const temPos = x.item.lat != null && x.item.lng != null;
     const card = document.createElement('div');
     card.className = 'carta-card';
     card.innerHTML = `
       <div class="ci-head"><span class="ci-nome">${escapeHtml(x.item.nome)}</span><span class="ci-tag">${x.tipo === 'comercio' ? '🏪 Comércio' : '🏢 Prédio'}</span></div>
       <div class="ci-end">${escapeHtml(x.item.endereco || '')}</div>
+      ${temPos ? `<div class="popup-actions" style="margin-bottom:10px;">
+        <button type="button" class="popup-act-btn" style="background:var(--purple);" data-act="mapa">📍 Ver no mapa</button>
+        <button type="button" class="popup-act-btn btn-streetview-cartas" style="background:#5f6368;">🌐 Street View</button>
+      </div>
+      <div class="streetview-box" hidden></div>` : ''}
       <div class="ci-row">
         <div class="ci-field">
           <label>Status da carta</label>
@@ -6493,6 +6499,16 @@ function renderCartasList() {
     `;
     card.querySelector('[data-f="status"]').onchange = e => setCartaField(gid, 'status', e.target.value);
     card.querySelector('[data-f="obs"]').onchange = e => setCartaField(gid, 'obs', e.target.value);
+    if (temPos) {
+      card.querySelector('[data-act="mapa"]').onclick = () => { closeCartasOverlay(); switchTab(x.tipo === 'comercio' ? 'comercios' : 'condominios'); focusItem(x.item); };
+      const svBtn = card.querySelector('.btn-streetview-cartas');
+      const svBox = card.querySelector('.streetview-box');
+      svBtn.onclick = () => {
+        const hidden = svBox.hasAttribute('hidden');
+        if (hidden) { svBox.innerHTML = `<iframe src="https://maps.google.com/maps?layer=c&cbll=${x.item.lat},${x.item.lng}&cbp=0,0,0,0,0&source=embed&output=svembed" loading="lazy" allowfullscreen></iframe><div class="streetview-note">Imagem do Google Street View — pode não haver cobertura para todas as ruas.</div>`; svBox.removeAttribute('hidden'); }
+        else { svBox.setAttribute('hidden', ''); }
+      };
+    }
     wireCartasBlock(card, x.item, renderCartasList);
     box.appendChild(card);
   });
