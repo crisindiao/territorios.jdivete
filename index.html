@@ -3622,9 +3622,9 @@ function editSaidaPopup(marker, s) {
     s.grupo = div.querySelector('[data-f="grupo"]').value; s.nome = div.querySelector('[data-f="nome"]').value;
     const novoEndereco = div.querySelector('[data-f="endereco"]').value;
     if (novoEndereco && novoEndereco !== s.endereco) { btn.textContent = 'Localizando...'; btn.disabled = true; const res = await geocode(novoEndereco); btn.disabled = false; btn.textContent = 'Salvar'; if (res) { s.lat = res.lat; s.lng = res.lng; delete s.offset; } }
-    s.endereco = novoEndereco; renderGrupos(); renderList(); marker.closePopup();
+    s.endereco = novoEndereco; renderGrupos(); renderList(); saveState(); marker.closePopup();
   };
-  div.querySelector('.btn-del').onclick = () => { const idx = saidasData.indexOf(s); if (idx>-1) { saidasData.splice(idx,1); pushUndo({type:'saida',data:s,index:idx,label:'Grupo '+s.grupo}); logActivity('🗑 removeu o grupo '+s.grupo); } renderGrupos(); renderList(); showSnack('🗑 Grupo removido', 6000, undoLast); };
+  div.querySelector('.btn-del').onclick = () => { const idx = saidasData.indexOf(s); if (idx>-1) { saidasData.splice(idx,1); pushUndo({type:'saida',data:s,index:idx,label:'Grupo '+s.grupo}); logActivity('🗑 removeu o grupo '+s.grupo); } renderGrupos(); renderList(); saveState(); showSnack('🗑 Grupo removido', 6000, undoLast); };
   return div;
 }
 function editComercioPopup(marker, c) {
@@ -3635,9 +3635,9 @@ function editComercioPopup(marker, c) {
     const btn = div.querySelector('.btn-save'); c.nome = div.querySelector('[data-f="nome"]').value;
     const novoEndereco = div.querySelector('[data-f="endereco"]').value; c.categoria = div.querySelector('[data-f="categoria"]').value;
     if (novoEndereco && novoEndereco !== c.endereco) { btn.textContent = 'Localizando...'; btn.disabled = true; const res = await geocode(novoEndereco); btn.disabled = false; btn.textContent = 'Salvar'; if (res) { c.lat = res.lat; c.lng = res.lng; } }
-    c.endereco = novoEndereco; renderComercios(); renderList(); marker.closePopup();
+    c.endereco = novoEndereco; renderComercios(); renderList(); saveState(); marker.closePopup();
   };
-  div.querySelector('.btn-del').onclick = () => { const idx = comerciosData.indexOf(c); if (idx>-1) { comerciosData.splice(idx,1); pushUndo({type:'comercio',data:c,index:idx,label:c.nome}); logActivity('🗑 removeu o comércio '+c.nome); } renderComercios(); renderList(); showSnack('🗑 Comércio removido', 6000, undoLast); };
+  div.querySelector('.btn-del').onclick = () => { const idx = comerciosData.indexOf(c); if (idx>-1) { comerciosData.splice(idx,1); pushUndo({type:'comercio',data:c,index:idx,label:c.nome}); logActivity('🗑 removeu o comércio '+c.nome); } renderComercios(); renderList(); saveState(); showSnack('🗑 Comércio removido', 6000, undoLast); };
   return div;
 }
 function editCondominioPopup(marker, c) {
@@ -3648,9 +3648,9 @@ function editCondominioPopup(marker, c) {
     const btn = div.querySelector('.btn-save'); c.nome = div.querySelector('[data-f="nome"]').value;
     const novoEndereco = div.querySelector('[data-f="endereco"]').value;
     if (novoEndereco && novoEndereco !== c.endereco) { btn.textContent = 'Localizando...'; btn.disabled = true; const res = await geocode(novoEndereco); btn.disabled = false; btn.textContent = 'Salvar'; if (res) { c.lat = res.lat; c.lng = res.lng; } }
-    c.endereco = novoEndereco; renderCondominios(); renderList(); marker.closePopup();
+    c.endereco = novoEndereco; renderCondominios(); renderList(); saveState(); marker.closePopup();
   };
-  div.querySelector('.btn-del').onclick = () => { const idx = condominiosData.indexOf(c); if (idx>-1) { condominiosData.splice(idx,1); pushUndo({type:'condominio',data:c,index:idx,label:c.nome}); logActivity('🗑 removeu o condomínio '+c.nome); } renderCondominios(); renderList(); showSnack('🗑 Condomínio removido', 6000, undoLast); };
+  div.querySelector('.btn-del').onclick = () => { const idx = condominiosData.indexOf(c); if (idx>-1) { condominiosData.splice(idx,1); pushUndo({type:'condominio',data:c,index:idx,label:c.nome}); logActivity('🗑 removeu o condomínio '+c.nome); } renderCondominios(); renderList(); saveState(); showSnack('🗑 Condomínio removido', 6000, undoLast); };
   return div;
 }
 function editPublicadorPopup(marker, p) {
@@ -3661,9 +3661,9 @@ function editPublicadorPopup(marker, p) {
     const btn = div.querySelector('.btn-save'); p.membros = div.querySelector('[data-f="membros"]').value.split(',').map(s=>s.trim()).filter(Boolean);
     const novoEndereco = div.querySelector('[data-f="endereco"]').value; p.grupo = div.querySelector('[data-f="grupo"]').value;
     if (novoEndereco && novoEndereco !== p.endereco) { btn.textContent = 'Localizando...'; btn.disabled = true; const res = await geocode(novoEndereco); btn.disabled = false; btn.textContent = 'Salvar'; if (res) { p.lat = res.lat; p.lng = res.lng; } }
-    p.endereco = novoEndereco; renderPublicadores(); renderList(); marker.closePopup();
+    p.endereco = novoEndereco; renderPublicadores(); renderList(); saveState(); marker.closePopup();
   };
-  div.querySelector('.btn-del').onclick = () => { const idx = publicadoresData.indexOf(p); if (idx>-1) { publicadoresData.splice(idx,1); pushUndo({type:'publicador',data:p,index:idx,label:p.membros.join(', ')}); logActivity('🗑 removeu a família '+p.membros.join(', ')); } renderPublicadores(); renderList(); showSnack('🗑 Família removida', 6000, undoLast); };
+  div.querySelector('.btn-del').onclick = () => { const idx = publicadoresData.indexOf(p); if (idx>-1) { publicadoresData.splice(idx,1); pushUndo({type:'publicador',data:p,index:idx,label:p.membros.join(', ')}); logActivity('🗑 removeu a família '+p.membros.join(', ')); } renderPublicadores(); renderList(); saveState(); showSnack('🗑 Família removida', 6000, undoLast); };
   return div;
 }
 
