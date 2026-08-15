@@ -3732,10 +3732,11 @@ function renderCarrinhos() {
 }
 function carrinhoPopupContent(marker, c, i) {
   const designacoes = designacoesData.filter(d => d.ponto === c.nome && d.mesAno === _tpMesAno)
-    .sort((a, b) => DIAS_SEMANA.indexOf(a.dia) - DIAS_SEMANA.indexOf(b.dia));
+    .sort((a, b) => (a.dataEscala || '').localeCompare(b.dataEscala || '') || DIAS_SEMANA.indexOf(a.dia) - DIAS_SEMANA.indexOf(b.dia));
   const div = document.createElement('div'); div.className = 'popup-edit';
+  const dataFormatada = iso => { if (!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; };
   const lista = designacoes.length
-    ? designacoes.map(d => `<div style="font-size:0.76rem;padding:4px 0;border-bottom:1px solid var(--border, #eee);"><b>${escapeHtml(d.dia)}</b> · ${escapeHtml(d.horario || '')}<br><span style="color:#5f6368">${escapeHtml(d.pessoa1 || '—')}${d.pessoa2 ? ' e ' + escapeHtml(d.pessoa2) : ''}</span></div>`).join('')
+    ? designacoes.map(d => `<div style="font-size:0.76rem;padding:4px 0;border-bottom:1px solid var(--border, #eee);"><b>${escapeHtml(d.dia)}${d.dataEscala ? ' · ' + dataFormatada(d.dataEscala) : ''}</b> · ${escapeHtml(d.horario || '')}<br><span style="color:#5f6368">${escapeHtml(d.pessoa1 || '—')}${d.pessoa2 ? ' e ' + escapeHtml(d.pessoa2) : ''}</span></div>`).join('')
     : '<div style="font-size:0.76rem;color:#5f6368;">Nenhum horário cadastrado neste mês ainda.</div>';
   div.innerHTML = `<b>🛒 ${escapeHtml(c.nome)}</b>${c.endereco ? '<br><small style="color:#5f6368">' + escapeHtml(c.endereco) + '</small>' : ''}
     <div style="margin-top:8px;max-height:160px;overflow-y:auto;">${lista}</div>
