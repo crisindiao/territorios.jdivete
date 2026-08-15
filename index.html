@@ -513,12 +513,14 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;overflow:hidden;}
 .card-avatar img{width:100%;height:100%;object-fit:cover;}
 .photo-row{display:flex;align-items:center;gap:10px;margin-bottom:2px;}
-.photo-thumb{width:64px;height:64px;border-radius:10px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;}
+.photo-thumb{width:64px;height:64px;border-radius:10px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;cursor:zoom-in;}
 .photo-placeholder{width:64px;height:64px;border-radius:10px;background:#f5f5f7;display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--text2);flex-shrink:0;border:1.5px dashed var(--border);}
 .photo-actions{display:flex;flex-direction:column;gap:6px;flex:1;}
 .btn-photo{background:var(--purple-light);color:var(--purple-dark);}
 .btn-photo-remove{background:#fce8e6;color:var(--error);}
-.popup-photo{width:100%;max-height:130px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block;}
+.popup-photo{width:100%;max-height:130px;object-fit:cover;border-radius:8px;margin-bottom:6px;display:block;cursor:zoom-in;}
+.carta-card .ci-photo-row{margin-bottom:12px;}
+.carta-card .ci-photo-thumb{width:100%;max-height:150px;object-fit:cover;border-radius:10px;border:1px solid var(--border);cursor:zoom-in;display:block;}
 .btn-streetview{background:#f5f5f7;color:var(--text2);border:1px solid var(--border);}
 .streetview-box{margin-top:10px;border-radius:10px;overflow:hidden;border:1px solid var(--border);}
 .streetview-box iframe{width:100%;height:200px;border:0;display:block;}
@@ -2674,7 +2676,7 @@ document.getElementById('cropCancelBtn').onclick = closeCropModal;
 document.getElementById('cropCancelX').onclick = closeCropModal;
 
 function photoBlockHTML(item) {
-  return `<div class="card-label">Foto da frente</div><div class="photo-row">${item.foto ? `<img src="${escapeHtml(item.foto)}" class="photo-thumb">` : `<div class="photo-placeholder">📷</div>`}<div class="photo-actions"><label class="btn-action btn-photo">📷 Tirar foto<input type="file" accept="image/*" capture="environment" class="photo-input-camera" hidden></label><label class="btn-action btn-photo">🖼️ Galeria/Arquivo<input type="file" accept="image/*" class="photo-input-gallery" hidden></label>${item.foto ? '<button type="button" class="btn-action btn-photo-remove">🗑 Remover foto</button>' : ''}${(item.lat&&item.lng)?'<button type="button" class="btn-action btn-streetview">🌐 Ver rua (Street View)</button>':''}</div></div><div class="streetview-box" hidden></div>`;
+  return `<div class="card-label">Foto da frente</div><div class="photo-row">${item.foto ? `<img src="${escapeHtml(item.foto)}" class="photo-thumb" data-photo-url="${escapeHtml(item.foto)}">` : `<div class="photo-placeholder">📷</div>`}<div class="photo-actions"><label class="btn-action btn-photo">📷 Tirar foto<input type="file" accept="image/*" capture="environment" class="photo-input-camera" hidden></label><label class="btn-action btn-photo">🖼️ Galeria/Arquivo<input type="file" accept="image/*" class="photo-input-gallery" hidden></label>${item.foto ? '<button type="button" class="btn-action btn-photo-remove">🗑 Remover foto</button>' : ''}${(item.lat&&item.lng)?'<button type="button" class="btn-action btn-streetview">🌐 Ver rua (Street View)</button>':''}</div></div><div class="streetview-box" hidden></div>`;
 }
 function wireStreetView(card, item) {
   const btn = card.querySelector('.btn-streetview');
@@ -2728,6 +2730,11 @@ function closeLightbox() {
 }
 document.getElementById('lightboxClose').onclick = closeLightbox;
 document.getElementById('imgLightbox').onclick = (e) => { if (e.target.id === 'imgLightbox') closeLightbox(); };
+// Zoom genérico: qualquer <img data-photo-url="..."> em qualquer aba abre o lightbox com zoom ao ser clicada.
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-photo-url]');
+  if (el && el.dataset.photoUrl) openLightbox(el.dataset.photoUrl);
+});
 
 // ── ZOOM/PAN da imagem no lightbox (zoom no ponto tocado/clicado) ──
 (function(){
@@ -3735,7 +3742,7 @@ function renderGrupos() {
   items.forEach(s => {
     let lat = s.lat, lng = s.lng; if (s.offset) { lat += s.offset[0]; lng += s.offset[1]; }
     const marker = L.marker([lat,lng], { icon: makeDivIcon(s.cor, s.grupo[0]), draggable: editMode });
-    marker.bindPopup(editMode ? editSaidaPopup(marker,s) : `${s.foto?`<img src="${escapeHtml(s.foto)}" class="popup-photo">`:''}<b>Grupo ${escapeHtml(s.grupo)}</b><br>Saída: ${escapeHtml(s.nome)}${s.endereco?'<br><small style="color:#5f6368">'+escapeHtml(s.endereco)+'</small>':''}`);
+    marker.bindPopup(editMode ? editSaidaPopup(marker,s) : `${s.foto?`<img src="${escapeHtml(s.foto)}" class="popup-photo" data-photo-url="${escapeHtml(s.foto)}">`:''}<b>Grupo ${escapeHtml(s.grupo)}</b><br>Saída: ${escapeHtml(s.nome)}${s.endereco?'<br><small style="color:#5f6368">'+escapeHtml(s.endereco)+'</small>':''}`);
     marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); s.lat=p.lat; s.lng=p.lng; delete s.offset; saveState(); });
     marker.addTo(layerGroups.grupos); s._marker = marker;
   });
@@ -3746,7 +3753,7 @@ function renderComercios() {
   const items = activeCategoryFilter ? comerciosData.filter(c=>c.categoria===activeCategoryFilter) : comerciosData;
   items.forEach(c => {
     const marker = L.marker([c.lat,c.lng], { icon: makeDotIcon(c.cor||'#868e96'), draggable: editMode });
-    marker.bindPopup(editMode ? editComercioPopup(marker,c) : `${c.foto?`<img src="${escapeHtml(c.foto)}" class="popup-photo">`:''}<b>${escapeHtml(c.nome)}</b><br>${escapeHtml(c.categoria)}<br><small style="color:#5f6368">${escapeHtml(c.endereco)}</small>${cartaInfoBadge(c)}`);
+    marker.bindPopup(editMode ? editComercioPopup(marker,c) : `${c.foto?`<img src="${escapeHtml(c.foto)}" class="popup-photo" data-photo-url="${escapeHtml(c.foto)}">`:''}<b>${escapeHtml(c.nome)}</b><br>${escapeHtml(c.categoria)}<br><small style="color:#5f6368">${escapeHtml(c.endereco)}</small>${cartaInfoBadge(c)}`);
     marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); c.lat=p.lat; c.lng=p.lng; saveState(); });
     marker.addTo(layerGroups.comercios); c._marker = marker;
   });
@@ -3756,7 +3763,7 @@ function renderCondominios() {
   layerGroups.condominios.clearLayers();
   condominiosData.forEach(c => {
     const marker = L.marker([c.lat,c.lng], { icon: makeDotIcon(c.cor||'#364fc7'), draggable: editMode });
-    marker.bindPopup(editMode ? editCondominioPopup(marker,c) : `${c.foto?`<img src="${escapeHtml(c.foto)}" class="popup-photo">`:''}<b>${escapeHtml(c.nome)}</b><br>Condomínio/Prédio<br><small style="color:#5f6368">${escapeHtml(c.endereco)}</small>${cartaInfoBadge(c)}`);
+    marker.bindPopup(editMode ? editCondominioPopup(marker,c) : `${c.foto?`<img src="${escapeHtml(c.foto)}" class="popup-photo" data-photo-url="${escapeHtml(c.foto)}">`:''}<b>${escapeHtml(c.nome)}</b><br>Condomínio/Prédio<br><small style="color:#5f6368">${escapeHtml(c.endereco)}</small>${cartaInfoBadge(c)}`);
     marker.on('dragend', e => { if (!isAdmin) return; const p=e.target.getLatLng(); c.lat=p.lat; c.lng=p.lng; saveState(); });
     marker.addTo(layerGroups.condominios); c._marker = marker;
   });
@@ -3771,7 +3778,7 @@ function renderPublicadores() {
     marker.bindPopup(() => {
       if (editMode) return editPublicadorPopup(marker,p);
       const div = document.createElement('div');
-      div.innerHTML = `${p.foto?`<img src="${escapeHtml(p.foto)}" class="popup-photo">`:''}<b>${escapeHtml(p.membros.join(', '))}</b><br>Grupo: ${escapeHtml(p.grupo)}${p.endereco?'<br><small style="color:#5f6368">'+escapeHtml(p.endereco)+'</small>':''}<div class="popup-actions" style="margin-top:8px;"><button class="btn-save btn-share-whats">📤 WhatsApp</button></div>`;
+      div.innerHTML = `${p.foto?`<img src="${escapeHtml(p.foto)}" class="popup-photo" data-photo-url="${escapeHtml(p.foto)}">`:''}<b>${escapeHtml(p.membros.join(', '))}</b><br>Grupo: ${escapeHtml(p.grupo)}${p.endereco?'<br><small style="color:#5f6368">'+escapeHtml(p.endereco)+'</small>':''}<div class="popup-actions" style="margin-top:8px;"><button class="btn-save btn-share-whats">📤 WhatsApp</button></div>`;
       div.querySelector('.btn-share-whats').onclick = () => shareWhatsApp(p.membros.join(', '), p.lat, p.lng);
       return div;
     });
@@ -6537,6 +6544,7 @@ function renderCartasList() {
     card.innerHTML = `
       <div class="ci-head"><span class="ci-nome">${escapeHtml(x.item.nome)}</span><span class="ci-tag">${x.tipo === 'comercio' ? '🏪 Comércio' : '🏢 Prédio'}</span></div>
       <div class="ci-end">${escapeHtml(x.item.endereco || '')}</div>
+      ${x.item.foto ? `<div class="ci-photo-row"><img src="${escapeHtml(x.item.foto)}" class="ci-photo-thumb" data-photo-url="${escapeHtml(x.item.foto)}"></div>` : ''}
       ${temPos ? `<div class="popup-actions" style="margin-bottom:10px;">
         <button type="button" class="popup-act-btn" style="background:var(--purple);" data-act="mapa">📍 Ver no mapa</button>
         <button type="button" class="popup-act-btn btn-streetview-cartas" style="background:#5f6368;">🌐 Street View</button>
