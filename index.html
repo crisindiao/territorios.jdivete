@@ -1111,7 +1111,8 @@ body.no-anim .leaflet-zoom-animated{
 <button class="locate-fab" id="myLocationBtn" onclick="toggleMyLocation()" title="Minha localização em tempo real" style="display:none;">📍</button>
 <button class="locate-fab" id="satelliteBtn" onclick="toggleMapLayerMenu()" title="Camada do mapa" style="display:none;bottom:calc(var(--nav-h) + 16px + 124px);">🛰️</button>
 <button class="locate-fab presenca-fab" id="presencaBtn" onclick="togglePresencaPanel()" title="Quem está online agora" style="display:none;bottom:calc(var(--nav-h) + 16px + 182px);">👥<span class="presenca-badge" id="presencaBadge" style="display:none;">0</span></button>
-<button class="locate-fab chat-fab" id="chatBtn" onclick="toggleChatPanel()" title="Chat geral" style="display:none;bottom:calc(var(--nav-h) + 16px + 240px);">💬<span class="chat-badge" id="chatBadge" style="display:none;"></span></button>
+<button class="locate-fab" id="presencaVisibilityBtn" onclick="togglePresencaVisibility()" title="Ocultar bolinhas de presença no mapa" style="display:none;bottom:calc(var(--nav-h) + 16px + 240px);">👁️</button>
+<button class="locate-fab chat-fab" id="chatBtn" onclick="toggleChatPanel()" title="Chat geral" style="display:none;bottom:calc(var(--nav-h) + 16px + 298px);">💬<span class="chat-badge" id="chatBadge" style="display:none;"></span></button>
 <div class="chat-panel" id="chatPanel">
   <div class="chat-panel-header"><span>💬 Chat geral</span><span style="display:flex;align-items:center;gap:14px;"><span id="chatClearAllBtn" style="cursor:pointer;font-size:0.95rem;display:none;" title="Apagar toda a conversa" onclick="confirmarLimparConversaToda()">🗑️</span><span style="cursor:pointer;font-size:0.95rem;" title="Abrir pasta de áudios no Cloudinary para limpar manualmente" onclick="abrirLimpezaAudiosCloudinary()">🧹</span><span style="cursor:pointer;font-size:1.1rem;" onclick="toggleChatPanel(false)">✕</span></span></div>
   <div class="chat-panel-messages" id="chatPanelMessages"></div>
@@ -2344,7 +2345,10 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     // Liga o compartilhamento de localização em tempo real automaticamente ao logar.
     const presencaBtn = document.getElementById('presencaBtn');
     if (presencaBtn) presencaBtn.style.display = 'flex';
+    const presencaVisBtn = document.getElementById('presencaVisibilityBtn');
+    if (presencaVisBtn) presencaVisBtn.style.display = 'flex';
     startPresenceSharing();
+    updatePresencaVisibilityBtn();
     const chatBtn = document.getElementById('chatBtn');
     if (chatBtn) chatBtn.style.display = 'flex';
     startChatSync();
@@ -2357,6 +2361,8 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     stopChatSync();
     const presencaBtn = document.getElementById('presencaBtn');
     if (presencaBtn) presencaBtn.style.display = 'none';
+    const presencaVisBtn = document.getElementById('presencaVisibilityBtn');
+    if (presencaVisBtn) presencaVisBtn.style.display = 'none';
     const chatBtn = document.getElementById('chatBtn');
     if (chatBtn) chatBtn.style.display = 'none';
     window._fb.signOut(window._fb.auth).then(() => {
@@ -3049,6 +3055,24 @@ let activeCategoryFilter = null;
 let activeGroupFilter = null;
 let activeSaidaGrupoFilter = null;
 const layerGroups = { grupos: L.layerGroup().addTo(map), comercios: L.layerGroup(), condominios: L.layerGroup(), publicadores: L.layerGroup(), quadras: L.layerGroup(), carrinhos: L.layerGroup(), presencas: L.layerGroup().addTo(map) };
+
+// Preferência de exibir/ocultar as bolinhas de presença (online) no mapa.
+// A lista no painel "Publicadores" continua funcionando normalmente mesmo oculto.
+let presencaVisivelNoMapa = localStorage.getItem('presencaVisivelNoMapa') !== '0'; // padrão: visível
+if (!presencaVisivelNoMapa) map.removeLayer(layerGroups.presencas);
+function togglePresencaVisibility() {
+  presencaVisivelNoMapa = !presencaVisivelNoMapa;
+  localStorage.setItem('presencaVisivelNoMapa', presencaVisivelNoMapa ? '1' : '0');
+  if (presencaVisivelNoMapa) map.addLayer(layerGroups.presencas);
+  else map.removeLayer(layerGroups.presencas);
+  updatePresencaVisibilityBtn();
+}
+function updatePresencaVisibilityBtn() {
+  const btn = document.getElementById('presencaVisibilityBtn');
+  if (!btn) return;
+  btn.textContent = presencaVisivelNoMapa ? '👁️' : '🙈';
+  btn.title = presencaVisivelNoMapa ? 'Ocultar bolinhas de presença no mapa' : 'Mostrar bolinhas de presença no mapa';
+}
 
 function makeDivIcon(color, letter) {
   return L.divIcon({ className: '', html: `<div class="saida-pin" style="background:${color}"><span>${letter}</span></div>`, iconSize: [28,28], iconAnchor: [14,28] });
