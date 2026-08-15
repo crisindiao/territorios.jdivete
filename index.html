@@ -5982,9 +5982,15 @@ function renderTpAddForm() {
     </div>
     <div class="tp-addform-row">
       <div>
+        <label>Data</label>
+        <input type="date" id="tpAddData">
+      </div>
+      <div>
         <label>Dia</label>
         <select id="tpAddDia">${DIAS_SEMANA.map(d => `<option value="${d}">${d}</option>`).join('')}</select>
       </div>
+    </div>
+    <div class="tp-addform-row">
       <div>
         <label>Horário (blocos de 2h)</label>
         <select id="tpAddHorario">${horarioSlots().map(s => `<option value="${s}">${s}</option>`).join('')}</select>
@@ -5992,14 +5998,24 @@ function renderTpAddForm() {
     </div>
     <button class="tp-btn-sm" style="background:var(--purple);color:#fff;" onclick="adicionarDesignacao()">＋ Adicionar horário na escala</button>
   `;
+  // Se o usuário escolher a data, ajusta automaticamente o "Dia" da semana pra bater.
+  const dataInput = document.getElementById('tpAddData');
+  const diaSelect = document.getElementById('tpAddDia');
+  dataInput.onchange = () => {
+    if (!dataInput.value) return;
+    const dt = new Date(dataInput.value + 'T00:00:00');
+    diaSelect.value = DIAS_SEMANA[dt.getDay()];
+  };
 }
 function adicionarDesignacao() {
   if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar a escala'); return; }
   const ponto = carrinhosData[parseInt(document.getElementById('tpAddPonto').value, 10)];
   if (!ponto) { showSnack('Cadastre um ponto de carrinho primeiro'); return; }
+  const dataEscala = document.getElementById('tpAddData').value || '';
   const dia = document.getElementById('tpAddDia').value;
   const horario = document.getElementById('tpAddHorario').value;
-  designacoesData.push({ id: 'd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7), mesAno: _tpMesAno, ponto: ponto.nome, dia, horario, pessoa1: '', pessoa2: '' });
+  const mesAno = dataEscala ? dataEscala.slice(0, 7) : _tpMesAno;
+  designacoesData.push({ id: 'd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7), mesAno, ponto: ponto.nome, dia, horario, pessoa1: '', pessoa2: '', dataEscala });
   renderTestemunhoEscala(); renderCarrinhos(); saveState();
   showSnack('✓ Horário adicionado à escala');
 }
@@ -6086,13 +6102,16 @@ function importarEscalaEmMassa() {
 function renderTestemunhoEscala() {
   const wrap = document.getElementById('tpEscalaWrap');
   if (!wrap) return;
-  const itens = designacoesData.filter(d => d.mesAno === _tpMesAno);
+  const itens = designacoesData.filter(d => d.mesAno === _tpMesAno)
+    .slice()
+    .sort((a, b) => (a.dataEscala || '').localeCompare(b.dataEscala || '') || (a.horario || '').localeCompare(b.horario || ''));
   const mesLabel = (() => { try { const t = new Date(_tpMesAno + '-02T00:00:00'); const s = t.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }); return s.charAt(0).toUpperCase() + s.slice(1); } catch (e) { return _tpMesAno; } })();
   if (!itens.length) { wrap.innerHTML = '<div class="tp-empty" style="padding:0 14px 14px;">Nenhum horário cadastrado para este mês ainda.</div>'; return; }
   const participantes = listaParticipantesTestemunho();
   const grupoPorNome = {}; participantes.forEach(p => grupoPorNome[p.nome] = p.grupo);
   const opcoesPessoas = nomeAtual => `<option value="">—</option>` + participantes.map(p => `<option value="${escapeHtml(p.nome)}" ${p.nome === nomeAtual ? 'selected' : ''}>${escapeHtml(p.nome)}</option>`).join('');
   const pessoaCell = (nome, grupo) => nome ? `<div class="tp-pessoa-info"><span class="tp-pessoa-nome">${escapeHtml(nome)}</span><span class="tp-pessoa-grupo">Grupo ${escapeHtml(grupo || '—')}</span></div>` : '';
+  const dataFormatada = iso => { if (!iso) return '—'; const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; };
   wrap.innerHTML = `<div class="tp-report-card" id="tpRelatorioCard">
     <div class="tp-report-head">
       <div class="tp-report-title">🛒 Testemunho Público</div>
@@ -6100,11 +6119,17 @@ function renderTestemunhoEscala() {
     </div>
     <div class="tp-table-wrap" style="padding:0;">
       <table class="tp-table" id="tpTabelaImg">
-        <thead><tr><th>Ponto</th><th>Dia</th><th>Horário</th><th>Dupla</th><th class="no-print"></th></tr></thead>
+        <thead><tr><th>Data</th><th>Ponto</th><th>Dia</th><th>Horário</th><th>Dupla</th><th class="no-print"></th></tr></thead>
         <tbody>
         ${itens.map(d => {
           const idx = designacoesData.indexOf(d);
           return `<tr>
+            <td>
+              <span class="no-print" style="display:block;">
+                <input type="date" value="${d.dataEscala || ''}" style="font-size:0.78rem;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);width:100%;" onchange="setDesignacaoData(${idx}, this.value)">
+              </span>
+              <span class="print-only" style="display:none;">${dataFormatada(d.dataEscala)}</span>
+            </td>
             <td>${escapeHtml(d.ponto)}</td>
             <td>${escapeHtml(d.dia)}</td>
             <td>${escapeHtml(d.horario)}</td>
@@ -6121,6 +6146,18 @@ function renderTestemunhoEscala() {
       </table>
     </div>
   </div>`;
+}
+function setDesignacaoData(idx, valor) {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar a escala'); renderTestemunhoEscala(); return; }
+  if (!designacoesData[idx]) return;
+  designacoesData[idx].dataEscala = valor;
+  if (valor) {
+    const dt = new Date(valor + 'T00:00:00');
+    designacoesData[idx].dia = DIAS_SEMANA[dt.getDay()];
+    designacoesData[idx].mesAno = valor.slice(0, 7);
+  }
+  saveState();
+  renderTestemunhoEscala();
 }
 function setDesignacaoPessoa(idx, qual, valor) {
   if (!isAdmin) {
