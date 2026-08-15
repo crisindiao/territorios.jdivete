@@ -829,9 +829,10 @@ body.viewer-mode .btn-save-card{display:none!important;}
 body.viewer-mode .btn-remove{display:none!important;}
 body.viewer-mode .fab{display:none!important;}
 body.viewer-mode .card input,body.viewer-mode .card select{pointer-events:none;background:#f5f5f7;color:var(--text2);}
-body.viewer-mode .btn-cartas-add{display:none!important;}
-body.viewer-mode .cartas-item-remove{display:none!important;}
-body.viewer-mode .cartas-add-row{display:none!important;}
+body.cartas-bloqueado .btn-cartas-add{display:none!important;}
+body.cartas-bloqueado .cartas-item-remove{display:none!important;}
+body.cartas-bloqueado .cartas-add-row{display:none!important;}
+body.cartas-bloqueado .ci-status,body.cartas-bloqueado .ci-obs{pointer-events:none;background:#f5f5f7;color:var(--text2);}
 body.viewer-mode .btn-photo{display:none!important;}
 body.viewer-mode .btn-photo-remove{display:none!important;}
 body.viewer-mode .acoes-grid{display:none!important;}
@@ -1042,6 +1043,7 @@ body.no-anim .leaflet-zoom-animated{
         <div class="cobertura-legend">
           <div style="font-weight:700;color:var(--text);margin-bottom:2px;">📇 Cartas em prédios</div>
           <div><span class="dot" style="background:#1e8e3e"></span>Entregue: <b id="home-cob-cartas-feitas">0</b></div>
+          <div><span class="dot" style="background:#f9ab00"></span>Recusou: <b id="home-cob-cartas-recusou">0</b></div>
           <div><span class="dot" style="background:#d93025"></span>Pendente: <b id="home-cob-cartas-pendentes">0</b></div>
         </div>
       </div>
@@ -1243,6 +1245,7 @@ body.no-anim .leaflet-zoom-animated{
   <div class="search-overlay-header">
     <button class="icon-btn" onclick="closeCartasOverlay()" style="color:var(--text);">←</button>
     <div style="font-weight:700;font-size:0.95rem;flex:1;">✉️ Controle de cartas</div>
+    <button class="icon-btn" id="btnNovoCicloCartas" title="Novo ciclo de cartas" style="color:var(--md-error);display:none;" onclick="novoCicloCartas()">🔄</button>
   </div>
   <div class="cartas-search-wrap">
     <div class="search-overlay-input" style="background:var(--md-surface-variant);">
@@ -1416,7 +1419,7 @@ body.no-anim .leaflet-zoom-animated{
         { key: "testemunho_editar", label: "Pode editar escalas, duplas e carrinho" }
       ] },
     { key: "cartas",       label: "Controle de cartas", subItems: [
-        { key: "cartas_editar", label: "Pode editar status/observação das cartas" }
+        { key: "cartas_editar", label: "Pode editar status/observação e registrar entregas de cartas (qtd, dia, horário, pessoa)" }
       ] },
     { key: "atividade",    label: "Atividade recente" },
     { key: "ia",           label: "Analisar com IA" },
@@ -2342,6 +2345,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
       document.body.classList.add('viewer-mode');
       if (editMode) toggleEditMode(); // garante que sai do modo edição
     }
+    atualizarModoCartas();
     // Liga o compartilhamento de localização em tempo real automaticamente ao logar.
     const presencaBtn = document.getElementById('presencaBtn');
     if (presencaBtn) presencaBtn.style.display = 'flex';
@@ -2923,7 +2927,7 @@ function cartasBlockHTML(c) {
 function wireCartasBlock(card, c, rerenderFn) {
   const addBtn = card.querySelector('.btn-cartas-add');
   if (addBtn) addBtn.onclick = () => {
-    if (!isAdmin) return;
+    if (!podeEditarCartas()) { showSnack('❌ Você não tem permissão para editar as cartas'); return; }
     const dataInp = card.querySelector('.cartas-input-data');
     const horaInp = card.querySelector('.cartas-input-hora');
     const qtdInp = card.querySelector('.cartas-input-qtd');
@@ -2941,7 +2945,7 @@ function wireCartasBlock(card, c, rerenderFn) {
   };
   card.querySelectorAll('.cartas-item-remove').forEach(btn=>{
     btn.onclick = () => {
-      if (!isAdmin) return;
+      if (!podeEditarCartas()) { showSnack('❌ Você não tem permissão para editar as cartas'); return; }
       const id = btn.dataset.id;
       c.cartas = (c.cartas || []).filter(r => r.id !== id);
       saveState();
@@ -4652,10 +4656,14 @@ function renderHomeStats() {
   document.getElementById('home-cob-bar').style.width = pct + '%';
 
   const cartasEntregues = condominiosData.filter(c => ensureCarta(c).status === 'entregue').length;
-  const cartasPendentes = condominiosData.length - cartasEntregues;
-  const cartasPct = condominiosData.length ? Math.round(cartasEntregues/condominiosData.length*100) : 0;
+  const cartasRecusou = condominiosData.filter(c => ensureCarta(c).status === 'recusou').length;
+  // Recusou também conta como "resolvido" na porcentagem — só quem ainda está com status "pendente" fica de fora.
+  const cartasResolvidas = cartasEntregues + cartasRecusou;
+  const cartasPendentes = condominiosData.length - cartasResolvidas;
+  const cartasPct = condominiosData.length ? Math.round(cartasResolvidas/condominiosData.length*100) : 0;
   document.getElementById('home-cob-cartas-pct').textContent = cartasPct + '%';
   document.getElementById('home-cob-cartas-feitas').textContent = cartasEntregues;
+  document.getElementById('home-cob-cartas-recusou').textContent = cartasRecusou;
   document.getElementById('home-cob-cartas-pendentes').textContent = cartasPendentes;
   document.getElementById('home-cob-cartas-bar').style.width = cartasPct + '%';
   const cartasQtdTotal = condominiosData.reduce((s,c)=> s + totalCartasCondo(c), 0);
@@ -5392,6 +5400,7 @@ function applyVisitorMenuRestrictions(menus) {
     });
   });
   window._visitorMenusLiberados = semRestricao ? null : liberados;
+  atualizarModoCartas();
 }
 
 // Trava central usada por todo lugar que abre um dos menus controláveis —
@@ -5404,6 +5413,15 @@ function checarMenuLiberado(key, silencioso) {
   if (window._visitorMenusLiberados.has(key)) return true;
   if (!silencioso) showSnack('❌ Você não tem acesso liberado a este menu');
   return false;
+}
+
+// Quem pode editar as cartas (status/observação e registrar entregas com qtd/dia/horário/pessoa):
+// admin sempre pode; visitante aprovado só se o admin marcou "cartas_editar" na tela de Autorizar acessos.
+function podeEditarCartas() {
+  return checarMenuLiberado('cartas_editar', true);
+}
+function atualizarModoCartas() {
+  document.body.classList.toggle('cartas-bloqueado', !podeEditarCartas());
 }
 
 function initFirebaseAuth() {
@@ -6560,6 +6578,8 @@ function openCartasOverlay(filtroInicial) {
   if (filtroInicial) _cartasFiltro = filtroInicial;
   document.getElementById('cartasOverlay').classList.add('show');
   document.getElementById('cartasSearchInput').value = '';
+  const cicloBtn = document.getElementById('btnNovoCicloCartas');
+  if (cicloBtn) cicloBtn.style.display = isAdmin ? '' : 'none';
   renderCartasFilterbar();
   renderCartasList();
 }
@@ -6645,12 +6665,29 @@ function findCartaItemByGid(gid) {
   return tipo === 'comercio' ? comerciosData[idx] : condominiosData[idx];
 }
 function setCartaField(gid, field, value) {
-  if (!isAdmin) { showSnack('❌ Apenas o administrador pode editar'); renderCartasList(); return; }
+  if (!podeEditarCartas()) { showSnack('❌ Você não tem permissão para editar as cartas'); renderCartasList(); return; }
   const item = findCartaItemByGid(gid);
   if (!item) return;
   ensureCarta(item)[field] = value;
   saveState();
   if (field === 'status') renderCartasList();
+}
+
+// Ciclo de cartas é independente do ciclo do território (quadras): zera só o
+// status (volta pra "Pendente") de comércios e prédios, mas preserva o
+// histórico de entregas (c.cartas) — os registros de qtd/dia/horário/pessoa
+// continuam contando pro total, só a rodada atual reinicia.
+function novoCicloCartas() {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode reiniciar o ciclo de cartas'); return; }
+  if (!confirm('Isso vai voltar o status de TODOS os comércios e prédios para "Pendente", para começar um novo ciclo de cartas. O histórico de entregas já registrado é mantido. Continuar?')) return;
+  [...comerciosData, ...condominiosData].forEach(item => {
+    ensureCarta(item).status = 'pendente';
+  });
+  logActivity('🔄 reiniciou o status das cartas de todos os comércios e prédios (novo ciclo de cartas)');
+  renderCartasList();
+  renderHomeStats();
+  saveState();
+  showSnack('🔄 Ciclo de cartas reiniciado — status voltou para Pendente');
 }
 
 initFirebaseAuth();
