@@ -5674,6 +5674,7 @@ let _tpMesAno = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 let _tpFiltroGrupo = '';
 let _tpFiltroSexo = '';
 let _tpEditDisp = {}; // chave "pi_mi" -> true (mostra checkboxes) / false (mostra resumo salvo)
+let _tpGrupoAberto = {}; // nome do grupo -> true (expandido) / false ou ausente (recolhido)
 
 function openTestemunhoOverlay() {
   if (!checarMenuLiberado('testemunho')) return;
@@ -5747,9 +5748,16 @@ function renderTestemunhoParticipantes() {
   const grupos = Object.keys(porGrupo).sort();
   if (!grupos.length) { box.innerHTML = '<div class="tp-empty">Nenhum publicador encontrado com esse filtro.</div>'; return; }
   let html = '';
-  grupos.forEach(g => {
+  grupos.forEach((g, gi) => {
     const cor = groupColors[g] || '#868e96';
-    html += `<div class="tp-group-header" style="border-left-color:${cor}">Grupo ${escapeHtml(g)} <span>${porGrupo[g].length}</span></div>`;
+    // Recolhido por padrão na primeira vez que o grupo aparece na tela.
+    if (!(g in _tpGrupoAberto)) _tpGrupoAberto[g] = false;
+    const aberto = _tpGrupoAberto[g];
+    html += `<div class="tp-group-header" style="border-left-color:${cor};cursor:pointer;" onclick="toggleTpGrupoPorIndice(${gi})">
+      <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;transition:transform .15s;transform:rotate(${aberto ? '90' : '0'}deg);">▸</span>Grupo ${escapeHtml(g)}</span>
+      <span>${porGrupo[g].length}</span>
+    </div>`;
+    if (!aberto) return;
     porGrupo[g].forEach(({ p, pi, m, mi }) => {
       html += `<div class="tp-part-row">
         <div class="tp-part-top">
@@ -5769,6 +5777,22 @@ function renderTestemunhoParticipantes() {
     });
   });
   box.innerHTML = html;
+}
+function toggleTpGrupoPorIndice(gi) {
+  // Recalcula a lista de grupos na mesma ordem usada na renderização (ordem alfabética)
+  // para achar o nome do grupo correspondente a esse índice.
+  const grupos = new Set();
+  publicadoresData.forEach(p => {
+    if (_tpFiltroGrupo && p.grupo !== _tpFiltroGrupo) return;
+    getMembrosDetalhe(p).forEach(m => {
+      if (_tpFiltroSexo && m.sexo !== _tpFiltroSexo) return;
+      grupos.add(p.grupo || 'Sem grupo');
+    });
+  });
+  const g = [...grupos].sort()[gi];
+  if (g === undefined) return;
+  _tpGrupoAberto[g] = !_tpGrupoAberto[g];
+  renderTestemunhoParticipantes();
 }
 // Painel de disponibilidade (dias da semana + horário) e limite de vezes no
 // mês para o publicador — usado pela geração automática de escala.
