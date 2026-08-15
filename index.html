@@ -18,6 +18,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -781,6 +783,16 @@ body.presentation-mode .presentation-exit-btn{display:flex;}
 #imgLightbox img.zoomed{cursor:grab;}
 #imgLightbox img.dragging{cursor:grabbing;transition:none;}
 #imgLightbox .lightbox-close{position:absolute;top:16px;right:16px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;}
+#cropModal{position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.95);display:none;flex-direction:column;}
+#cropModal.show{display:flex;}
+#cropModal .crop-header{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;color:#fff;font-weight:600;font-size:0.95rem;}
+#cropModal .crop-header button{background:none;border:none;color:#fff;font-size:22px;padding:4px 8px;}
+#cropModal .crop-stage{flex:1 1 auto;min-height:0;position:relative;background:#000;}
+#cropModal .crop-stage img{display:block;max-width:100%;}
+#cropModal .crop-footer{flex:0 0 auto;display:flex;gap:12px;padding:16px;justify-content:center;}
+#cropModal .crop-footer button{flex:1;max-width:220px;padding:12px;border-radius:24px;border:none;font-weight:700;font-size:0.9rem;}
+#cropModal .crop-btn-cancel{background:rgba(255,255,255,0.15);color:#fff;}
+#cropModal .crop-btn-confirm{background:var(--md-primary);color:#fff;}
 
 /* ── AUTH ── */
 #authOverlay{position:fixed;inset:0;z-index:9999;background:var(--grad);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:24px;padding:32px;}
@@ -895,6 +907,16 @@ body.no-anim .leaflet-zoom-animated{
 <div id="imgLightbox">
   <button type="button" class="lightbox-close" id="lightboxClose">✕</button>
   <img id="lightboxImg" src="" alt="Cartão de território">
+</div>
+
+<!-- CROP MODAL (recorte de foto estilo WhatsApp) -->
+<div id="cropModal">
+  <div class="crop-header"><button type="button" id="cropCancelX">✕</button><span>Ajustar foto</span><span style="width:30px"></span></div>
+  <div class="crop-stage"><img id="cropperImg" src="" alt=""></div>
+  <div class="crop-footer">
+    <button type="button" class="crop-btn-cancel" id="cropCancelBtn">Cancelar</button>
+    <button type="button" class="crop-btn-confirm" id="cropConfirmBtn">✓ Usar foto</button>
+  </div>
 </div>
 
 <!-- TOP BAR -->
@@ -2615,8 +2637,44 @@ function compressImage(file, maxDim = 640, quality = 0.7) {
     reader.onerror = reject; reader.readAsDataURL(file);
   });
 }
+// ── RECORTE DE FOTO (estilo WhatsApp) ──
+let _activeCropper = null;
+let _activeCropObjUrl = null;
+function closeCropModal() {
+  const modal = document.getElementById('cropModal');
+  modal.classList.remove('show');
+  if (_activeCropper) { _activeCropper.destroy(); _activeCropper = null; }
+  if (_activeCropObjUrl) { URL.revokeObjectURL(_activeCropObjUrl); _activeCropObjUrl = null; }
+  document.getElementById('cropConfirmBtn').onclick = null;
+}
+function openCropModal(file, onCropped) {
+  const modal = document.getElementById('cropModal');
+  const imgEl = document.getElementById('cropperImg');
+  if (_activeCropObjUrl) URL.revokeObjectURL(_activeCropObjUrl);
+  _activeCropObjUrl = URL.createObjectURL(file);
+  imgEl.src = _activeCropObjUrl;
+  modal.classList.add('show');
+  const initCropper = () => {
+    if (_activeCropper) { _activeCropper.destroy(); _activeCropper = null; }
+    _activeCropper = new Cropper(imgEl, { aspectRatio: NaN, viewMode: 1, autoCropArea: 0.9, background: false, movable: true, zoomable: true, rotatable: false, scalable: false, dragMode: 'move', cropBoxMovable: true, cropBoxResizable: true });
+  };
+  if (imgEl.complete) initCropper(); else imgEl.onload = initCropper;
+  document.getElementById('cropConfirmBtn').onclick = () => {
+    if (!_activeCropper) return;
+    const cropData = _activeCropper.getData();
+    const maxDim = 1024;
+    const scale = Math.min(1, maxDim / Math.max(cropData.width, cropData.height));
+    _activeCropper.getCroppedCanvas({ width: Math.round(cropData.width * scale), height: Math.round(cropData.height * scale), imageSmoothingQuality: 'high' }).toBlob((blob) => {
+      closeCropModal();
+      if (blob) onCropped(blob);
+    }, 'image/jpeg', 0.85);
+  };
+}
+document.getElementById('cropCancelBtn').onclick = closeCropModal;
+document.getElementById('cropCancelX').onclick = closeCropModal;
+
 function photoBlockHTML(item) {
-  return `<div class="card-label">Foto da frente</div><div class="photo-row">${item.foto ? `<img src="${escapeHtml(item.foto)}" class="photo-thumb">` : `<div class="photo-placeholder">📷</div>`}<div class="photo-actions"><label class="btn-action btn-photo">📷 ${item.foto ? 'Trocar foto' : 'Tirar foto'}<input type="file" accept="image/*" capture="environment" class="photo-input" hidden></label>${item.foto ? '<button type="button" class="btn-action btn-photo-remove">🗑 Remover foto</button>' : ''}${(item.lat&&item.lng)?'<button type="button" class="btn-action btn-streetview">🌐 Ver rua (Street View)</button>':''}</div></div><div class="streetview-box" hidden></div>`;
+  return `<div class="card-label">Foto da frente</div><div class="photo-row">${item.foto ? `<img src="${escapeHtml(item.foto)}" class="photo-thumb">` : `<div class="photo-placeholder">📷</div>`}<div class="photo-actions"><label class="btn-action btn-photo">📷 Tirar foto<input type="file" accept="image/*" capture="environment" class="photo-input-camera" hidden></label><label class="btn-action btn-photo">🖼️ Galeria/Arquivo<input type="file" accept="image/*" class="photo-input-gallery" hidden></label>${item.foto ? '<button type="button" class="btn-action btn-photo-remove">🗑 Remover foto</button>' : ''}${(item.lat&&item.lng)?'<button type="button" class="btn-action btn-streetview">🌐 Ver rua (Street View)</button>':''}</div></div><div class="streetview-box" hidden></div>`;
 }
 function wireStreetView(card, item) {
   const btn = card.querySelector('.btn-streetview');
@@ -2628,23 +2686,26 @@ function wireStreetView(card, item) {
     box.hidden = false; btn.textContent='🌐 Ocultar rua';
   };
 }
-function wirePhotoBlock(card, item, rerenderFn) {
-  const input = card.querySelector('.photo-input');
-  if (input) input.onchange = async () => {
-    if (!isAdmin) return;
-    const file = input.files[0]; if (!file) return;
-    showSnack('📷 Processando foto...');
+async function handlePhotoFileSelected(input, item, rerenderFn) {
+  if (!isAdmin) return;
+  const file = input.files[0]; if (!file) return;
+  openCropModal(file, async (croppedBlob) => {
+    showSnack('☁️ Enviando foto...');
     try {
-      const resizedDataUrl = await compressImage(file);
-      showSnack('☁️ Enviando foto...');
-      const blob = dataURLtoBlob(resizedDataUrl);
-      const url = await uploadToCloudinary(blob);
+      const url = await uploadToCloudinary(croppedBlob);
       item.foto = url;
       const result = await saveState();
       rerenderFn(); renderList();
       showSnack(result && result.ok ? '✓ Foto salva' : '⚠️ Foto salva aqui, mas não sincronizou com o servidor');
     } catch (e) { showSnack('❌ Não foi possível salvar a foto'); }
-  };
+  });
+  input.value = '';
+}
+function wirePhotoBlock(card, item, rerenderFn) {
+  const camInput = card.querySelector('.photo-input-camera');
+  if (camInput) camInput.onchange = () => handlePhotoFileSelected(camInput, item, rerenderFn);
+  const galInput = card.querySelector('.photo-input-gallery');
+  if (galInput) galInput.onchange = () => handlePhotoFileSelected(galInput, item, rerenderFn);
   const rm = card.querySelector('.btn-photo-remove');
   if (rm) rm.onclick = () => { if (!isAdmin) return; delete item.foto; saveState(); rerenderFn(); renderList(); showSnack('🗑 Foto removida'); };
 }
