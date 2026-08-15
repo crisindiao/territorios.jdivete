@@ -442,6 +442,8 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .cobertura-bar-fill{background:#1e8e3e;height:100%;transition:width .3s;}
 .cobertura-grid{display:flex;flex-direction:column;gap:10px;margin:0 16px;}
 .cobertura-grid .cobertura-card{margin:0;}
+.cobertura-total-cartas{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:0.78rem;color:var(--text2);}
+.cobertura-total-cartas b{color:var(--purple-dark);font-weight:700;}
 
 /* acoes rapidas */
 .acoes-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 16px;}
@@ -1044,6 +1046,7 @@ body.no-anim .leaflet-zoom-animated{
         </div>
       </div>
       <div class="cobertura-bar-bg"><div class="cobertura-bar-fill" id="home-cob-cartas-bar" style="width:0%"></div></div>
+      <div class="cobertura-total-cartas">📬 Total de cartas entregues em prédios: <b id="home-cob-cartas-qtd">0</b></div>
     </div>
   </div>
 
@@ -4631,6 +4634,8 @@ function renderHomeStats() {
   document.getElementById('home-cob-cartas-feitas').textContent = cartasEntregues;
   document.getElementById('home-cob-cartas-pendentes').textContent = cartasPendentes;
   document.getElementById('home-cob-cartas-bar').style.width = cartasPct + '%';
+  const cartasQtdTotal = condominiosData.reduce((s,c)=> s + totalCartasCondo(c), 0);
+  document.getElementById('home-cob-cartas-qtd').textContent = cartasQtdTotal;
 
   renderSaudeTerritorio();
 }
