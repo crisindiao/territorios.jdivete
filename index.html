@@ -5713,8 +5713,9 @@ function renderTestemunho() {
       <div class="tp-hint" style="display:flex;align-items:center;gap:8px;">Mês: <input type="month" id="tpMesInput" value="${_tpMesAno}" onchange="_tpMesAno=this.value;renderTestemunhoEscala();"></div>
       <div class="tp-addform" id="tpAddForm"></div>
       <button class="tp-btn-sm" style="background:var(--purple);color:#fff;width:100%;text-align:center;padding:10px;" onclick="gerarDesignacaoAutomatica()">🤖 Gerar duplas automaticamente</button>
-      ${isAdmin ? `<div id="tpImportWrap" style="margin-top:8px;">
-        <button class="tp-btn-sm" style="background:var(--orange);color:#fff;width:100%;text-align:center;padding:10px;" onclick="importarEscalaEmMassa()">📥 Importar escala em massa (temporário)</button>
+      ${isAdmin ? `<div style="margin-top:8px;">
+        <input type="file" id="tpImportFile" accept="application/json,.json" style="display:none;" onchange="importarEscalaDeArquivo(this)">
+        <button class="tp-btn-sm" style="background:var(--orange);color:#fff;width:100%;text-align:center;padding:10px;" onclick="document.getElementById('tpImportFile').click()">📥 Importar arquivo de escala (.json)</button>
       </div>` : ''}
     </div>
     <div id="tpEscalaWrap"></div>
@@ -6021,82 +6022,55 @@ function adicionarDesignacao() {
 }
 
 // ══════════════════════════════════════════════
-// IMPORTAÇÃO EM MASSA — escala TPL (uso pontual, botão some após rodar)
+// IMPORTAÇÃO DE ARQUIVO — escala TPL (.json gerado sob pedido)
+// Formato esperado do arquivo (array de linhas):
+// [ ["2026-08-12","Quarta-feira","16:00 às 18:00","Fulano","Sicrano","Ponto X"], ... ]
+// Cada linha: [dataISO, diaSemana, horario, pessoa1, pessoa2, localTrabalho]
 // ══════════════════════════════════════════════
-function importarEscalaEmMassa() {
-  if (!isAdmin) { showSnack('❌ Apenas o administrador pode importar a escala'); return; }
-  if (!confirm('Importar a escala completa (agosto a outubro/2026)? Os itens entram como designações normais, editáveis e excluíveis depois. Essa ação não pode ser desfeita automaticamente.')) return;
+function importarEscalaDeArquivo(inputEl) {
+  if (!isAdmin) { showSnack('❌ Apenas o administrador pode importar a escala'); inputEl.value = ''; return; }
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let linhas;
+    try {
+      linhas = JSON.parse(reader.result);
+      if (!Array.isArray(linhas)) throw new Error('formato inválido');
+    } catch (e) {
+      showSnack('❌ Arquivo inválido — não é um .json de escala reconhecível');
+      inputEl.value = '';
+      return;
+    }
+    if (!linhas.length) { showSnack('⚠️ Arquivo vazio, nada para importar'); inputEl.value = ''; return; }
+    if (!confirm(`Importar ${linhas.length} designação(ões) da escala deste arquivo? Os itens entram como designações normais, editáveis e excluíveis depois.`)) { inputEl.value = ''; return; }
 
-  const linhas = [
-    ['2026-08-12','Quarta-feira','16:00 às 18:00','Andrea Cunha','Ivete Dias dos Santos','Ponto de Ônibus (Tokio)'],
-    ['2026-08-14','Sexta-feira','18:00 às 20:00','Claudenir Alves Dias','Pedro Palopoli Saraiva','Ponto de Ônibus (Tokio)'],
-    ['2026-08-15','Sábado','08:00 às 10:00','Juan Cunha','Luciano de Souza','Cemitério'],
-    ['2026-08-15','Sábado','08:00 às 10:00','Elisabete Ferreira da Silva Brito','Adriana Silva','Cemitério'],
-    ['2026-08-15','Sábado','10:00 às 12:00','Lucas Alex','Crystian Silva','Cemitério'],
-    ['2026-08-15','Sábado','10:00 às 12:00','José Costa da Silva','Simone Siova Souza','Cemitério'],
-    ['2026-08-16','Domingo','08:00 às 10:00','Mirian Ferreira Dias','Raquel Gaudencio Santos','Praça Jd Roberto'],
-    ['2026-08-16','Domingo','10:00 às 12:00','REVSON BERIGO','Ewerton Joaci Santos de França','Cemitério'],
-    ['2026-08-16','Domingo','10:00 às 12:00','Juliana Carvalho','Juliana Vitor','Cemitério'],
-    ['2026-08-17','Segunda-feira','08:00 às 10:00','Juarez Tolentino','Isabel Machado Dias Tolentino','Ponto de Ônibus (Tokio)'],
-    ['2026-08-18','Terça-feira','10:00 às 12:00','Bianca Cardoso','Eliana Nascimento Souza Cardoso','Ponto de Ônibus (Tokio)'],
-    ['2026-08-19','Quarta-feira','10:00 às 12:00','Maysa Camaforto','Cleonice Silva Gomes de Souza','Em frente à Everilda'],
-    ['2026-08-20','Quinta-feira','09:00 às 11:00','Ana Paula Silva Ferro','Ivete Dias dos Santos','Em frente à casa da Zulmira'],
-    ['2026-08-20','Quinta-feira','14:00 às 16:00','Fabio Danilo Tolentino','Daniel Ferreira dos Santos','Em frente à Everilda'],
-    ['2026-08-21','Sexta-feira','08:00 às 11:00','Lina Hitomi Saito','Vanessa Cabral Mendes de Souza','Ponto de Ônibus (Tokio)'],
-    ['2026-08-22','Sábado','08:00 às 10:00','Valdecir Dias','Claudiomar Santos','Praça Jd Roberto'],
-    ['2026-08-22','Sábado','10:00 às 12:00','Robson Domingos Noberto','Isac Carvalho Moreira dos Santos','Em frente à Everilda'],
-    ['2026-08-22','Sábado','10:00 às 12:00','Stella Dias','Graziela Gaudencio Santos','Praça Jd Roberto'],
-    ['2026-08-23','Domingo','10:00 às 12:00','Patrícia Brizzi de franca','Josivânia Santos','Ponto de Ônibus (Tokio)'],
-    ['2026-08-26','Quarta-feira','14:00 às 16:00','Isabel Camaforto','Cleonice Silva Gomes de Souza','Ponto de Ônibus (Tokio)'],
-    ['2026-08-29','Sábado','08:00 às 10:00','Romário Barbosa','Márcio Brito','Em frente à Everilda'],
-    ['2026-08-29','Sábado','10:00 às 12:00','Juliana Fernandes da Cruz Samuel','Rosana Berigo','Em frente à Everilda'],
-    ['2026-09-07','Segunda-feira','08:00 às 10:00','Juarez Tolentino','Isabel Machado Dias Tolentino','Ponto de Ônibus (Tokio)'],
-    ['2026-09-12','Sábado','10:00 às 12:00','Stella Dias','Patrícia Brizzi de franca','Praça Jd Roberto'],
-    ['2026-09-13','Domingo','10:00 às 12:00','Rosa Palopoli','Josivânia Santos','Ponto de Ônibus (Tokio)'],
-    ['2026-09-16','Quarta-feira','16:00 às 18:00','Ivete Dias dos Santos','Andrea Cunha','Ponto de Ônibus (Tokio)'],
-    ['2026-09-18','Sexta-feira','08:00 às 10:00','Bianca Cardoso','Vanessa Cabral Mendes de Souza','Ponto de Ônibus (Tokio)'],
-    ['2026-09-18','Sexta-feira','18:00 às 20:00','Claudenir Alves Dias','Pedro Palopoli Saraiva','Ponto de Ônibus (Tokio)'],
-    ['2026-09-19','Sábado','08:00 às 10:00','Adriana Silva','Juliana Vitor','Ponto de Ônibus (Tokio)'],
-    ['2026-09-19','Sábado','10:00 às 12:00','Juan Cunha','Lucas Alex','Em frente à Everilda'],
-    ['2026-09-26','Sábado','08:00 às 10:00','Elisabete Ferreira da Silva Brito','Juliana Carvalho','Em frente à Everilda'],
-    ['2026-09-26','Sábado','10:00 às 12:00','Robson Domingos Noberto','Crystian Silva','Cemitério'],
-    ['2026-09-26','Sábado','10:00 às 12:00','José Costa da Silva','Simone Siova Souza','Cemitério'],
-    ['2026-09-27','Domingo','08:00 às 10:00','Mirian Ferreira Dias','Raquel Gaudencio Santos','Praça Jd Roberto'],
-    ['2026-09-27','Domingo','10:00 às 12:00','Ewerton Joaci Santos de França','REVSON BERIGO','Em frente à Everilda'],
-    ['2026-09-28','Segunda-feira','08:00 às 10:00','Juarez Tolentino','Isabel Machado Dias Tolentino','Ponto de Ônibus (Tokio)'],
-    ['2026-10-03','Sábado','08:00 às 10:00','Claudiomar Santos','Luciano de Souza','Ponto de Ônibus (Tokio)'],
-    ['2026-10-03','Sábado','10:00 às 12:00','Valdecir Dias','Romário Barbosa','Cemitério'],
-    ['2026-10-03','Sábado','10:00 às 12:00','Graziela Gaudencio Santos','Patrícia Brizzi de franca','Cemitério'],
-    ['2026-10-04','Domingo','10:00 às 12:00','Josivânia Santos','Stella Dias','Praça Jd Roberto'],
-  ];
-
-  const nomesLocais = [...new Set(linhas.map(l => l[5]))];
-  const criados = [];
-  nomesLocais.forEach(nome => {
-    const existe = carrinhosData.find(c => c.nome.trim().toLowerCase() === nome.trim().toLowerCase());
-    if (!existe) { carrinhosData.push({ nome, endereco: '', lat: null, lng: null }); criados.push(nome); }
-  });
-
-  let totalCriadas = 0;
-  linhas.forEach(([dataISO, dia, horario, pessoa1, pessoa2, local]) => {
-    designacoesData.push({
-      id: 'd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
-      mesAno: dataISO.slice(0, 7),
-      ponto: local, dia, horario, pessoa1, pessoa2,
-      dataEscala: dataISO
+    const nomesLocais = [...new Set(linhas.map(l => l[5]).filter(Boolean))];
+    const criados = [];
+    nomesLocais.forEach(nome => {
+      const existe = carrinhosData.find(c => c.nome.trim().toLowerCase() === nome.trim().toLowerCase());
+      if (!existe) { carrinhosData.push({ nome, endereco: '', lat: null, lng: null }); criados.push(nome); }
     });
-    totalCriadas++;
-  });
 
-  renderTestemunhoPontos(); renderTpAddForm(); renderTestemunhoEscala(); renderCarrinhos(); saveState();
-  logActivity('📥 importou escala TPL em massa (' + totalCriadas + ' designações)');
+    let totalCriadas = 0;
+    linhas.forEach(([dataISO, dia, horario, pessoa1, pessoa2, local]) => {
+      if (!dataISO || !dia || !horario || !local) return; // pula linha incompleta
+      designacoesData.push({
+        id: 'd_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
+        mesAno: dataISO.slice(0, 7),
+        ponto: local, dia, horario, pessoa1: pessoa1 || '', pessoa2: pessoa2 || '',
+        dataEscala: dataISO
+      });
+      totalCriadas++;
+    });
 
-  // Botão desaparece sozinho após o uso — a importação em si não some, os
-  // dados continuam normalmente na escala, editáveis/excluíveis um a um.
-  const wrap = document.getElementById('tpImportWrap');
-  if (wrap) wrap.remove();
-
-  showSnack('✓ Escala importada: ' + totalCriadas + ' designações, ' + criados.length + ' pontos novos');
+    renderTestemunhoPontos(); renderTpAddForm(); renderTestemunhoEscala(); renderCarrinhos(); saveState();
+    logActivity('📥 importou escala TPL de arquivo (' + totalCriadas + ' designações)');
+    showSnack('✓ Escala importada: ' + totalCriadas + ' designações, ' + criados.length + ' pontos novos');
+    inputEl.value = '';
+  };
+  reader.onerror = () => { showSnack('❌ Não foi possível ler o arquivo'); inputEl.value = ''; };
+  reader.readAsText(file);
 }
 
 function renderTestemunhoEscala() {
