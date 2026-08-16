@@ -142,6 +142,9 @@ body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-conten
 .tp-empty{font-size:0.8rem;color:var(--text2);padding:8px 0;}
 .tp-badge-grupo{display:inline-block;padding:1px 7px;border-radius:999px;font-size:0.68rem;font-weight:700;color:#fff;}
 .cartas-search-wrap{background:var(--surface);padding:12px 14px 8px;border-bottom:1px solid var(--border);}
+.cartas-abas{display:flex;gap:8px;padding:10px 14px 0;background:var(--surface);}
+.cartas-abas button{flex:1;padding:10px;border-radius:11px;font-weight:700;font-size:0.82rem;background:var(--md-surface-variant);color:var(--text2);border:none;}
+.cartas-abas button.active{background:var(--purple);color:#fff;}
 .cartas-filterbar{display:flex;gap:6px;padding:10px 14px;overflow-x:auto;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface);}
 .cartas-filterbar button{flex-shrink:0;padding:7px 13px;border-radius:999px;font-size:0.76rem;font-weight:600;background:var(--md-surface-variant);color:var(--text2);border:none;}
 .cartas-filterbar button.active{background:var(--purple);color:#fff;}
@@ -1276,6 +1279,7 @@ body.no-anim .leaflet-zoom-animated{
     <button class="icon-btn" title="Relatório" style="color:var(--purple);" onclick="openCartasRelatorio()">📊</button>
     <button class="icon-btn" id="btnNovoCicloCartas" title="Novo ciclo de cartas" style="color:var(--md-error);display:none;" onclick="novoCicloCartas()">🔄</button>
   </div>
+  <div class="cartas-abas" id="cartasAbas"></div>
   <div class="cartas-search-wrap">
     <div class="search-overlay-input" style="background:var(--md-surface-variant);">
       <span class="s-icon">🔍</span>
@@ -1295,6 +1299,7 @@ body.no-anim .leaflet-zoom-animated{
     <button class="icon-btn" title="Baixar PDF" style="color:var(--purple);" onclick="baixarRelatorioCartas()">⬇️</button>
   </div>
   <div style="overflow-y:auto;flex:1;background:var(--bg);" id="cartasRelatorioScroll">
+    <div class="cartas-abas" id="relatorioAbas" style="background:var(--surface);border-bottom:1px solid var(--border);"></div>
     <div id="cartasRelatorioCard" class="relatorio-card"></div>
   </div>
 </div>
@@ -6614,42 +6619,54 @@ function cartaInfoBadge(item) {
   </div>`;
 }
 let _cartasFiltro = 'todos';
-function openCartasOverlay(filtroInicial) {
+let _cartasAba = 'predios'; // 'predios' | 'comercios' — cada categoria tem seu próprio controle/porcentagem/relatório
+function openCartasOverlay(abaInicial) {
   if (!checarMenuLiberado('cartas')) return;
-  if (filtroInicial) _cartasFiltro = filtroInicial;
+  if (abaInicial === 'predios' || abaInicial === 'comercios') _cartasAba = abaInicial;
+  _cartasFiltro = 'todos';
   document.getElementById('cartasOverlay').classList.add('show');
   document.getElementById('cartasSearchInput').value = '';
   const cicloBtn = document.getElementById('btnNovoCicloCartas');
   if (cicloBtn) cicloBtn.style.display = isAdmin ? '' : 'none';
+  renderCartasAbas();
   renderCartasFilterbar();
   renderCartasList();
 }
 function closeCartasOverlay() { document.getElementById('cartasOverlay').classList.remove('show'); }
+function setCartasAba(aba) { _cartasAba = aba; _cartasFiltro = 'todos'; renderCartasAbas(); renderCartasFilterbar(); renderCartasList(); }
+function renderCartasAbas() {
+  const box = document.getElementById('cartasAbas');
+  box.innerHTML = `
+    <button class="${_cartasAba === 'predios' ? 'active' : ''}" onclick="setCartasAba('predios')">🏢 Prédios</button>
+    <button class="${_cartasAba === 'comercios' ? 'active' : ''}" onclick="setCartasAba('comercios')">🏪 Comércios</button>`;
+}
 function renderCartasFilterbar() {
   const box = document.getElementById('cartasFilterbar');
-  const opcoes = [['todos', 'Todos'], ['comercios', '🏪 Comércios'], ['predios', '🏢 Prédios'], ['pendente', '⏳ Pendente'], ['entregue', '✅ Entregue'], ['recusou', '🚫 Recusou']];
+  const opcoes = [['todos', 'Todos'], ['pendente', '⏳ Pendente'], ['entregue', '✅ Entregue'], ['recusou', '🚫 Recusou']];
   box.innerHTML = opcoes.map(([k, l]) => `<button class="${_cartasFiltro === k ? 'active' : ''}" onclick="setCartasFiltro('${k}')">${l}</button>`).join('');
 }
 function setCartasFiltro(k) { _cartasFiltro = k; renderCartasFilterbar(); renderCartasList(); }
-function listaCartasItens() {
+function listaCartasItens(aba) {
   const arr = [];
-  comerciosData.forEach(c => arr.push({ item: c, tipo: 'comercio' }));
-  condominiosData.forEach(c => arr.push({ item: c, tipo: 'predio' }));
+  if (aba === 'comercios') comerciosData.forEach(c => arr.push({ item: c, tipo: 'comercio' }));
+  else condominiosData.forEach(c => arr.push({ item: c, tipo: 'predio' }));
   return arr;
 }
 function renderCartasList() {
   const box = document.getElementById('cartasResults');
   const search = (document.getElementById('cartasSearchInput').value || '').toLowerCase();
-  let arr = listaCartasItens();
-  if (_cartasFiltro === 'comercios') arr = arr.filter(x => x.tipo === 'comercio');
-  else if (_cartasFiltro === 'predios') arr = arr.filter(x => x.tipo === 'predio');
-  else if (['pendente', 'entregue', 'recusou'].includes(_cartasFiltro)) arr = arr.filter(x => ensureCarta(x.item).status === _cartasFiltro);
+  let arr = listaCartasItens(_cartasAba);
+  if (['pendente', 'entregue', 'recusou'].includes(_cartasFiltro)) arr = arr.filter(x => ensureCarta(x.item).status === _cartasFiltro);
   if (search) arr = arr.filter(x => (x.item.nome || '').toLowerCase().includes(search) || (x.item.endereco || '').toLowerCase().includes(search));
 
-  const todos = listaCartasItens();
+  const todos = listaCartasItens(_cartasAba);
   const entregues = todos.filter(x => ensureCarta(x.item).status === 'entregue').length;
-  const totalCartas = totalCartasGeral();
-  document.getElementById('cartasResumo').textContent = `${entregues} de ${todos.length} com carta entregue · ${totalCartas} carta${totalCartas == 1 ? '' : 's'} no total`;
+  const recusou = todos.filter(x => ensureCarta(x.item).status === 'recusou').length;
+  const totalCartas = _cartasAba === 'comercios'
+    ? comerciosData.reduce((s, c) => s + ((c.cartas || []).reduce((s2, r) => s2 + (r.qtd || 0), 0)), 0)
+    : condominiosData.reduce((s, c) => s + ((c.cartas || []).reduce((s2, r) => s2 + (r.qtd || 0), 0)), 0);
+  const pct = todos.length ? Math.round((entregues + recusou) / todos.length * 100) : 0;
+  document.getElementById('cartasResumo').textContent = `${entregues} de ${todos.length} ${_cartasAba === 'comercios' ? 'comércios' : 'prédios'} com carta entregue (${pct}% concluído) · ${totalCartas} carta${totalCartas == 1 ? '' : 's'} no total`;
 
   box.innerHTML = '';
   if (!arr.length) { box.innerHTML = '<div class="empty-msg"><strong>✉️</strong>Nenhum item encontrado</div>'; return; }
@@ -6720,11 +6737,12 @@ function setCartaField(gid, field, value) {
 // continuam contando pro total, só a rodada atual reinicia.
 function novoCicloCartas() {
   if (!isAdmin) { showSnack('❌ Apenas o administrador pode reiniciar o ciclo de cartas'); return; }
-  if (!confirm('Isso vai voltar o status de TODOS os comércios e prédios para "Pendente", para começar um novo ciclo de cartas. O histórico de entregas já registrado é mantido. Continuar?')) return;
-  [...comerciosData, ...condominiosData].forEach(item => {
-    ensureCarta(item).status = 'pendente';
+  const rotulo = _cartasAba === 'comercios' ? 'comércios' : 'prédios';
+  if (!confirm(`Isso vai voltar o status de TODOS os ${rotulo} (aba atual) para "Pendente", para começar um novo ciclo de cartas. O histórico de entregas já registrado é mantido. Continuar?`)) return;
+  listaCartasItens(_cartasAba).forEach(x => {
+    ensureCarta(x.item).status = 'pendente';
   });
-  logActivity('🔄 reiniciou o status das cartas de todos os comércios e prédios (novo ciclo de cartas)');
+  logActivity(`🔄 reiniciou o status das cartas de todos os ${rotulo} (novo ciclo de cartas)`);
   renderCartasList();
   renderHomeStats();
   saveState();
@@ -6762,59 +6780,64 @@ function renderDonutRow(titulo, stats) {
       </div>
     </div>`;
 }
+let _relatorioAba = 'predios';
 function openCartasRelatorio() {
+  _relatorioAba = _cartasAba;
   document.getElementById('cartasRelatorioOverlay').classList.add('show');
+  renderRelatorioAbas();
   renderCartasRelatorio();
 }
 function closeCartasRelatorio() {
   document.getElementById('cartasRelatorioOverlay').classList.remove('show');
 }
+function setRelatorioAba(aba) { _relatorioAba = aba; renderRelatorioAbas(); renderCartasRelatorio(); }
+function renderRelatorioAbas() {
+  const box = document.getElementById('relatorioAbas');
+  box.innerHTML = `
+    <button class="${_relatorioAba === 'predios' ? 'active' : ''}" onclick="setRelatorioAba('predios')">🏢 Prédios</button>
+    <button class="${_relatorioAba === 'comercios' ? 'active' : ''}" onclick="setRelatorioAba('comercios')">🏪 Comércios</button>`;
+}
 function renderCartasRelatorio() {
-  const predios = computeCartasStats(condominiosData);
-  const comercios = computeCartasStats(comerciosData);
-  const geral = {
-    total: predios.total + comercios.total,
-    entregue: predios.entregue + comercios.entregue,
-    recusou: predios.recusou + comercios.recusou,
-    pendente: predios.pendente + comercios.pendente
-  };
-  geral.pctResolvido = geral.total ? Math.round((geral.entregue + geral.recusou) / geral.total * 100) : 0;
-  const totalCartasEntregues = totalCartasGeral();
+  const aba = _relatorioAba;
+  const dadosArr = aba === 'comercios' ? comerciosData : condominiosData;
+  const stats = computeCartasStats(dadosArr);
+  const totalCartasEntregues = dadosArr.reduce((s, c) => s + ((c.cartas || []).reduce((s2, r) => s2 + (r.qtd || 0), 0)), 0);
   const territorioNome = (typeof currentTerritoryConfig !== 'undefined' && currentTerritoryConfig && currentTerritoryConfig.label) || 'Território';
   const dataStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const rotulo = aba === 'comercios' ? 'Comércios' : 'Prédios (condomínios)';
+  const emoji = aba === 'comercios' ? '🏪' : '🏢';
 
-  const prediosPendentes = condominiosData
+  const pendentes = dadosArr
     .filter(c => ensureCarta(c).status === 'pendente')
     .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
 
-  const listaHtml = prediosPendentes.length === 0
-    ? `<div class="rel-vazio">🎉 Nenhum prédio pendente — todos já foram visitados neste ciclo!</div>`
-    : prediosPendentes.map(c => `
+  const listaHtml = pendentes.length === 0
+    ? `<div class="rel-vazio">🎉 Nenhum ${aba === 'comercios' ? 'comércio' : 'prédio'} pendente — todos já foram visitados neste ciclo!</div>`
+    : pendentes.map(c => `
       <div class="rel-pendente-item">
-        <div class="pn">🏢 ${escapeHtml(c.nome || '')}</div>
+        <div class="pn">${emoji} ${escapeHtml(c.nome || '')}</div>
         <div class="pe">${escapeHtml(c.endereco || '')}</div>
       </div>`).join('');
 
   document.getElementById('cartasRelatorioCard').innerHTML = `
     <div class="relatorio-header">
       <div class="rh-titulo">📊 Relatório de Cartas — ${escapeHtml(territorioNome)}</div>
-      <div class="rh-sub">Comércios e Prédios (condomínios)</div>
+      <div class="rh-sub">${emoji} ${rotulo}</div>
       <div class="rh-data">Gerado em ${dataStr}</div>
     </div>
     <div class="rel-resumo-grid">
-      <div class="rel-resumo-item"><div class="rn">${geral.total}</div><div class="rl">Locais no total</div></div>
-      <div class="rel-resumo-item"><div class="rn">${geral.pctResolvido}%</div><div class="rl">Concluído</div></div>
-      <div class="rel-resumo-item"><div class="rn">${geral.entregue + geral.recusou}</div><div class="rl">Já visitados</div></div>
-      <div class="rel-resumo-item"><div class="rn">${geral.pendente}</div><div class="rl">Pendentes</div></div>
+      <div class="rel-resumo-item"><div class="rn">${stats.total}</div><div class="rl">${rotulo} no total</div></div>
+      <div class="rel-resumo-item"><div class="rn">${stats.pctResolvido}%</div><div class="rl">Concluído</div></div>
+      <div class="rel-resumo-item"><div class="rn">${stats.entregue + stats.recusou}</div><div class="rl">Já visitados</div></div>
+      <div class="rel-resumo-item"><div class="rn">${stats.pendente}</div><div class="rl">Pendentes</div></div>
     </div>
-    <div class="rel-secao-titulo">📈 Cobertura por categoria</div>
-    ${renderDonutRow('🏢 Prédios (condomínios)', predios)}
-    ${renderDonutRow('🏪 Comércios', comercios)}
-    <div class="rel-secao-titulo">✉️ Cartas entregues em prédios</div>
+    <div class="rel-secao-titulo">📈 Cobertura</div>
+    ${renderDonutRow(emoji + ' ' + rotulo, stats)}
+    <div class="rel-secao-titulo">✉️ Cartas entregues</div>
     <div class="rel-resumo-grid" style="grid-template-columns:1fr;">
       <div class="rel-resumo-item"><div class="rn">${totalCartasEntregues}</div><div class="rl">Cartas entregues no total</div></div>
     </div>
-    <div class="rel-secao-titulo">🏢 Prédios pendentes — faltam ${prediosPendentes.length}</div>
+    <div class="rel-secao-titulo">${emoji} ${rotulo} pendentes — faltam ${pendentes.length}</div>
     <div class="rel-pendente-list">${listaHtml}</div>
     <div class="rel-footer">Gerado pelo app "Gerenciador de Territórios" · ${escapeHtml(nomeUsuarioAtual())}</div>
   `;
@@ -6852,7 +6875,7 @@ async function baixarRelatorioCartas() {
         y += h; first = false;
       }
     }
-    pdf.save(`relatorio-cartas-${new Date().toISOString().slice(0, 10)}.pdf`);
+    pdf.save(`relatorio-cartas-${_relatorioAba}-${new Date().toISOString().slice(0, 10)}.pdf`);
     showSnack('✓ PDF baixado');
   } catch (e) { console.error(e); showSnack('❌ Não foi possível gerar o PDF'); }
 }
