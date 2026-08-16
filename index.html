@@ -158,6 +158,34 @@ body.dark-mode .leaflet-popup-content input,body.dark-mode .leaflet-popup-conten
 .carta-card select,.carta-card input{font-size:0.8rem;padding:8px 9px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);width:100%;box-sizing:border-box;}
 .carta-card .ci-status{font-weight:700;}
 .carta-card .ci-obs{width:100%;}
+
+/* ---------- RELATÓRIO DE CARTAS ---------- */
+.relatorio-card{padding:18px 16px 32px;background:var(--surface);color:var(--text);max-width:520px;margin:0 auto;}
+.relatorio-header{text-align:center;margin-bottom:18px;padding-bottom:16px;border-bottom:2px solid var(--purple);}
+.relatorio-header .rh-titulo{font-size:1.15rem;font-weight:800;color:var(--purple-dark);}
+.relatorio-header .rh-sub{font-size:0.8rem;color:var(--text2);margin-top:4px;}
+.relatorio-header .rh-data{font-size:0.72rem;color:var(--text2);margin-top:6px;}
+.rel-resumo-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
+.rel-resumo-item{background:var(--md-primary-light);border-radius:14px;padding:12px;text-align:center;}
+.rel-resumo-item .rn{font-size:1.5rem;font-weight:800;color:var(--purple-dark);line-height:1.1;}
+.rel-resumo-item .rl{font-size:0.68rem;color:var(--purple-dark);font-weight:700;text-transform:uppercase;letter-spacing:0.02em;margin-top:2px;}
+.rel-secao-titulo{font-size:0.95rem;font-weight:800;margin:22px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.rel-donut-row{display:flex;align-items:center;gap:18px;background:var(--bg);border-radius:14px;padding:14px;margin-bottom:12px;}
+.rel-donut{width:92px;height:92px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.rel-donut-hole{width:60px;height:60px;border-radius:50%;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.rel-donut-hole b{font-size:1rem;font-weight:800;color:var(--text);}
+.rel-donut-hole span{font-size:0.55rem;color:var(--text2);}
+.rel-legend{flex:1;}
+.rel-legend-title{font-weight:700;font-size:0.85rem;margin-bottom:6px;}
+.rel-legend-item{display:flex;align-items:center;gap:6px;font-size:0.76rem;color:var(--text2);margin-bottom:3px;}
+.rel-legend-item .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.rel-pendente-list{background:var(--bg);border-radius:14px;overflow:hidden;}
+.rel-pendente-item{padding:10px 14px;border-bottom:1px solid var(--border);}
+.rel-pendente-item:last-child{border-bottom:none;}
+.rel-pendente-item .pn{font-weight:700;font-size:0.83rem;}
+.rel-pendente-item .pe{font-size:0.72rem;color:var(--text2);margin-top:1px;}
+.rel-vazio{padding:20px;text-align:center;color:var(--text2);font-size:0.85rem;}
+.rel-footer{margin-top:24px;padding-top:12px;border-top:1px solid var(--border);text-align:center;font-size:0.68rem;color:var(--text2);}
 .status-pendente{color:var(--warning);}
 .status-entregue{color:var(--success);}
 .status-recusou{color:var(--error);}
@@ -1245,6 +1273,7 @@ body.no-anim .leaflet-zoom-animated{
   <div class="search-overlay-header">
     <button class="icon-btn" onclick="closeCartasOverlay()" style="color:var(--text);">←</button>
     <div style="font-weight:700;font-size:0.95rem;flex:1;">✉️ Controle de cartas</div>
+    <button class="icon-btn" title="Relatório" style="color:var(--purple);" onclick="openCartasRelatorio()">📊</button>
     <button class="icon-btn" id="btnNovoCicloCartas" title="Novo ciclo de cartas" style="color:var(--md-error);display:none;" onclick="novoCicloCartas()">🔄</button>
   </div>
   <div class="cartas-search-wrap">
@@ -1256,6 +1285,18 @@ body.no-anim .leaflet-zoom-animated{
   <div class="cartas-filterbar" id="cartasFilterbar"></div>
   <div class="cartas-resumo-bar" id="cartasResumo"></div>
   <div class="search-overlay-results" id="cartasResults" style="background:var(--bg);padding:4px 0;"></div>
+</div>
+
+<!-- RELATÓRIO DE CARTAS (gráficos + análise) -->
+<div class="search-overlay" id="cartasRelatorioOverlay">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="closeCartasRelatorio()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;flex:1;">📊 Relatório de cartas</div>
+    <button class="icon-btn" title="Baixar PDF" style="color:var(--purple);" onclick="baixarRelatorioCartas()">⬇️</button>
+  </div>
+  <div style="overflow-y:auto;flex:1;background:var(--bg);" id="cartasRelatorioScroll">
+    <div id="cartasRelatorioCard" class="relatorio-card"></div>
+  </div>
 </div>
 
 <!-- AUTORIZAR ACESSOS (admin) -->
@@ -6688,6 +6729,132 @@ function novoCicloCartas() {
   renderHomeStats();
   saveState();
   showSnack('🔄 Ciclo de cartas reiniciado — status voltou para Pendente');
+}
+
+// ---------- RELATÓRIO DE CARTAS (gráficos + análise pra reunião) ----------
+function computeCartasStats(arr) {
+  const total = arr.length;
+  const entregue = arr.filter(x => ensureCarta(x).status === 'entregue').length;
+  const recusou = arr.filter(x => ensureCarta(x).status === 'recusou').length;
+  const pendente = total - entregue - recusou;
+  const pctResolvido = total ? Math.round((entregue + recusou) / total * 100) : 0;
+  return { total, entregue, recusou, pendente, pctResolvido };
+}
+function donutCSS(stats) {
+  if (!stats.total) return 'background:#e0e0e0;';
+  const { total, entregue, recusou, pendente } = stats;
+  const pE = entregue / total * 360, pR = recusou / total * 360, pP = pendente / total * 360;
+  let acc = 0; const stops = [];
+  if (entregue) { stops.push(`#1e8e3e ${acc}deg ${acc + pE}deg`); acc += pE; }
+  if (recusou) { stops.push(`#f9ab00 ${acc}deg ${acc + pR}deg`); acc += pR; }
+  if (pendente) { stops.push(`#d93025 ${acc}deg ${acc + pP}deg`); acc += pP; }
+  return `background:conic-gradient(${stops.join(',')});`;
+}
+function renderDonutRow(titulo, stats) {
+  return `
+    <div class="rel-donut-row">
+      <div class="rel-donut" style="${donutCSS(stats)}"><div class="rel-donut-hole"><b>${stats.pctResolvido}%</b><span>feito</span></div></div>
+      <div class="rel-legend">
+        <div class="rel-legend-title">${titulo} <span style="color:var(--text2);font-weight:400;">(${stats.total})</span></div>
+        <div class="rel-legend-item"><span class="dot" style="background:#1e8e3e"></span>Entregue: <b>${stats.entregue}</b></div>
+        <div class="rel-legend-item"><span class="dot" style="background:#f9ab00"></span>Recusou: <b>${stats.recusou}</b></div>
+        <div class="rel-legend-item"><span class="dot" style="background:#d93025"></span>Pendente: <b>${stats.pendente}</b></div>
+      </div>
+    </div>`;
+}
+function openCartasRelatorio() {
+  document.getElementById('cartasRelatorioOverlay').classList.add('show');
+  renderCartasRelatorio();
+}
+function closeCartasRelatorio() {
+  document.getElementById('cartasRelatorioOverlay').classList.remove('show');
+}
+function renderCartasRelatorio() {
+  const predios = computeCartasStats(condominiosData);
+  const comercios = computeCartasStats(comerciosData);
+  const geral = {
+    total: predios.total + comercios.total,
+    entregue: predios.entregue + comercios.entregue,
+    recusou: predios.recusou + comercios.recusou,
+    pendente: predios.pendente + comercios.pendente
+  };
+  geral.pctResolvido = geral.total ? Math.round((geral.entregue + geral.recusou) / geral.total * 100) : 0;
+  const totalCartasEntregues = totalCartasGeral();
+  const territorioNome = (typeof currentTerritoryConfig !== 'undefined' && currentTerritoryConfig && currentTerritoryConfig.label) || 'Território';
+  const dataStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  const prediosPendentes = condominiosData
+    .filter(c => ensureCarta(c).status === 'pendente')
+    .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+
+  const listaHtml = prediosPendentes.length === 0
+    ? `<div class="rel-vazio">🎉 Nenhum prédio pendente — todos já foram visitados neste ciclo!</div>`
+    : prediosPendentes.map(c => `
+      <div class="rel-pendente-item">
+        <div class="pn">🏢 ${escapeHtml(c.nome || '')}</div>
+        <div class="pe">${escapeHtml(c.endereco || '')}</div>
+      </div>`).join('');
+
+  document.getElementById('cartasRelatorioCard').innerHTML = `
+    <div class="relatorio-header">
+      <div class="rh-titulo">📊 Relatório de Cartas — ${escapeHtml(territorioNome)}</div>
+      <div class="rh-sub">Comércios e Prédios (condomínios)</div>
+      <div class="rh-data">Gerado em ${dataStr}</div>
+    </div>
+    <div class="rel-resumo-grid">
+      <div class="rel-resumo-item"><div class="rn">${geral.total}</div><div class="rl">Locais no total</div></div>
+      <div class="rel-resumo-item"><div class="rn">${geral.pctResolvido}%</div><div class="rl">Concluído</div></div>
+      <div class="rel-resumo-item"><div class="rn">${geral.entregue + geral.recusou}</div><div class="rl">Já visitados</div></div>
+      <div class="rel-resumo-item"><div class="rn">${geral.pendente}</div><div class="rl">Pendentes</div></div>
+    </div>
+    <div class="rel-secao-titulo">📈 Cobertura por categoria</div>
+    ${renderDonutRow('🏢 Prédios (condomínios)', predios)}
+    ${renderDonutRow('🏪 Comércios', comercios)}
+    <div class="rel-secao-titulo">✉️ Cartas entregues em prédios</div>
+    <div class="rel-resumo-grid" style="grid-template-columns:1fr;">
+      <div class="rel-resumo-item"><div class="rn">${totalCartasEntregues}</div><div class="rl">Cartas entregues no total</div></div>
+    </div>
+    <div class="rel-secao-titulo">🏢 Prédios pendentes — faltam ${prediosPendentes.length}</div>
+    <div class="rel-pendente-list">${listaHtml}</div>
+    <div class="rel-footer">Gerado pelo app "Gerenciador de Territórios" · ${escapeHtml(nomeUsuarioAtual())}</div>
+  `;
+}
+async function baixarRelatorioCartas() {
+  if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') { showSnack('❌ Recurso de PDF não carregado. Verifique sua internet.'); return; }
+  const el = document.getElementById('cartasRelatorioCard');
+  if (!el || !el.innerHTML.trim()) { showSnack('Abra o relatório antes de baixar'); return; }
+  showSnack('📄 Gerando PDF do relatório...', 6000);
+  try {
+    const canvas = await html2canvas(el, { backgroundColor: '#ffffff', useCORS: true, scale: 2 });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 8;
+    const usableW = pageW - margin * 2;
+    const imgH = canvas.height * (usableW / canvas.width);
+    const imgData = canvas.toDataURL('image/png');
+    if (imgH <= pageH - margin * 2) {
+      pdf.addImage(imgData, 'PNG', margin, margin, usableW, imgH);
+    } else {
+      const pageUsableH = pageH - margin * 2;
+      const pxPerMm = canvas.width / usableW;
+      const sliceHpx = Math.floor(pageUsableH * pxPerMm);
+      let y = 0, first = true;
+      while (y < canvas.height) {
+        const h = Math.min(sliceHpx, canvas.height - y);
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = canvas.width; sliceCanvas.height = h;
+        sliceCanvas.getContext('2d').drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+        const sliceData = sliceCanvas.toDataURL('image/png');
+        if (!first) pdf.addPage();
+        pdf.addImage(sliceData, 'PNG', margin, margin, usableW, h / pxPerMm);
+        y += h; first = false;
+      }
+    }
+    pdf.save(`relatorio-cartas-${new Date().toISOString().slice(0, 10)}.pdf`);
+    showSnack('✓ PDF baixado');
+  } catch (e) { console.error(e); showSnack('❌ Não foi possível gerar o PDF'); }
 }
 
 initFirebaseAuth();
