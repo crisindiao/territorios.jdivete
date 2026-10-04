@@ -1678,12 +1678,44 @@ function computeReportData() {
     const cob = qs.filter(q => q.coberta).length;
     const familias = publicadoresData.filter(p => p.grupo === g);
     const pessoas = familias.reduce((sum, p) => sum + (p.membros ? p.membros.length : 0), 0);
-    return { grupo: g, cor: groupColors[g], total: qs.length, cobertas: cob, publicadores: familias.length, pessoas };
+    const agoraG = Date.now();
+    const diasG = iso => Math.floor((agoraG - new Date(iso).getTime()) / 86400000);
+    const eventosGrupo = [];
+    qs.forEach(q => (q.historico || []).forEach(h => { if (h.acao === 'Marcada como coberta' && h.data) eventosGrupo.push(h.data); }));
+    const ult30Grupo = eventosGrupo.filter(e => diasG(e) <= 30).length;
+    const datasUltCobGrupo = qs.map(q => q.ultimaCobertura).filter(Boolean).sort((a,b) => new Date(b) - new Date(a));
+    const diasUltimaCobertura = datasUltCobGrupo.length ? diasG(datasUltCobGrupo[0]) : null;
+    return { grupo: g, cor: groupColors[g], total: qs.length, cobertas: cob, publicadores: familias.length, pessoas, ult30: ult30Grupo, diasUltimaCobertura };
   }).filter(x => x.total > 0 || x.publicadores > 0);
 
   // Ritmo: eventos de "marcada como coberta" no histórico de cada quadra
   const eventos = [];
-  quadrasData.forEach(q => (q.historico || []).forEach(h => { if (h.acao === 'Marcada como coberta' && h.data) eventos.push(h.data); }));
+  const eventosDetalhados = []; // { data, mapa } — usado pra reconstruir pendentes ao longo do tempo
+  const cycleMarkDays = []; // dias (AAAA-MM-DD) em que algum "Novo ciclo iniciado" foi registrado
+  quadrasData.forEach(q => (q.historico || []).forEach(h => {
+    if (h.acao === 'Marcada como coberta' && h.data) { eventos.push(h.data); eventosDetalhados.push({ data: h.data, mapa: q.mapa }); }
+    if (h.acao === 'Novo ciclo iniciado' && h.data) cycleMarkDays.push(h.data.slice(0, 10));
+  }));
+  const quadrasNuncaCobertas = quadrasData.filter(q => !(q.historico || []).some(h => h.acao === 'Marcada como coberta')).length;
+  const diasSemanaNomes = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  const contagemDiaSemana = [0,0,0,0,0,0,0];
+  eventos.forEach(e => { contagemDiaSemana[new Date(e).getDay()]++; });
+  let diaSemanaTop = null;
+  if (eventos.length) {
+    const maxIdx = contagemDiaSemana.indexOf(Math.max(...contagemDiaSemana));
+    if (contagemDiaSemana[maxIdx] > 0) diaSemanaTop = { nome: diasSemanaNomes[maxIdx], count: contagemDiaSemana[maxIdx] };
+  }
+  // Ciclos completos: cada intervalo entre dois "Novo ciclo iniciado" seguidos é um ciclo fechado
+  const cycleStartDays = [...new Set(cycleMarkDays)].sort();
+  const ciclosCompletos = Math.max(0, cycleStartDays.length - 1);
+  let duracaoMediaCicloDias = null;
+  if (ciclosCompletos > 0) {
+    let somaDias = 0;
+    for (let i = 1; i < cycleStartDays.length; i++) somaDias += Math.round((new Date(cycleStartDays[i]) - new Date(cycleStartDays[i-1])) / 86400000);
+    duracaoMediaCicloDias = Math.round(somaDias / ciclosCompletos);
+  }
+  const cicloAtualDesde = cycleStartDays.length ? cycleStartDays[cycleStartDays.length - 1]
+    : (eventosDetalhados.length ? eventosDetalhados.map(e => e.data).sort()[0].slice(0, 10) : null);
   const agora = Date.now();
   const dias = iso => Math.floor((agora - new Date(iso).getTime()) / 86400000);
   const ult30 = eventos.filter(e => dias(e) <= 30).length;
@@ -1722,7 +1754,20 @@ function computeReportData() {
     mesesCounts.push(count);
   }
 
+  // Pendentes ao fim de cada mês (reconstruído a partir dos eventos do ciclo atual)
+  const cicloAtualInicioMs = cicloAtualDesde ? new Date(cicloAtualDesde).getTime() : 0;
+  const mesesPendentesFim = [];
+  for (let i = 5; i >= 0; i--) {
+    const ref = new Date(hoje.getFullYear(), hoje.getMonth() - i + 1, 0, 23, 59, 59);
+    const cobertasDistintas = new Set();
+    eventosDetalhados.forEach(e => { const t = new Date(e.data).getTime(); if (t >= cicloAtualInicioMs && t <= ref.getTime()) cobertasDistintas.add(e.mapa); });
+    mesesPendentesFim.push(Math.max(0, total - cobertasDistintas.size));
+  }
+  const cicloAtualDias = cicloAtualDesde ? Math.floor((Date.now() - new Date(cicloAtualDesde).getTime()) / 86400000) : null;
+  const eventosTotalHistorico = eventos.length;
+
   return { total, cobertas, pendentes, pct, semGrupo, porGrupo, ult30, ult90, ritmoMensal, previsaoTxt, atrasadas, prestesAtrasar, mesesLabels, mesesCounts,
+    mesesPendentesFim, eventosTotalHistorico, diaSemanaTop, quadrasNuncaCobertas, ciclosCompletos, duracaoMediaCicloDias, cicloAtualDesde, cicloAtualDias,
     comercios: comerciosData.length, condominios: condominiosData.length, publicadores: publicadoresData.length,
     pessoasTotal: publicadoresData.reduce((sum, p) => sum + (p.membros ? p.membros.length : 0), 0),
     grupos: saidasData.filter(s=>s.grupo).length };
@@ -1738,11 +1783,21 @@ function renderReport() {
   const box = document.getElementById('reportResults');
   const barraGrupos = d.porGrupo.length ? d.porGrupo.map(g => {
     const pctG = g.total ? Math.round(g.cobertas / g.total * 100) : 0;
+    const ultTxt = g.diasUltimaCobertura === null ? 'ainda sem baixas' : (g.diasUltimaCobertura === 0 ? 'última baixa hoje' : `última baixa há ${g.diasUltimaCobertura}d`);
     return `<div class="report-bar-row">
       <div class="report-bar-head"><span>${escapeHtml(g.grupo)} <span style="color:var(--text2)">— 🏠 ${g.publicadores} família${g.publicadores===1?'':'s'} · 👥 ${g.pessoas} pessoa${g.pessoas===1?'':'s'}</span></span><span><b>${g.cobertas}/${g.total}</b> (${pctG}%)</span></div>
       <div class="report-bar-track"><div class="report-bar-fill" style="width:${pctG}%;background:${g.cor}"></div></div>
+      <div style="font-size:0.68rem;color:var(--text2);margin-top:3px;display:flex;justify-content:space-between;"><span>⚡ ${g.ult30} nos últ. 30 dias</span><span>🕑 ${ultTxt}</span></div>
     </div>`;
   }).join('') : '<div style="font-size:0.82rem;color:var(--text2)">Nenhuma quadra atribuída a grupos ainda.</div>';
+
+  // Ranking dos grupos por % concluído
+  const medalhas = ['🥇','🥈','🥉'];
+  const rankingGrupos = d.porGrupo.length ? [...d.porGrupo]
+    .map(g => ({ ...g, pctG: g.total ? Math.round(g.cobertas / g.total * 100) : 0 }))
+    .sort((a, b) => b.pctG - a.pctG)
+    .map((g, i) => `<div class="report-bar-row"><div class="report-bar-head"><span>${medalhas[i] || ('#' + (i+1))} ${escapeHtml(g.grupo)}</span><span><b style="color:${g.cor}">${g.pctG}%</b></span></div></div>`)
+    .join('') : '';
 
   const listaAtrasadas = d.atrasadas.length ? d.atrasadas.slice(0, 15).map(a => `
     <div class="report-alert-item">
@@ -1763,6 +1818,14 @@ function renderReport() {
       <div class="report-stat-card"><div class="num">${d.semGrupo}</div><div class="lbl">Território da congregação</div></div>
     </div>
     <div class="report-section">
+      <div class="report-section-title">🔁 Ciclos de cobertura</div>
+      <div class="report-bar-row"><div class="report-bar-head"><span>Ciclo atual em andamento</span><span><b>${d.cicloAtualDias === null ? '—' : 'há ' + d.cicloAtualDias + ' dia' + (d.cicloAtualDias===1?'':'s')}</b></span></div></div>
+      ${d.ciclosCompletos > 0 ? `
+      <div class="report-bar-row"><div class="report-bar-head"><span>Ciclos completos registrados</span><span><b>${d.ciclosCompletos}</b></span></div></div>
+      <div class="report-bar-row"><div class="report-bar-head"><span>Duração média de um ciclo completo</span><span><b>~${d.duracaoMediaCicloDias} dias (~${(d.duracaoMediaCicloDias/30).toFixed(1)} meses)</b></span></div></div>
+      ` : `<div style="font-size:0.78rem;color:var(--text2);margin-top:4px">Ainda não fechamos um ciclo completo (reiniciar o território depois de cobrir tudo) — assim que isso acontecer pela primeira vez, a duração média do ciclo aparece aqui.</div>`}
+    </div>
+    <div class="report-section">
       <div class="report-section-title">📅 Previsão de conclusão do ciclo</div>
       <div style="font-size:0.85rem;color:var(--text)">${d.previsaoTxt}</div>
     </div>
@@ -1777,6 +1840,18 @@ function renderReport() {
           </div>`).join(''); })()}
       </div>
     </div>
+    <div class="report-section">
+      <div class="report-section-title">📉 Quadras pendentes ao fim de cada mês</div>
+      <div style="display:flex;align-items:flex-end;gap:8px;height:90px;padding:8px 4px 0;">
+        ${(() => { const max = Math.max(1, ...d.mesesPendentesFim); return d.mesesPendentesFim.map((c,i) => `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <div style="font-size:0.68rem;font-weight:700;color:var(--warning)">${c}</div>
+            <div style="width:100%;background:var(--warning);border-radius:4px 4px 0 0;height:${Math.max(4, c/max*54)}px;opacity:${i===d.mesesPendentesFim.length-1?1:0.55}"></div>
+            <div style="font-size:0.62rem;color:var(--text2);text-transform:capitalize;">${d.mesesLabels[i]}</div>
+          </div>`).join(''); })()}
+      </div>
+      <div style="font-size:0.68rem;color:var(--text2);margin-top:4px">Reconstruído a partir das baixas registradas no ciclo atual — quanto menor, melhor.</div>
+    </div>
     ${d.prestesAtrasar.length ? `
     <div class="report-section">
       <div class="report-section-title">⏳ Vão atrasar em breve</div>
@@ -1790,6 +1865,11 @@ function renderReport() {
       <div class="report-section-title">👥 Progresso por grupo</div>
       ${barraGrupos}
     </div>
+    ${rankingGrupos ? `
+    <div class="report-section">
+      <div class="report-section-title">🏆 Ranking dos grupos</div>
+      ${rankingGrupos}
+    </div>` : ''}
     <div class="report-section">
       <div class="report-section-title">⚠️ Quadras que precisam de atenção</div>
       ${listaAtrasadas}
@@ -1800,6 +1880,10 @@ function renderReport() {
       <div class="report-bar-row"><div class="report-bar-head"><span>Publicadores cadastrados</span><span><b>🏠 ${d.publicadores} famílias · 👥 ${d.pessoasTotal} pessoas</b></span></div></div>
       <div class="report-bar-row"><div class="report-bar-head"><span>Comércios</span><span><b>${d.comercios}</b></span></div></div>
       <div class="report-bar-row"><div class="report-bar-head"><span>Condomínios/prédios</span><span><b>${d.condominios}</b></span></div></div>
+      <div class="report-bar-row"><div class="report-bar-head"><span>Ritmo atual</span><span><b>${d.ritmoMensal.toFixed(1)} quadras/mês</b></span></div></div>
+      <div class="report-bar-row"><div class="report-bar-head"><span>Baixas registradas no histórico</span><span><b>${d.eventosTotalHistorico}</b></span></div></div>
+      <div class="report-bar-row"><div class="report-bar-head"><span>Quadras nunca cobertas desde o cadastro</span><span><b>${d.quadrasNuncaCobertas}</b></span></div></div>
+      <div class="report-bar-row"><div class="report-bar-head"><span>Dia da semana mais produtivo</span><span><b>${d.diaSemanaTop ? d.diaSemanaTop.nome + ' (' + d.diaSemanaTop.count + ')' : '—'}</b></span></div></div>
     </div>
     <div style="font-size:0.7rem;color:var(--text2);text-align:center;margin-top:4px;">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
   `;
@@ -1861,6 +1945,17 @@ async function baixarRelatorioImagem() {
     linha('Território da congregação (sem grupo)', d.semGrupo, laranja);
     y += 2;
 
+    // Ciclos de cobertura
+    titulo('Ciclos de cobertura');
+    linha('Ciclo atual em andamento', d.cicloAtualDias === null ? '—' : `há ${d.cicloAtualDias} dia${d.cicloAtualDias===1?'':'s'}`);
+    if (d.ciclosCompletos > 0) {
+      linha('Ciclos completos registrados', d.ciclosCompletos);
+      linha('Duração média de um ciclo completo', `~${d.duracaoMediaCicloDias} dias (~${(d.duracaoMediaCicloDias/30).toFixed(1)} meses)`);
+    } else {
+      paragrafo('Ainda não fechamos um ciclo completo — essa métrica aparece depois do primeiro reinício de território.');
+    }
+    y += 2;
+
     // Previsão
     titulo('Previsão de conclusão do ciclo');
     paragrafo(d.previsaoTxt);
@@ -1868,6 +1963,11 @@ async function baixarRelatorioImagem() {
     // Comparativo mensal
     titulo('Cobertura nos últimos 6 meses');
     d.mesesLabels.forEach((lbl, i) => linha(lbl.charAt(0).toUpperCase() + lbl.slice(1), `${d.mesesCounts[i]} quadra${d.mesesCounts[i]===1?'':'s'}`));
+    y += 2;
+
+    // Pendentes ao longo do tempo
+    titulo('Quadras pendentes ao fim de cada mês');
+    d.mesesLabels.forEach((lbl, i) => linha(lbl.charAt(0).toUpperCase() + lbl.slice(1), `${d.mesesPendentesFim[i]} pendente${d.mesesPendentesFim[i]===1?'':'s'}`));
     y += 2;
 
     // Prestes a atrasar
@@ -1885,7 +1985,15 @@ async function baixarRelatorioImagem() {
       d.porGrupo.forEach(g => {
         const pctG = g.total ? Math.round(g.cobertas / g.total * 100) : 0;
         linha(`${g.grupo} — ${g.publicadores} família${g.publicadores===1?'':'s'}, ${g.pessoas} pessoa${g.pessoas===1?'':'s'}`, `${g.cobertas}/${g.total} (${pctG}%)`);
+        const ultTxt = g.diasUltimaCobertura === null ? 'ainda sem baixas' : (g.diasUltimaCobertura === 0 ? 'última baixa hoje' : `última baixa há ${g.diasUltimaCobertura}d`);
+        pdf.setFont('helvetica', 'italic'); pdf.setFontSize(8.3); pdf.setTextColor(...cinza);
+        checkPage(5); pdf.text(`   ⚡ ${g.ult30} nos últ. 30 dias · 🕑 ${ultTxt}`, marginX, y); y += 5.3;
       });
+      y += 1;
+      titulo('Ranking dos grupos', 11);
+      [...d.porGrupo].map(g => ({ ...g, pctG: g.total ? Math.round(g.cobertas / g.total * 100) : 0 }))
+        .sort((a, b) => b.pctG - a.pctG)
+        .forEach((g, i) => linha(`${i+1}º — ${g.grupo}`, `${g.pctG}%`, verde));
     } else {
       paragrafo('Nenhuma quadra atribuída a grupos ainda.');
     }
@@ -1908,6 +2016,10 @@ async function baixarRelatorioImagem() {
     linha('Publicadores cadastrados', `${d.publicadores} famílias · ${d.pessoasTotal} pessoas`);
     linha('Comércios', d.comercios);
     linha('Condomínios/prédios', d.condominios);
+    linha('Ritmo atual', `${d.ritmoMensal.toFixed(1)} quadras/mês`);
+    linha('Baixas registradas no histórico', d.eventosTotalHistorico);
+    linha('Quadras nunca cobertas desde o cadastro', d.quadrasNuncaCobertas, d.quadrasNuncaCobertas ? laranja : verde);
+    linha('Dia da semana mais produtivo', d.diaSemanaTop ? `${d.diaSemanaTop.nome} (${d.diaSemanaTop.count})` : '—');
 
     pdf.save(`relatorio-territorio-${new Date().toISOString().slice(0,10)}.pdf`);
     showSnack('✓ PDF do relatório baixado');
