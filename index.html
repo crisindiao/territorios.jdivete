@@ -6949,6 +6949,7 @@ function cxCardEl(cx, c) {
   const tel = cxTelDigitos(cx.telefone);
   const wa = cxWhatsLink(cx.telefone);
   const aberto = !!_cxAberto[cx.id];
+  const temPos = cx.lat != null && cx.lng != null;
   const card = document.createElement('div');
   card.className = 'cx-card';
   card.innerHTML = `
@@ -6969,6 +6970,11 @@ function cxCardEl(cx, c) {
       <div class="cx-stat"><b>${c.totalColocado}</b><span>Colocadas</span></div>
     </div>
     <div class="cx-media">${c.ultima ? '🗓️ Última visita: ' + cxFmtData(c.ultima) + (al.dias !== null ? ` (${al.dias === 0 ? 'hoje' : 'há ' + cxPlural(al.dias, 'dia', 'dias')})` : '') : 'Nenhuma visita registrada'}${c.mediaVisita !== null ? `<br>📈 Saem em média ${cxFmtMedia(c.mediaVisita)} por visita${c.porSemana !== null ? ' (≈ ' + cxFmtMedia(c.porSemana) + ' por semana)' : ''}` : ''}</div>
+    ${temPos ? `<div class="popup-actions" style="margin-bottom:10px;">
+      <button type="button" class="popup-act-btn" style="background:var(--purple);" data-act="mapa">📍 Ver no mapa</button>
+      <button type="button" class="popup-act-btn" style="background:#5f6368;" data-act="sv">🌐 Street View</button>
+    </div>
+    <div class="streetview-box" hidden></div>` : (cx.endereco ? `<div class="cx-edit-only" style="margin-bottom:10px;"><button type="button" class="tp-btn-sm" style="width:100%;text-align:center;" data-act="localizar">📍 Localizar endereço no mapa</button></div>` : '')}
     <div class="cx-actions">
       <button class="tp-btn-sm cx-edit-only" data-act="visita">${semRegistro ? '📚 Lançar 1ª colocação' : '➕ Registrar visita'}</button>
       <button class="tp-btn-sm" data-act="hist">${aberto ? '▲ Ocultar histórico' : '📜 Histórico (' + c.linhas.length + ')'}</button>
@@ -6978,6 +6984,20 @@ function cxCardEl(cx, c) {
   card.querySelector('[data-act="visita"]').onclick = () => cxAbrirVisita(cx.id, null);
   card.querySelector('[data-act="hist"]').onclick = () => { _cxAberto[cx.id] = !_cxAberto[cx.id]; renderCaixinhasList(); };
   card.querySelector('[data-act="editar"]').onclick = () => cxAbrirForm(cx.id);
+  if (temPos) {
+    card.querySelector('[data-act="mapa"]').onclick = () => cxVerNoMapa(cx.id);
+    const svBtn = card.querySelector('[data-act="sv"]');
+    const svBox = card.querySelector('.streetview-box');
+    svBtn.onclick = () => {
+      if (svBox.hasAttribute('hidden')) {
+        svBox.innerHTML = `<iframe src="https://maps.google.com/maps?layer=c&cbll=${cx.lat},${cx.lng}&cbp=0,0,0,0,0&source=embed&output=svembed" loading="lazy" allowfullscreen></iframe><div class="streetview-note">Imagem do Google Street View — pode não haver cobertura para todas as ruas.</div>`;
+        svBox.removeAttribute('hidden');
+      } else { svBox.setAttribute('hidden', ''); }
+    };
+  } else {
+    const locBtn = card.querySelector('[data-act="localizar"]');
+    if (locBtn) locBtn.onclick = () => cxGeocodificar(cx);
+  }
   card.querySelectorAll('[data-reg-edit]').forEach(b => b.onclick = () => cxAbrirVisita(cx.id, b.getAttribute('data-reg-edit')));
   card.querySelectorAll('[data-reg-del]').forEach(b => b.onclick = () => cxExcluirRegistro(cx.id, b.getAttribute('data-reg-del')));
   return card;
@@ -7029,22 +7049,27 @@ function cxSalvarForm() {
     telefone: document.getElementById('cxfTel').value.trim(),
     obs: document.getElementById('cxfObs').value.trim()
   };
+  let alvo = null;
   if (_cxEditId) {
     const cx = caixinhasData.find(x => x.id === _cxEditId);
     if (!cx) return;
+    if (dados.endereco !== (cx.endereco || '')) { delete cx.lat; delete cx.lng; }
     Object.assign(cx, dados);
+    alvo = cx;
     logActivity('📦 editou a caixinha: ' + nome);
   } else {
     const cx = { id: cxNovoId('cx'), ...dados, criadoEm: new Date().toISOString(), registros: [] };
     const qtd = cxNum(document.getElementById('cxfQtdIni').value);
     if (qtd > 0) cx.registros.push({ id: cxNovoId('r'), data: document.getElementById('cxfDataIni').value || cxHoje(), encontrei: 0, reposto: qtd, pessoa: '', obs: '' });
     caixinhasData.push(cx);
+    alvo = cx;
     logActivity('📦 cadastrou a caixinha: ' + nome + (qtd > 0 ? ` (deixou ${qtd} publicações)` : ''));
   }
   saveState();
   cxFecharForm();
   renderCaixinhasList();
   showSnack('✅ Caixinha salva');
+  if (alvo && alvo.endereco && alvo.lat == null) cxGeocodificar(alvo);
 }
 function cxExcluirLocal() {
   if (!podeEditarCaixinhas() || !_cxEditId) return;
@@ -7057,6 +7082,41 @@ function cxExcluirLocal() {
   cxFecharForm();
   renderCaixinhasList();
   showSnack('🗑️ Caixinha excluída');
+}
+
+// ── Localização (mapa e Street View) ──
+async function cxGeocodificar(cx) {
+  if (!cx || !cx.endereco) return;
+  if (!podeEditarCaixinhas()) { showSnack('❌ Você não tem permissão para editar as caixinhas'); return; }
+  showSnack('📍 Localizando endereço...');
+  try { delete geoCache[cx.endereco.trim().toLowerCase()]; } catch (e) {} // evita reaproveitar uma tentativa que falhou
+  const res = await geocode(cx.endereco);
+  if (res && res.lat != null && res.lng != null) {
+    cx.lat = res.lat; cx.lng = res.lng;
+    saveState();
+    renderCaixinhasList();
+    showSnack('📍 Endereço localizado no mapa');
+  } else {
+    showSnack('⚠️ Não consegui localizar este endereço. Confira rua, número e cidade e toque em Localizar de novo.', 5000);
+  }
+}
+let _cxMarcadorMapa = null;
+function cxVerNoMapa(id) {
+  const cx = caixinhasData.find(x => x.id === id);
+  if (!cx || cx.lat == null || cx.lng == null) return;
+  closeCaixinhasOverlay();
+  setViewMode('mapa');
+  if (_cxMarcadorMapa) { map.removeLayer(_cxMarcadorMapa); _cxMarcadorMapa = null; }
+  const c = cxCalc(cx);
+  const icon = L.divIcon({ className: '', html: '<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));">📦</div>', iconSize: [30, 30], iconAnchor: [15, 26], popupAnchor: [0, -24] });
+  const div = document.createElement('div'); div.className = 'popup-edit';
+  div.innerHTML = `<b>📦 ${escapeHtml(cx.nome)}</b>${cx.endereco ? '<br><small style="color:#5f6368">' + escapeHtml(cx.endereco) + '</small>' : ''}
+    <div style="margin-top:6px;font-size:0.78rem;">Saldo: <b>${c.linhas.length ? c.saldo : '—'}</b> · Saíram: <b>${c.totalSaiu}</b>${c.ultima ? '<br>Última visita: ' + cxFmtData(c.ultima) : ''}</div>
+    <div class="popup-actions" style="margin-top:9px;"><button class="btn-del">Tirar do mapa</button></div>`;
+  const marcador = L.marker([cx.lat, cx.lng], { icon }).addTo(map).bindPopup(div);
+  div.querySelector('.btn-del').onclick = () => { map.removeLayer(marcador); if (_cxMarcadorMapa === marcador) _cxMarcadorMapa = null; };
+  _cxMarcadorMapa = marcador;
+  setTimeout(() => { map.invalidateSize(); map.setView([cx.lat, cx.lng], 18); marcador.openPopup(); }, 150);
 }
 
 // ── Lançar visita (contagem + reposição) ──
