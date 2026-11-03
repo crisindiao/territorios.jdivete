@@ -596,6 +596,45 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;}
 .btn-cartas-add{flex:0 0 auto;padding:9px 14px;background:var(--purple-light);color:var(--purple-dark);}
 
 /* empty */
+/* ── CAIXINHAS DE PUBLICAÇÕES ── */
+.cx-card{padding:14px;margin:10px 12px;border-radius:14px;background:var(--surface);box-shadow:var(--sh1);}
+.cx-head{display:flex;align-items:flex-start;gap:8px;margin-bottom:4px;}
+.cx-nome{font-weight:700;font-size:0.92rem;flex:1;line-height:1.3;}
+.cx-saldo-tag{font-size:0.72rem;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--md-primary-light);color:var(--purple);white-space:nowrap;}
+.cx-saldo-tag.baixo{background:#fce8e6;color:var(--md-error);}
+.cx-info{font-size:0.78rem;color:var(--text2);margin:3px 0;line-height:1.45;word-break:break-word;}
+.cx-info a{color:var(--purple);font-weight:600;text-decoration:none;}
+.cx-alertas{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.cx-alerta{font-size:0.7rem;font-weight:700;padding:3px 9px;border-radius:999px;background:#fff4e5;color:#b45309;}
+.cx-alerta.red{background:#fce8e6;color:var(--md-error);}
+.cx-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 10px;}
+.cx-stat{background:var(--md-surface-variant);border-radius:10px;padding:9px 4px;text-align:center;}
+.cx-stat b{display:block;font-size:1.1rem;color:var(--text);line-height:1.2;}
+.cx-stat span{font-size:0.6rem;color:var(--text2);text-transform:uppercase;font-weight:700;letter-spacing:0.02em;}
+.cx-media{font-size:0.74rem;color:var(--text2);margin-bottom:10px;}
+.cx-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.cx-actions .tp-btn-sm{flex:1;text-align:center;}
+.cx-actions .tp-btn-sm.danger{flex:0 0 auto;color:var(--md-error);background:#fce8e6;}
+.cx-hist{margin-top:12px;border-top:1px solid var(--border);padding-top:8px;overflow-x:auto;}
+.cx-hist-row{display:grid;grid-template-columns:1.25fr .7fr .7fr .7fr .8fr 56px;gap:4px;align-items:center;font-size:0.76rem;padding:6px 0;border-bottom:1px solid var(--border);min-width:330px;}
+.cx-hist-row.head{font-size:0.6rem;font-weight:700;color:var(--text2);text-transform:uppercase;border-bottom:1.5px solid var(--border);}
+.cx-hist-row span.c{text-align:center;}
+.cx-hist-row .neg{color:var(--md-error);font-weight:700;}
+.cx-hist-row .pos{color:var(--md-success);font-weight:700;}
+.cx-hist-obs{grid-column:1 / -1;font-size:0.7rem;color:var(--text2);margin-top:-2px;}
+.cx-mini{border:none;background:transparent;font-size:14px;padding:2px 4px;color:var(--text2);}
+.cx-form{padding:14px 16px 40px;display:flex;flex-direction:column;gap:12px;}
+.cx-form label{display:block;font-size:0.68rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:5px;}
+.cx-form input,.cx-form textarea{width:100%;box-sizing:border-box;font-size:16px;font-family:var(--font);padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);}
+.cx-form textarea{min-height:70px;resize:vertical;}
+.cx-form .cx-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.cx-form .cx-box{background:var(--md-primary-light);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;}
+.cx-form .cx-box-title{font-size:0.8rem;font-weight:700;color:var(--purple-dark);}
+.cx-preview{font-size:0.84rem;font-weight:600;color:var(--purple-dark);background:var(--md-primary-light);border-radius:12px;padding:12px;line-height:1.5;}
+.cx-btn-main{background:var(--purple);color:#fff;border:none;border-radius:12px;padding:14px;font-size:0.92rem;font-weight:700;width:100%;}
+.cx-btn-main:active{opacity:0.85;}
+body.caixinhas-bloqueado .cx-edit-only{display:none!important;}
+
 .empty-msg{text-align:center;color:var(--text2);font-size:0.9rem;margin-top:60px;font-weight:400;line-height:1.6;}
 .empty-msg strong{display:block;font-size:1.1rem;margin-bottom:6px;}
 
@@ -1304,6 +1343,73 @@ body.no-anim .leaflet-zoom-animated{
   </div>
 </div>
 
+<!-- CAIXINHAS DE PUBLICAÇÕES -->
+<div class="search-overlay" id="caixinhasOverlay">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="closeCaixinhasOverlay()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;flex:1;">📦 Caixinhas de publicações</div>
+    <button class="icon-btn" title="Copiar/compartilhar resumo" style="color:var(--purple);" onclick="cxCompartilharResumo()">📋</button>
+    <button class="icon-btn cx-edit-only" title="Cadastrar nova caixinha" style="color:var(--purple);font-size:24px;font-weight:700;" onclick="cxAbrirForm(null)">＋</button>
+  </div>
+  <div class="cartas-search-wrap">
+    <div class="search-overlay-input" style="background:var(--md-surface-variant);">
+      <span class="s-icon">🔍</span>
+      <input type="text" id="caixinhasSearchInput" placeholder="Buscar local, endereço ou responsável..." oninput="renderCaixinhasList()">
+    </div>
+  </div>
+  <div class="cartas-filterbar" id="caixinhasFilterbar"></div>
+  <div class="cartas-resumo-bar" id="caixinhasResumo"></div>
+  <div class="search-overlay-results" id="caixinhasResults" style="background:var(--bg);padding:4px 0 90px;"></div>
+</div>
+
+<!-- CAIXINHA: CADASTRO / EDIÇÃO -->
+<div class="search-overlay" id="caixinhaFormOverlay" style="z-index:310;">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="cxFecharForm()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;flex:1;" id="cxfTitulo">📦 Nova caixinha</div>
+  </div>
+  <div class="search-overlay-results" style="background:var(--bg);padding:0;">
+    <div class="cx-form">
+      <div><label>Nome do local *</label><input type="text" id="cxfNome" placeholder="Ex.: Padaria Santo Antônio" autocomplete="off"></div>
+      <div><label>Endereço</label><input type="text" id="cxfEndereco" placeholder="Rua, número, bairro" autocomplete="off"></div>
+      <div class="cx-row2">
+        <div><label>Responsável</label><input type="text" id="cxfResp" placeholder="Quem cuida do local" autocomplete="off"></div>
+        <div><label>Telefone</label><input type="tel" id="cxfTel" placeholder="(11) 90000-0000" autocomplete="off"></div>
+      </div>
+      <div><label>Observação</label><textarea id="cxfObs" placeholder="Ex.: caixinha fica ao lado do caixa; melhor horário de manhã"></textarea></div>
+      <div class="cx-box" id="cxfInicialBox">
+        <div class="cx-box-title">📚 Primeira colocação (opcional)</div>
+        <div class="cx-row2">
+          <div><label>Quantas deixei</label><input type="number" inputmode="numeric" min="0" id="cxfQtdIni" placeholder="0"></div>
+          <div><label>Data</label><input type="date" id="cxfDataIni"></div>
+        </div>
+      </div>
+      <button class="cx-btn-main" onclick="cxSalvarForm()">💾 Salvar caixinha</button>
+      <button class="tp-btn-sm" id="cxfExcluirBtn" style="display:none;width:100%;text-align:center;color:var(--md-error);background:#fce8e6;padding:12px;" onclick="cxExcluirLocal()">🗑️ Excluir esta caixinha</button>
+    </div>
+  </div>
+</div>
+
+<!-- CAIXINHA: REGISTRAR VISITA -->
+<div class="search-overlay" id="caixinhaVisitaOverlay" style="z-index:310;">
+  <div class="search-overlay-header">
+    <button class="icon-btn" onclick="cxFecharVisita()" style="color:var(--text);">←</button>
+    <div style="font-weight:700;font-size:0.95rem;flex:1;" id="cxvTitulo">📋 Registrar visita</div>
+  </div>
+  <div class="search-overlay-results" style="background:var(--bg);padding:0;">
+    <div class="cx-form">
+      <div class="cx-preview" id="cxvContexto"></div>
+      <div><label>Data da visita</label><input type="date" id="cxvData" oninput="cxAtualizarPreview()"></div>
+      <div id="cxvEncontreiBox"><label>Quantas publicações encontrei na caixinha (contagem agora) *</label><input type="number" inputmode="numeric" min="0" id="cxvEncontrei" placeholder="Conte e digite aqui (pode ser 0)" oninput="cxAtualizarPreview()"></div>
+      <div><label id="cxvRepostoLabel">Quantas repus</label><input type="number" inputmode="numeric" min="0" id="cxvReposto" placeholder="0" oninput="cxAtualizarPreview()"></div>
+      <div><label>Quem fez a visita (opcional)</label><input type="text" id="cxvPessoa" placeholder="Nome" autocomplete="off"></div>
+      <div><label>Observação (opcional)</label><textarea id="cxvObs" placeholder="Ex.: caixinha estava bagunçada, responsável pediu mais revistas"></textarea></div>
+      <div class="cx-preview" id="cxvPreview"></div>
+      <button class="cx-btn-main" onclick="cxSalvarVisita()">💾 Salvar registro</button>
+    </div>
+  </div>
+</div>
+
 <!-- AUTORIZAR ACESSOS (admin) -->
 <div class="search-overlay" id="autorizarOverlay">
   <div class="search-overlay-header">
@@ -1349,6 +1455,7 @@ body.no-anim .leaflet-zoom-animated{
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" id="sideMenuTestemunho" onclick="closeSideMenu();openTestemunhoOverlay()"><span class="smi-icon">🛒</span> Testemunho público</button>
     <button class="side-menu-item" id="sideMenuCartas" onclick="closeSideMenu();openCartasOverlay()"><span class="smi-icon">✉️</span> Controle de cartas</button>
+    <button class="side-menu-item" id="sideMenuCaixinhas" onclick="closeSideMenu();openCaixinhasOverlay()"><span class="smi-icon">📦</span> Caixinhas de publicações</button>
     <div class="side-menu-sep"></div>
     <button class="side-menu-item" id="sideMenuExportar" onclick="closeSideMenu();exportData()"><span class="smi-icon">💾</span> Exportar dados</button>
     <button class="side-menu-item" id="sideMenuImportar" onclick="closeSideMenu();abrirImportarDados()"><span class="smi-icon">📥</span> Importar dados</button>
@@ -1466,6 +1573,9 @@ body.no-anim .leaflet-zoom-animated{
       ] },
     { key: "cartas",       label: "Controle de cartas", subItems: [
         { key: "cartas_editar", label: "Pode editar status/observação e registrar entregas de cartas (qtd, dia, horário, pessoa)" }
+      ] },
+    { key: "caixinhas",    label: "Caixinhas de publicações", subItems: [
+        { key: "caixinhas_editar", label: "Pode cadastrar caixinhas e lançar visitas (achei/repus)" }
       ] },
     { key: "atividade",    label: "Atividade recente" },
     { key: "ia",           label: "Analisar com IA" },
@@ -2364,6 +2474,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
   // ---------- TESTEMUNHO PÚBLICO (pontos de carrinho + escala mensal) ----------
   const carrinhosData = []; // {nome, endereco, lat, lng}
   const designacoesData = []; // {id, mesAno:'YYYY-MM', ponto, dia, horario, pessoa1, pessoa2}
+  const caixinhasData = []; // {id, nome, endereco, responsavel, telefone, obs, registros:[{id, data, encontrei, reposto, pessoa, obs}]}
   const quadraPalette = ['#e03131','#1971c2','#2f9e44','#f08c00','#9c36b5','#0c8599','#e64980','#5f3dc4','#37b24d','#f76707','#495057','#862e9c','#0ca678','#d6336c','#1c7ed6','#fab005','#82c91e','#364fc7'];
   function getColorForMapa(mapa) {
     let hash = 0;
@@ -2569,7 +2680,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     if (applyingRemoteUpdate) return { ok: false, reason: 'applying-remote' };
     // Também salva localmente como cache
     try {
-      const payload = { saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, carrinhosData, designacoesData, activityLog, savedAt: new Date().toISOString() };
+      const payload = { saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, carrinhosData, designacoesData, caixinhasData, activityLog, savedAt: new Date().toISOString() };
       localStorage.setItem(getDataStorageKey(), JSON.stringify(payload, jsonReplacer));
     } catch(e) {}
 
@@ -2592,7 +2703,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
 
     try {
       await migrateBase64Photos();
-      const payload = JSON.parse(JSON.stringify({ saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, carrinhosData, designacoesData, activityLog, savedAt: new Date().toISOString() }, jsonReplacer));
+      const payload = JSON.parse(JSON.stringify({ saidasData, comerciosData, condominiosData, publicadoresData, quadrasData, carrinhosData, designacoesData, caixinhasData, activityLog, savedAt: new Date().toISOString() }, jsonReplacer));
       // Corrige arrays aninhados em quadrasData.coords (não suportado pelo Firestore)
       payload.quadrasData = (payload.quadrasData || []).map(qd => ({ ...qd, coords: coordsToFirestore(qd.coords) }));
       const sizeBytes = new Blob([JSON.stringify(payload)]).size;
@@ -2697,6 +2808,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
           localStorage.setItem(getDataStorageKey(), JSON.stringify(saved));
           // Re-renderiza (não dispara saveState pois applyingRemoteUpdate está true)
           renderGrupos(); renderComercios(); renderCondominios(); renderPublicadores(); renderCarrinhos(); renderQuadras(); renderCatbar(); updateLegend(); renderList(); renderHomeAtividades(); renderAtencaoPanel();
+          if (typeof renderCaixinhasList === 'function') renderCaixinhasList();
         } finally {
           applyingRemoteUpdate = false;
         }
@@ -2720,6 +2832,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
     if (Array.isArray(saved.quadrasData)) { quadrasData.length = 0; saved.quadrasData.forEach(x => quadrasData.push(x)); }
     if (Array.isArray(saved.carrinhosData)) { carrinhosData.length = 0; saved.carrinhosData.forEach(x => carrinhosData.push(x)); }
     if (Array.isArray(saved.designacoesData)) { designacoesData.length = 0; saved.designacoesData.forEach(x => designacoesData.push(x)); }
+    if (Array.isArray(saved.caixinhasData)) { caixinhasData.length = 0; saved.caixinhasData.forEach(x => caixinhasData.push(x)); }
     if (Array.isArray(saved.activityLog)) { activityLog.length = 0; saved.activityLog.forEach(x => activityLog.push(x)); }
   }
 
@@ -5281,7 +5394,7 @@ function renderList() {
 // ── EXPORT/IMPORT ──
 function exportData() {
   if (!checarMenuLiberado('exportar')) return;
-  const payload={saidasData,comerciosData,condominiosData,publicadoresData,quadrasData,carrinhosData,designacoesData,activityLog,exportedAt:new Date().toISOString()};
+  const payload={saidasData,comerciosData,condominiosData,publicadoresData,quadrasData,carrinhosData,designacoesData,caixinhasData,activityLog,exportedAt:new Date().toISOString()};
   const blob=new Blob([JSON.stringify(payload,jsonReplacer,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob); const a=document.createElement('a');
   a.href=url; a.download=`territorio-jardim-ivete-${new Date().toISOString().slice(0,10)}.json`;
@@ -5546,6 +5659,7 @@ function applyVisitorMenuRestrictions(menus) {
     relatorio:  ['saudeCard', 'sideMenuRelatorio'],
     testemunho: ['sideMenuTestemunho'],
     cartas:     ['sideMenuCartas'],
+    caixinhas:  ['sideMenuCaixinhas'],
     atividade:  ['sideMenuAtividade'],
     ia:         ['sideMenuIa'],
     exportar:   ['sideMenuExportar'],
@@ -5559,6 +5673,7 @@ function applyVisitorMenuRestrictions(menus) {
   });
   window._visitorMenusLiberados = semRestricao ? null : liberados;
   atualizarModoCartas();
+  atualizarModoCaixinhas();
 }
 
 // Trava central usada por todo lugar que abre um dos menus controláveis —
@@ -6709,6 +6824,349 @@ async function baixarTestemunhoImagem() {
     pdf.save(`testemunho-publico-${_tpMesAno}.pdf`);
     showSnack('✓ PDF baixado');
   } catch (e) { console.error(e); showSnack('❌ Não foi possível gerar o PDF'); }
+}
+
+// ══════════════════════════════════════════════
+// CAIXINHAS DE PUBLICAÇÕES — controle de estoque por local
+// Cada local guarda só os lançamentos digitados (data, achei, repus);
+// "saiu" e "saldo" são sempre recalculados a partir deles.
+// ══════════════════════════════════════════════
+const CX_DIAS_ATRASO = 7;   // avisa "visita atrasada" após X dias sem registro
+const CX_SALDO_BAIXO = 3;   // avisa "saldo baixo" quando restam X ou menos
+let _cxFiltro = 'todas';
+const _cxAberto = {};       // id do local -> histórico expandido?
+let _cxEditId = null;       // local em edição (null = cadastro novo)
+let _cxVisitaId = null;     // local que está recebendo o lançamento
+let _cxRegEditId = null;    // lançamento em edição (null = novo)
+
+function podeEditarCaixinhas() { return checarMenuLiberado('caixinhas_editar', true); }
+function atualizarModoCaixinhas() { document.body.classList.toggle('caixinhas-bloqueado', !podeEditarCaixinhas()); }
+function cxNovoId(p) { return p + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+function cxHoje() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function cxFmtData(iso) { if (!iso) return '—'; const p = String(iso).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : iso; }
+function cxNum(v) { const n = parseInt(v, 10); return (isFinite(n) && n > 0) ? n : 0; }
+function cxDiasDesde(iso) {
+  if (!iso) return null;
+  return Math.floor((new Date(cxHoje() + 'T00:00:00') - new Date(iso + 'T00:00:00')) / 86400000);
+}
+function cxPlural(n, s, p) { return n + ' ' + (n === 1 ? s : p); }
+
+// Ordem dos lançamentos: por data; empate = ordem em que foram digitados.
+function cxOrdenar(cx) {
+  return (cx.registros || []).map((r, i) => ({ r, i }))
+    .sort((a, b) => (a.r.data || '').localeCompare(b.r.data || '') || a.i - b.i)
+    .map(x => x.r);
+}
+// Calcula tudo a partir dos lançamentos. O 1º lançamento é a colocação inicial
+// (só conta o que foi deixado). Nos seguintes: saiu = saldo anterior − encontrei.
+function cxCalc(cx) {
+  let saldo = 0, totalSaiu = 0, totalColocado = 0;
+  const linhas = cxOrdenar(cx).map((r, k) => {
+    const reposto = cxNum(r.reposto);
+    let encontrei = null, saiu = 0, aMais = 0;
+    if (k === 0) { saldo = reposto; }
+    else {
+      encontrei = cxNum(r.encontrei);
+      if (encontrei <= saldo) saiu = saldo - encontrei; else aMais = encontrei - saldo;
+      saldo = encontrei + reposto;
+    }
+    totalSaiu += saiu; totalColocado += reposto;
+    return { reg: r, inicial: k === 0, encontrei, saiu, aMais, reposto, saldoApos: saldo };
+  });
+  const visitas = Math.max(0, linhas.length - 1);
+  const ultima = linhas.length ? linhas[linhas.length - 1].reg.data : null;
+  const primeira = linhas.length ? linhas[0].reg.data : null;
+  const dias = (primeira && ultima) ? Math.max(0, (new Date(ultima + 'T00:00:00') - new Date(primeira + 'T00:00:00')) / 86400000) : 0;
+  return {
+    linhas, saldo, totalSaiu, totalColocado, visitas, ultima,
+    mediaVisita: visitas ? totalSaiu / visitas : null,
+    porSemana: dias >= 1 ? totalSaiu / dias * 7 : null
+  };
+}
+function cxFmtMedia(n) { return (Math.round(n * 10) / 10).toString().replace('.', ','); }
+function cxTelDigitos(t) { return String(t || '').replace(/\D/g, ''); }
+function cxWhatsLink(t) {
+  let d = cxTelDigitos(t);
+  if (d.length === 10 || d.length === 11) d = '55' + d;
+  return d.length >= 12 ? 'https://wa.me/' + d : '';
+}
+
+// ── Lista principal ──
+function openCaixinhasOverlay() {
+  if (!checarMenuLiberado('caixinhas')) return;
+  _cxFiltro = 'todas';
+  document.getElementById('caixinhasOverlay').classList.add('show');
+  document.getElementById('caixinhasSearchInput').value = '';
+  atualizarModoCaixinhas();
+  renderCxFilterbar();
+  renderCaixinhasList();
+}
+function closeCaixinhasOverlay() { document.getElementById('caixinhasOverlay').classList.remove('show'); }
+function renderCxFilterbar() {
+  const opcoes = [['todas', 'Todas'], ['baixo', '⚠️ Saldo baixo'], ['atrasada', '⏰ Visita atrasada']];
+  document.getElementById('caixinhasFilterbar').innerHTML = opcoes
+    .map(([k, l]) => `<button class="${_cxFiltro === k ? 'active' : ''}" onclick="setCxFiltro('${k}')">${l}</button>`).join('');
+}
+function setCxFiltro(k) { _cxFiltro = k; renderCxFilterbar(); renderCaixinhasList(); }
+function cxAlertas(cx, c) {
+  const dias = cxDiasDesde(c.ultima);
+  return {
+    baixo: c.linhas.length > 0 && c.saldo <= CX_SALDO_BAIXO,
+    atrasada: dias !== null && dias >= CX_DIAS_ATRASO,
+    dias
+  };
+}
+function renderCaixinhasList() {
+  const box = document.getElementById('caixinhasResults');
+  if (!box) return;
+  const busca = (document.getElementById('caixinhasSearchInput').value || '').toLowerCase().trim();
+  const todas = caixinhasData.map(cx => ({ cx, c: cxCalc(cx) }));
+  const tot = todas.reduce((a, x) => ({ saldo: a.saldo + x.c.saldo, saiu: a.saiu + x.c.totalSaiu, col: a.col + x.c.totalColocado }), { saldo: 0, saiu: 0, col: 0 });
+  document.getElementById('caixinhasResumo').textContent = todas.length
+    ? `${cxPlural(todas.length, 'local', 'locais')} · ${tot.saldo} nas caixinhas agora · ${tot.saiu} saíram · ${tot.col} colocadas no total`
+    : 'Nenhuma caixinha cadastrada ainda';
+
+  let arr = todas;
+  if (busca) arr = arr.filter(x => [x.cx.nome, x.cx.endereco, x.cx.responsavel].some(t => (t || '').toLowerCase().includes(busca)));
+  if (_cxFiltro === 'baixo') arr = arr.filter(x => cxAlertas(x.cx, x.c).baixo);
+  if (_cxFiltro === 'atrasada') arr = arr.filter(x => cxAlertas(x.cx, x.c).atrasada);
+
+  box.innerHTML = '';
+  if (!arr.length) {
+    box.innerHTML = `<div class="empty-msg"><strong>📦</strong>${todas.length ? 'Nenhuma caixinha encontrada' : 'Cadastre sua primeira caixinha<br>tocando no ＋ lá em cima'}</div>`;
+    return;
+  }
+  // Mais urgentes primeiro: atrasadas, depois saldo baixo, depois por nome
+  arr.sort((a, b) => {
+    const A = cxAlertas(a.cx, a.c), B = cxAlertas(b.cx, b.c);
+    return (B.atrasada - A.atrasada) || (B.baixo - A.baixo) || (a.cx.nome || '').localeCompare(b.cx.nome || '');
+  });
+  arr.forEach(({ cx, c }) => box.appendChild(cxCardEl(cx, c)));
+}
+function cxCardEl(cx, c) {
+  const al = cxAlertas(cx, c);
+  const semRegistro = c.linhas.length === 0;
+  const tel = cxTelDigitos(cx.telefone);
+  const wa = cxWhatsLink(cx.telefone);
+  const aberto = !!_cxAberto[cx.id];
+  const card = document.createElement('div');
+  card.className = 'cx-card';
+  card.innerHTML = `
+    <div class="cx-head">
+      <span class="cx-nome">${escapeHtml(cx.nome)}</span>
+      <span class="cx-saldo-tag ${al.baixo ? 'baixo' : ''}">${semRegistro ? 'sem registro' : 'saldo ' + c.saldo}</span>
+    </div>
+    ${cx.endereco ? `<div class="cx-info">📍 <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cx.endereco)}" target="_blank" rel="noopener">${escapeHtml(cx.endereco)}</a></div>` : ''}
+    ${(cx.responsavel || cx.telefone) ? `<div class="cx-info">👤 ${escapeHtml(cx.responsavel || '')}${cx.responsavel && cx.telefone ? ' · ' : ''}${tel ? `<a href="tel:${tel}">📞 ${escapeHtml(cx.telefone)}</a>` : ''}${wa ? ` · <a href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</div>` : ''}
+    ${cx.obs ? `<div class="cx-info">📝 ${escapeHtml(cx.obs)}</div>` : ''}
+    ${(al.baixo || al.atrasada) ? `<div class="cx-alertas">
+      ${al.baixo ? `<span class="cx-alerta red">${c.saldo === 0 ? '⚠️ Caixinha vazia' : '⚠️ Saldo baixo'}</span>` : ''}
+      ${al.atrasada ? `<span class="cx-alerta">⏰ Última visita há ${al.dias} dias</span>` : ''}
+    </div>` : ''}
+    <div class="cx-stats">
+      <div class="cx-stat"><b>${semRegistro ? '—' : c.saldo}</b><span>Saldo atual</span></div>
+      <div class="cx-stat"><b>${c.totalSaiu}</b><span>Já saíram</span></div>
+      <div class="cx-stat"><b>${c.totalColocado}</b><span>Colocadas</span></div>
+    </div>
+    <div class="cx-media">${c.ultima ? '🗓️ Última visita: ' + cxFmtData(c.ultima) + (al.dias !== null ? ` (${al.dias === 0 ? 'hoje' : 'há ' + cxPlural(al.dias, 'dia', 'dias')})` : '') : 'Nenhuma visita registrada'}${c.mediaVisita !== null ? `<br>📈 Saem em média ${cxFmtMedia(c.mediaVisita)} por visita${c.porSemana !== null ? ' (≈ ' + cxFmtMedia(c.porSemana) + ' por semana)' : ''}` : ''}</div>
+    <div class="cx-actions">
+      <button class="tp-btn-sm cx-edit-only" data-act="visita">${semRegistro ? '📚 Lançar 1ª colocação' : '➕ Registrar visita'}</button>
+      <button class="tp-btn-sm" data-act="hist">${aberto ? '▲ Ocultar histórico' : '📜 Histórico (' + c.linhas.length + ')'}</button>
+      <button class="tp-btn-sm cx-edit-only" data-act="editar">✏️ Editar</button>
+    </div>
+    ${aberto ? cxHistoricoHTML(c) : ''}`;
+  card.querySelector('[data-act="visita"]').onclick = () => cxAbrirVisita(cx.id, null);
+  card.querySelector('[data-act="hist"]').onclick = () => { _cxAberto[cx.id] = !_cxAberto[cx.id]; renderCaixinhasList(); };
+  card.querySelector('[data-act="editar"]').onclick = () => cxAbrirForm(cx.id);
+  card.querySelectorAll('[data-reg-edit]').forEach(b => b.onclick = () => cxAbrirVisita(cx.id, b.getAttribute('data-reg-edit')));
+  card.querySelectorAll('[data-reg-del]').forEach(b => b.onclick = () => cxExcluirRegistro(cx.id, b.getAttribute('data-reg-del')));
+  return card;
+}
+function cxHistoricoHTML(c) {
+  if (!c.linhas.length) return '<div class="cx-hist"><div class="cx-info">Nenhum lançamento ainda.</div></div>';
+  const rows = c.linhas.slice().reverse().map(l => `
+    <div class="cx-hist-row">
+      <span>${cxFmtData(l.reg.data)}${l.inicial ? ' <small>(inicial)</small>' : ''}</span>
+      <span class="c">${l.inicial ? '—' : l.encontrei}</span>
+      <span class="c ${l.saiu ? 'neg' : ''}">${l.inicial ? '—' : (l.saiu ? '−' + l.saiu : '0')}</span>
+      <span class="c ${l.reposto ? 'pos' : ''}">${l.reposto ? '+' + l.reposto : '0'}</span>
+      <span class="c"><b>${l.saldoApos}</b></span>
+      <span class="c cx-edit-only"><button class="cx-mini" data-reg-edit="${escapeHtml(l.reg.id)}" title="Editar">✏️</button><button class="cx-mini" data-reg-del="${escapeHtml(l.reg.id)}" title="Excluir">🗑️</button></span>
+      ${(l.reg.pessoa || l.reg.obs || l.aMais) ? `<div class="cx-hist-obs">${l.aMais ? `ℹ️ tinha ${l.aMais} a mais que o esperado. ` : ''}${l.reg.pessoa ? '👤 ' + escapeHtml(l.reg.pessoa) + '. ' : ''}${escapeHtml(l.reg.obs || '')}</div>` : ''}
+    </div>`).join('');
+  return `<div class="cx-hist">
+    <div class="cx-hist-row head"><span>Data</span><span class="c">Achei</span><span class="c">Saiu</span><span class="c">Repus</span><span class="c">Saldo</span><span></span></div>
+    ${rows}</div>`;
+}
+
+// ── Cadastro / edição do local ──
+function cxAbrirForm(id) {
+  if (!podeEditarCaixinhas()) { showSnack('❌ Você não tem permissão para editar as caixinhas'); return; }
+  _cxEditId = id;
+  const cx = id ? caixinhasData.find(x => x.id === id) : null;
+  if (id && !cx) return;
+  document.getElementById('cxfTitulo').textContent = cx ? '✏️ Editar caixinha' : '📦 Nova caixinha';
+  document.getElementById('cxfNome').value = cx ? (cx.nome || '') : '';
+  document.getElementById('cxfEndereco').value = cx ? (cx.endereco || '') : '';
+  document.getElementById('cxfResp').value = cx ? (cx.responsavel || '') : '';
+  document.getElementById('cxfTel').value = cx ? (cx.telefone || '') : '';
+  document.getElementById('cxfObs').value = cx ? (cx.obs || '') : '';
+  document.getElementById('cxfQtdIni').value = '';
+  document.getElementById('cxfDataIni').value = cxHoje();
+  document.getElementById('cxfInicialBox').style.display = cx ? 'none' : '';
+  document.getElementById('cxfExcluirBtn').style.display = cx ? '' : 'none';
+  document.getElementById('caixinhaFormOverlay').classList.add('show');
+}
+function cxFecharForm() { document.getElementById('caixinhaFormOverlay').classList.remove('show'); }
+function cxSalvarForm() {
+  if (!podeEditarCaixinhas()) { showSnack('❌ Você não tem permissão para editar as caixinhas'); return; }
+  const nome = document.getElementById('cxfNome').value.trim();
+  if (!nome) { showSnack('⚠️ Informe o nome do local'); return; }
+  const dados = {
+    nome,
+    endereco: document.getElementById('cxfEndereco').value.trim(),
+    responsavel: document.getElementById('cxfResp').value.trim(),
+    telefone: document.getElementById('cxfTel').value.trim(),
+    obs: document.getElementById('cxfObs').value.trim()
+  };
+  if (_cxEditId) {
+    const cx = caixinhasData.find(x => x.id === _cxEditId);
+    if (!cx) return;
+    Object.assign(cx, dados);
+    logActivity('📦 editou a caixinha: ' + nome);
+  } else {
+    const cx = { id: cxNovoId('cx'), ...dados, criadoEm: new Date().toISOString(), registros: [] };
+    const qtd = cxNum(document.getElementById('cxfQtdIni').value);
+    if (qtd > 0) cx.registros.push({ id: cxNovoId('r'), data: document.getElementById('cxfDataIni').value || cxHoje(), encontrei: 0, reposto: qtd, pessoa: '', obs: '' });
+    caixinhasData.push(cx);
+    logActivity('📦 cadastrou a caixinha: ' + nome + (qtd > 0 ? ` (deixou ${qtd} publicações)` : ''));
+  }
+  saveState();
+  cxFecharForm();
+  renderCaixinhasList();
+  showSnack('✅ Caixinha salva');
+}
+function cxExcluirLocal() {
+  if (!podeEditarCaixinhas() || !_cxEditId) return;
+  const cx = caixinhasData.find(x => x.id === _cxEditId);
+  if (!cx) return;
+  if (!confirm(`Excluir a caixinha "${cx.nome}" e todo o histórico dela? Isso não pode ser desfeito.`)) return;
+  caixinhasData.splice(caixinhasData.indexOf(cx), 1);
+  logActivity('🗑️ excluiu a caixinha: ' + cx.nome);
+  saveState();
+  cxFecharForm();
+  renderCaixinhasList();
+  showSnack('🗑️ Caixinha excluída');
+}
+
+// ── Lançar visita (contagem + reposição) ──
+// Saldo que existia ANTES deste lançamento (para calcular quanto saiu).
+function cxContextoAnterior(cx, data, regId) {
+  const ord = cxOrdenar(cx);
+  const meuIdx = regId ? ord.findIndex(r => r.id === regId) : ord.length;
+  const anteriores = ord.filter((r, i) => r.id !== regId && ((r.data || '') < data || ((r.data || '') === data && i < meuIdx)));
+  return { primeiro: anteriores.length === 0, saldo: cxCalc({ registros: anteriores }).saldo };
+}
+function cxAbrirVisita(id, regId) {
+  if (!podeEditarCaixinhas()) { showSnack('❌ Você não tem permissão para editar as caixinhas'); return; }
+  const cx = caixinhasData.find(x => x.id === id);
+  if (!cx) return;
+  _cxVisitaId = id; _cxRegEditId = regId || null;
+  const reg = regId ? (cx.registros || []).find(r => r.id === regId) : null;
+  document.getElementById('cxvTitulo').textContent = (reg ? '✏️ Editar registro — ' : '📋 Registrar visita — ') + cx.nome;
+  document.getElementById('cxvData').value = reg ? (reg.data || cxHoje()) : cxHoje();
+  const lin = reg ? cxCalc(cx).linhas.find(x => x.reg.id === regId) : null;
+  document.getElementById('cxvEncontrei').value = (lin && !lin.inicial) ? lin.encontrei : '';
+  document.getElementById('cxvReposto').value = reg ? (reg.reposto || 0) : '';
+  document.getElementById('cxvPessoa').value = reg ? (reg.pessoa || '') : (localStorage.getItem('cx-ultima-pessoa') || '');
+  document.getElementById('cxvObs').value = reg ? (reg.obs || '') : '';
+  document.getElementById('caixinhaVisitaOverlay').classList.add('show');
+  cxAtualizarPreview();
+}
+function cxFecharVisita() { document.getElementById('caixinhaVisitaOverlay').classList.remove('show'); }
+function cxAtualizarPreview() {
+  const cx = caixinhasData.find(x => x.id === _cxVisitaId);
+  if (!cx) return;
+  const data = document.getElementById('cxvData').value || cxHoje();
+  const ctx = cxContextoAnterior(cx, data, _cxRegEditId);
+  document.getElementById('cxvEncontreiBox').style.display = ctx.primeiro ? 'none' : '';
+  document.getElementById('cxvRepostoLabel').textContent = ctx.primeiro ? 'Quantas publicações deixei *' : 'Quantas repus (0 se não repôs)';
+  document.getElementById('cxvContexto').innerHTML = ctx.primeiro
+    ? '📚 Primeira colocação nesta caixinha. Informe quantas publicações você deixou.'
+    : `📦 Na última vez a caixinha ficou com <b>${ctx.saldo}</b> publicações.<br>Conte quantas tem agora e informe quanto repôs.`;
+  const rep = cxNum(document.getElementById('cxvReposto').value);
+  const encRaw = document.getElementById('cxvEncontrei').value;
+  const prev = document.getElementById('cxvPreview');
+  if (ctx.primeiro) { prev.innerHTML = `Saldo após lançar: <b>${rep}</b>`; return; }
+  if (encRaw === '') { prev.innerHTML = 'Digite quantas publicações encontrou para ver a conta.'; return; }
+  const enc = cxNum(encRaw);
+  const saiu = Math.max(0, ctx.saldo - enc);
+  const aMais = Math.max(0, enc - ctx.saldo);
+  prev.innerHTML = `📉 Saíram: <b>${saiu}</b> &nbsp;·&nbsp; ➕ Repus: <b>${rep}</b><br>📦 Saldo após a visita: <b>${enc + rep}</b>` +
+    (aMais ? `<br><span style="font-weight:500;font-size:0.78rem;">ℹ️ Tem ${aMais} a mais do que o esperado (alguém pode ter deixado publicações). Nesse caso conta como 0 saídas.</span>` : '');
+}
+function cxSalvarVisita() {
+  if (!podeEditarCaixinhas()) { showSnack('❌ Você não tem permissão para editar as caixinhas'); return; }
+  const cx = caixinhasData.find(x => x.id === _cxVisitaId);
+  if (!cx) return;
+  const data = document.getElementById('cxvData').value;
+  if (!data) { showSnack('⚠️ Informe a data da visita'); return; }
+  const ctx = cxContextoAnterior(cx, data, _cxRegEditId);
+  const encRaw = document.getElementById('cxvEncontrei').value;
+  const reposto = cxNum(document.getElementById('cxvReposto').value);
+  if (ctx.primeiro && reposto <= 0) { showSnack('⚠️ Informe quantas publicações deixou'); return; }
+  if (!ctx.primeiro && encRaw === '') { showSnack('⚠️ Informe quantas publicações encontrou (pode ser 0)'); return; }
+  const pessoa = document.getElementById('cxvPessoa').value.trim();
+  const novo = {
+    id: _cxRegEditId || cxNovoId('r'),
+    data,
+    encontrei: ctx.primeiro ? 0 : cxNum(encRaw),
+    reposto,
+    pessoa,
+    obs: document.getElementById('cxvObs').value.trim()
+  };
+  if (!cx.registros) cx.registros = [];
+  if (_cxRegEditId) {
+    const i = cx.registros.findIndex(r => r.id === _cxRegEditId);
+    if (i >= 0) cx.registros[i] = novo; else cx.registros.push(novo);
+  } else cx.registros.push(novo);
+  try { if (pessoa) localStorage.setItem('cx-ultima-pessoa', pessoa); } catch (e) {}
+  const c = cxCalc(cx);
+  const l = c.linhas.find(x => x.reg.id === novo.id);
+  logActivity(`📦 caixinha ${cx.nome}: ` + (l && l.inicial ? `deixou ${reposto} publicações` : `saíram ${l ? l.saiu : 0}, repôs ${reposto} (saldo ${l ? l.saldoApos : '?'})`));
+  saveState();
+  cxFecharVisita();
+  _cxAberto[cx.id] = true;
+  renderCaixinhasList();
+  showSnack(l && !l.inicial ? `✅ Saíram ${l.saiu} · saldo agora ${l.saldoApos}` : '✅ Registro salvo');
+}
+function cxExcluirRegistro(id, regId) {
+  if (!podeEditarCaixinhas()) { showSnack('❌ Você não tem permissão para editar as caixinhas'); return; }
+  const cx = caixinhasData.find(x => x.id === id);
+  if (!cx) return;
+  const i = (cx.registros || []).findIndex(r => r.id === regId);
+  if (i < 0) return;
+  if (!confirm('Excluir este lançamento? Os totais serão recalculados.')) return;
+  cx.registros.splice(i, 1);
+  logActivity('🗑️ excluiu um lançamento da caixinha: ' + cx.nome);
+  saveState();
+  renderCaixinhasList();
+}
+
+// ── Resumo para copiar / enviar ──
+function cxCompartilharResumo() {
+  if (!caixinhasData.length) { showSnack('Nenhuma caixinha cadastrada'); return; }
+  const linhas = ['📦 Caixinhas de publicações — ' + cxFmtData(cxHoje()), ''];
+  let tSaldo = 0, tSaiu = 0;
+  caixinhasData.slice().sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).forEach(cx => {
+    const c = cxCalc(cx);
+    tSaldo += c.saldo; tSaiu += c.totalSaiu;
+    linhas.push(`• ${cx.nome}${cx.responsavel ? ' (' + cx.responsavel + ')' : ''}: saldo ${c.saldo} · saíram ${c.totalSaiu} · colocadas ${c.totalColocado}${c.ultima ? ' · última visita ' + cxFmtData(c.ultima) : ''}`);
+  });
+  linhas.push('', `Total: ${tSaldo} nas caixinhas · ${tSaiu} já saíram`);
+  const texto = linhas.join('\n');
+  if (navigator.share) { navigator.share({ text: texto }).catch(() => {}); return; }
+  if (navigator.clipboard) navigator.clipboard.writeText(texto).then(() => showSnack('📋 Resumo copiado'), () => showSnack('❌ Não foi possível copiar'));
 }
 
 // ══════════════════════════════════════════════
