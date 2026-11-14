@@ -1499,7 +1499,7 @@ body.no-anim .leaflet-zoom-animated{
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, query, orderBy, limit, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, query, orderBy, limit, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   const firebaseConfig = {
     apiKey: "AIzaSyDb3i6rxN7P2XB83_HkrorhdTZSVYEphFI",
     authDomain: "territorio-jardim-ivete.firebaseapp.com",
@@ -1587,7 +1587,15 @@ body.no-anim .leaflet-zoom-animated{
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  const db = getFirestore(app);
+  // Cache local persistente do Firestore (IndexedDB): os dados já baixados
+  // continuam disponíveis sem internet, inclusive depois de fechar e reabrir o app.
+  let db;
+  try {
+    db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  } catch (e) {
+    console.warn('Cache offline do Firestore indisponível, usando modo padrão:', e);
+    db = getFirestore(app);
+  }
   const provider = new GoogleAuthProvider();
   window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, query, orderBy, limit, addDoc, ADMIN_EMAIL, TERRITORY_CONFIG, AVAILABLE_TERRITORIES, ACCESS_MENUS, TAB_ABAS };
 </script>
@@ -5630,8 +5638,23 @@ function solicitacaoDocRef(email) {
 
 async function criarOuAtualizarSolicitacao(user) {
   const ref = solicitacaoDocRef(user.email);
-  const existente = await window._fb.getDoc(ref);
-  if (existente.exists()) return existente.data();
+  const cacheKey = 'jardim-ivete-solicitacao-' + user.email;
+  let existente;
+  try {
+    existente = await window._fb.getDoc(ref);
+  } catch (e) {
+    // Sem internet e sem cache do Firestore: usa a última situação conhecida deste usuário
+    try {
+      const salvo = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+      if (salvo) return salvo;
+    } catch (_) {}
+    throw e;
+  }
+  if (existente.exists()) {
+    const dados = existente.data();
+    try { localStorage.setItem(cacheKey, JSON.stringify({ status: dados.status, menus: dados.menus || [] })); } catch (_) {}
+    return dados;
+  }
   const nova = {
     email: user.email,
     nome: user.displayName || user.email,
@@ -5701,8 +5724,56 @@ function initFirebaseAuth() {
   if (!window._fb) { setTimeout(initFirebaseAuth, 100); return; }
   const { auth, onAuthStateChanged, signInWithPopup, provider, ADMIN_EMAIL } = window._fb;
 
+  // ── Entrada offline ──
+  // Guarda o último usuário logado neste aparelho. Sem internet, o login do Google
+  // pode demorar ou não responder; aí o app entra direto com esse usuário salvo
+  // (lendo os dados guardados no aparelho) e sincroniza quando a internet voltar.
+  const LAST_LOGIN_KEY = 'jardim-ivete-ultimo-login';
+  let authResolvido = false;
+  let entradaOfflineEmail = null;
+  function salvarUltimoLogin(user) {
+    try { localStorage.setItem(LAST_LOGIN_KEY, JSON.stringify({ email: user.email, displayName: user.displayName || '', photoURL: user.photoURL || '' })); } catch (e) {}
+  }
+  function lerUltimoLogin() {
+    try { const u = JSON.parse(localStorage.getItem(LAST_LOGIN_KEY) || 'null'); return (u && u.email) ? u : null; } catch (e) { return null; }
+  }
+  function tentarEntradaOffline() {
+    if (auth.currentUser || entradaOfflineEmail) return;      // já entrou de verdade (ou já entrou offline)
+    if (navigator.onLine && authResolvido) return;            // online e o login respondeu: segue o fluxo normal
+    const salvo = lerUltimoLogin();
+    if (!salvo) return;                                       // nunca entrou neste aparelho: precisa de internet
+    entradaOfflineEmail = salvo.email;
+    tratarUsuario(salvo);
+  }
+  // "Sair" feito pela pessoa: esquece o login salvo, mesmo se estiver sem internet
+  const signOutOriginal = window._fb.signOut;
+  window._fb.signOut = (...args) => {
+    entradaOfflineEmail = null;
+    try { localStorage.removeItem(LAST_LOGIN_KEY); } catch (e) {}
+    return signOutOriginal(...args);
+  };
+  setTimeout(tentarEntradaOffline, navigator.onLine ? 5000 : 1200);
+  window.addEventListener('offline', () => setTimeout(tentarEntradaOffline, 300));
+
   // Listener de autenticação
   onAuthStateChanged(auth, async (user) => {
+    authResolvido = true;
+    if (user) {
+      salvarUltimoLogin(user);
+      // Já tinha entrado offline com este mesmo usuário: não refaz a entrada
+      if (entradaOfflineEmail && entradaOfflineEmail === user.email) { entradaOfflineEmail = null; return; }
+      entradaOfflineEmail = null;
+    } else {
+      // Sem internet o Firebase pode não confirmar a sessão: mantém a entrada offline
+      if (!navigator.onLine) { if (!entradaOfflineEmail) setTimeout(tentarEntradaOffline, 300); return; }
+      // Online e sem usuário = saiu de verdade: esquece o login salvo
+      entradaOfflineEmail = null;
+      try { localStorage.removeItem(LAST_LOGIN_KEY); } catch (e) {}
+    }
+    await tratarUsuario(user);
+  });
+
+  async function tratarUsuario(user) {
     const overlay = document.getElementById('authOverlay');
     const loading = document.getElementById('authLoading');
     const pendingCard = document.getElementById('authPendingCard');
@@ -5805,7 +5876,7 @@ function initFirebaseAuth() {
       currentUser = null;
       isAdmin = false;
     }
-  });
+  }
 
   // Botão de login Google
   document.getElementById('btnGoogleLogin').onclick = async () => {

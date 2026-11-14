@@ -8,7 +8,7 @@
 //    Push de verdade, vindo do servidor mesmo com o app fechado, exigiria configurar
 //    chaves VAPID + um endpoint que envie os pushes — não incluído aqui.
 
-const VERSION = 'v1';
+const VERSION = 'v3';
 const SHELL_CACHE = `territorio-shell-${VERSION}`;
 const TILE_CACHE = `territorio-tiles-${VERSION}`;
 const CDN_CACHE = `territorio-cdn-${VERSION}`;
@@ -17,16 +17,44 @@ const MAX_TILES = 4000; // limite de tiles guardados (evita estourar o storage d
 const SHELL_FILES = [
   './',
   './index.html',
+  './mapa.html',
+  './grupos.html',
   './manifest.json',
-  './icon-180.png',
   './favicon.ico',
+  './icon-16.png', './icon-32.png', './icon-48.png', './icon-96.png',
+  './icon-120.png', './icon-152.png', './icon-167.png', './icon-180.png',
+  './icon-192.png', './icon-256.png', './icon-384.png', './icon-512.png',
+];
+
+// Bibliotecas externas baixadas já na instalação, pra o app abrir 100% offline
+// mesmo que a pessoa nunca tenha usado alguma tela antes.
+const CDN_FILES = [
+  'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js',
+  'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js',
+  'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  'https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.7',
+  'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css',
+  'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+  'https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(SHELL_CACHE)
-      .then((cache) => Promise.all(SHELL_FILES.map((f) => cache.add(f).catch(() => {}))))
-      .then(() => self.skipWaiting())
+    Promise.all([
+      caches.open(SHELL_CACHE)
+        .then((cache) => Promise.all(SHELL_FILES.map((f) => cache.add(f).catch(() => {})))),
+      caches.open(CDN_CACHE)
+        .then((cache) => Promise.all(CDN_FILES.map((f) => cache.add(f).catch(() => {})))),
+    ]).then(() => self.skipWaiting())
   );
 });
 
@@ -51,7 +79,7 @@ function isTileRequest(url) {
   );
 }
 function isCdnRequest(url) {
-  return /cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com/.test(url);
+  return /cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com|www\.gstatic\.com\/firebasejs\//.test(url);
 }
 function isDynamicRequest(url) {
   return (
@@ -127,7 +155,7 @@ self.addEventListener('fetch', (event) => {
           }
           return resp;
         })
-        .catch(() => caches.match(req).then((c) => c || caches.match('./index.html')))
+        .catch(() => caches.match(req, { ignoreSearch: true }).then((c) => c || caches.match('./index.html')))
     );
   }
 });
