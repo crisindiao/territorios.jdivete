@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.vercel.gerenciador_territorio.twa",
+        "sha256_cert_fingerprints": ["BB:49:10:F1:BE:ED:0E:14:34:FF:6B:AB:90:6D:68:52:A8:D8:4A:3F:89:9D:6B:A5:FD:44:5E:6E:8C:DE:B7:5B"]
+      }
+    }]
