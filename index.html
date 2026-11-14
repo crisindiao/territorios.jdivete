@@ -1691,7 +1691,17 @@ async function flushPendingSync() {
   renderSyncBadge();
 }
 
-window.addEventListener('online', () => { flushPendingSync(); });
+// Espera a conexão estabilizar um pouco antes de enviar (logo que liga a internet
+// a rede ainda não está pronta e o envio ficava esperando).
+window.addEventListener('online', () => { setTimeout(flushPendingSync, 2500); });
+
+// Rejeita a promessa se ela não terminar no tempo dado (a operação original continua).
+function comTempoLimite(promessa, ms) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => { const e = new Error('Tempo esgotado'); e.code = 'tempo-esgotado'; reject(e); }, ms);
+    promessa.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+}
 window.addEventListener('offline', () => { syncStatus = 'offline'; renderSyncBadge(); });
 document.addEventListener('DOMContentLoaded', () => {
   if (!navigator.onLine) syncStatus = 'offline';
@@ -2728,7 +2738,7 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
       // recebemos dados do servidor (via load inicial ou onSnapshot), avisamos
       // em vez de sobrescrever silenciosamente o trabalho da outra pessoa.
       try {
-        const currentSnap = await getDoc(doc(db, "territorio", docId));
+        const currentSnap = await comTempoLimite(getDoc(doc(db, "territorio", docId)), 6000);
         if (currentSnap.exists()) {
           const serverSavedAt = currentSnap.data().savedAt;
           if (lastKnownSavedAt && serverSavedAt && serverSavedAt !== lastKnownSavedAt) {
@@ -2738,8 +2748,30 @@ function closeActivityLog() { document.getElementById('activityOverlay').classLi
         }
       } catch(e) { /* se a checagem falhar, seguimos com o save normalmente */ }
 
-      await setDoc(doc(db, "territorio", docId), payload);
+      // O Firestore guarda a escrita no aparelho e envia sozinho. Logo depois de a
+      // internet voltar, a confirmação do servidor pode demorar (reconexão, login
+      // sendo revalidado). Não deixamos o "Sincronizando…" preso: depois de 15s a
+      // escrita segue na fila do Firestore e termina em segundo plano.
+      const escrita = setDoc(doc(db, "territorio", docId), payload);
+      let confirmou = true;
+      try {
+        await comTempoLimite(escrita, 15000);
+      } catch (errTempo) {
+        if (!errTempo || errTempo.code !== 'tempo-esgotado') throw errTempo;
+        confirmou = false;
+        escrita.then(() => {
+          if (syncStatus !== 'offline') { syncStatus = 'synced'; renderSyncBadge(); }
+        }).catch((e) => console.error('Falha ao enviar em segundo plano:', e));
+      }
       lastKnownSavedAt = payload.savedAt;
+      if (!confirmou) {
+        syncPendingCount = 0;
+        persistSyncPending();
+        syncStatus = 'idle';
+        renderSyncBadge();
+        showSnack('☁️ Alterações guardadas — terminando de enviar em segundo plano', 4000);
+        return { ok: true, background: true };
+      }
       // Se havia fila pendente (ou estávamos marcados como offline), mostra a confirmação de sincronização
       if (syncPendingCount > 0 || syncStatus === 'offline' || syncStatus === 'syncing') {
         syncPendingCount = 0;
