@@ -10,9 +10,10 @@
 
 const VERSION = 'v3';
 const SHELL_CACHE = `territorio-shell-${VERSION}`;
-const TILE_CACHE = `territorio-tiles-${VERSION}`;
+// Nome fixo (sem versão): atualizar o app NÃO apaga os pedaços de mapa já guardados.
+const TILE_CACHE = 'territorio-tiles';
 const CDN_CACHE = `territorio-cdn-${VERSION}`;
-const MAX_TILES = 4000; // limite de tiles guardados (evita estourar o storage do navegador)
+const MAX_TILES = 8000; // limite de tiles guardados (evita estourar o storage do navegador)
 
 const SHELL_FILES = [
   './',
@@ -75,7 +76,9 @@ function isTileRequest(url) {
     /(^|\.)tile\.openstreetmap\.org\//.test(url) ||
     /server\.arcgisonline\.com\/.*\/tile\//.test(url) ||
     /basemaps\.cartocdn\.com\/.*rastertiles/.test(url) ||
-    /\.google\.com\/vt\?/.test(url)
+    /\.google\.com\/vt\?/.test(url) ||
+    /\.google\.com\/vt\/lyrs/.test(url) ||
+    /tiles\.virtualearth\.net/.test(url)
   );
 }
 function isCdnRequest(url) {
